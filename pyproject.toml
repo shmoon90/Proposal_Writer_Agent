@@ -23,7 +23,7 @@ dependencies = [
     "onnxruntime>=1.20,<2",
     "numpy>=1.25,<3",
     "pillow>=10,<13",
-    "matplotlib>=3.10,<4",
+    # matplotlib은 이 개발 PC의 앱 제어 정책이 렌더링 DLL(_backend_agg)을 차단해 Pillow로 대체 (RISK R-25)
     "streamlit>=1.60,<2",
     "python-dotenv>=1.0,<2",
 ]

@@ -65,6 +65,9 @@ class Settings:
     extraction_chunk_chars: int = 12000
     # 외부 MCP 서버 설정 (PWA_MCP_EXTERNAL=JSON: {name: {type: http, url: ...}}). 기본은 없음.
     mcp_external: dict[str, Any] = field(default_factory=dict)
+    holidays: str = ""  # 쉼표 구분 ISO 날짜 (PWA_HOLIDAYS=2026-12-25,2027-01-01)
+    font_path: str = r"C:\Windows\Fonts\malgun.ttf"  # 다이어그램·차트 한글 폰트 (PWA_FONT_PATH)
+    md_per_mm: int = 20  # 1 M/M 당 영업일 (보고서에 가정으로 명시)
     env_file: Path | None = field(default=None, repr=False)
 
     @property

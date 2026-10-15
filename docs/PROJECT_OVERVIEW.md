@@ -63,7 +63,7 @@ AI(LLM)는 **의미 해석·조사·작성·영향 분석**을 담당하고, **I
 | python-pptx | 1.0.2 | |
 | python-docx | 1.2.0 | |
 | pymupdf | 1.28.2 | |
-| matplotlib | 3.11.2 | |
+| matplotlib | 제거 | 렌더링 DLL이 앱 제어 정책에 차단되어 Pillow로 대체 (RISK R-25) |
 | pytest | 9.1.1 | |
 | ruff | 0.17.0 | |
 | mypy | 2.4.0 | |
@@ -97,7 +97,7 @@ AI(LLM)는 **의미 해석·조사·작성·영향 분석**을 담당하고, **I
 | OCR 엔진 | 미확정 | `rapidocr-onnxruntime`(한국어 모델 확인) vs `pytesseract`(바이너리 설치) → Phase 2 스파이크 |
 | pandas 메이저 버전 | 미확정 | 2.x 고정 vs 3.x 수용 → Phase 1에서 streamlit 호환 검증 후 결정 |
 | 모델 선택 | 미확정 | 기본 `claude-opus-5-5`, 보조 `claude-sonnet-5-5`/`claude-haiku-5-5` 권장. 비용 측정 후 역할별 조정 |
-| 다이어그램 생성 방식 | 미확정 | matplotlib 직접 렌더링 vs Mermaid→이미지(외부 도구 필요) vs python-pptx 도형 → Phase 4 |
+| 다이어그램 생성 방식 | 확정 (Phase 4) | Pillow 직접 드로잉. matplotlib은 DLL 차단(R-25), 외부 Mermaid 도구 불필요 |
 | 구축 단계 기존 문서 파싱 | 미확정 | 고객사별 Excel 양식이 다름 → 컬럼 매핑 UI + 템플릿 프로파일로 대응 |
 | Agent SDK 세션 영속화 | 미확정 | `session_store` 옵션 활용 여부 → Phase 2 |
 

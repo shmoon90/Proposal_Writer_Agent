@@ -152,25 +152,25 @@ Proposal_Writer_Agent/
 │   ├── research/
 │   │   ├── sources.py                출처 레코드, 공식 문서 우선순위
 │   │   └── feasibility.py            구현 가능성 판정 스키마 병합
-│   ├── planning/
-│   │   ├── calendar.py               영업일 계산, 공휴일
-│   │   ├── scheduler.py              선후행 관계 검증, CPM 일정 계산
-│   │   ├── effort.py                 공수 합계, M/M 환산
-│   │   └── staffing.py               인력 투입 계획, 비용 계산
-│   ├── generators/
-│   │   ├── base.py                   Generator 추상, 출력 경로·버전 규칙
-│   │   ├── excel/                    요구사항정의서, 추적표, WBS·간트, 인력계획
-│   │   ├── pptx/                     제출용, 발표용
-│   │   ├── diagrams/                 시스템·SW·서비스 구성도 (matplotlib)
-│   │   └── summary.py                00_Project_Summary
+│   ├── planning/                                                             [Phase 4 구현]
+│   │   ├── calendar.py               영업일 계산(주말·설정 공휴일)
+│   │   ├── scheduler.py              선후행 검증(참조·자기참조·순환·3단계), FS/SS/FF/SF+lag 전진 계산, 롤업, 기간 초과
+│   │   ├── effort.py                 공수 롤업, 역할 비율 분배, M/D→M/M (1 MM = 20 M/D 가정)
+│   │   ├── staffing.py               월별 M/D 분배, 역할별 M/M·인원, 단가 있을 때만 비용
+│   │   └── service.py                PlanningService: 기간 결정(UI→RFP→입력 요청), 기본 WBS, 계획 저장
+│   ├── generators/                                                           [Phase 4 구현]
+│   │   ├── base.py                   GenerationContext(공통 데이터), 수용여부 라벨, 비고 규칙
+│   │   ├── excel/                    style(서식·필터·고정창·유효성), 요구사항정의서, 추적표, WBS·간트, 인력계획
+│   │   ├── pptx/                     builder(16:9 슬라이드), outline(목차 결정), decks(제출용·발표용)
+│   │   ├── diagrams/                 시스템·SW·서비스 구성도, 간트·공수 차트 (Pillow 직접 드로잉)
+│   │   └── service.py                GenerationService: 데이터 조립, 기본 구성 요소, 9종 생성, 최종본 복사
 │   ├── changes/
 │   │   ├── change_request.py         변경 요청 수명주기
 │   │   ├── impact.py                 영향 대상 식별 (결정적 부분: 추적표 그래프 탐색)
 │   │   └── versioning.py             Revision 생성, 파일 버전명, 변경 이력 보존
-│   ├── validation/
-│   │   ├── file_integrity.py         생성 파일 재오픈·필수 시트·컬럼 검사
-│   │   ├── consistency.py            문서 간 정합성 (요구사항 수, ID 일치 등)
-│   │   └── rules.py                  규칙 레지스트리
+│   ├── validation/                                                           [Phase 4 구현]
+│   │   ├── deliverables.py           PPT/Excel 열기·구조·서식·수식·날짜·ID 검사, 공수·수치 일관성, 추적성
+│   │   └── qa_service.py             QaService: 검사 실행, ValidationResult·QA 보고서, Gate 4 평가
 │   ├── storage/                                                              [Phase 1 구현]
 │   │   ├── db.py                     SQLite 연결(잠금, WAL), 마이그레이션 적용
 │   │   ├── migrations.py             버전별 SQL (추가 전용)

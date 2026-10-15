@@ -16,24 +16,32 @@ from proposal_agent.config.errors import NotFoundError, StorageError
 from proposal_agent.models import (
     AgentOutput,
     Approval,
+    ArchitectureComponent,
     AuditEvent,
     Deliverable,
+    Dependency,
     Entity,
     ExtractedBlock,
     ExtractionRun,
     FeasibilityStudy,
     GateEvaluation,
     GateResult,
+    IntegrationTest,
     Project,
     ProjectScoped,
     Requirement,
     RequirementChange,
     RequirementTrace,
     Revision,
+    Screen,
     SourceDocument,
+    StaffingAllocation,
+    StaffRole,
     StepRun,
     TechnologyResearch,
+    UnitTest,
     ValidationResult,
+    WBSItem,
 )
 from proposal_agent.storage.db import Database
 
@@ -386,6 +394,66 @@ class AgentOutputRepository(BaseRepository[AgentOutput]):
         return rows[0] if rows else None
 
 
+class _ClearableRepository[T: Entity](BaseRepository[T]):
+    """계획·설계처럼 코드가 재생성하는 파생 데이터용. 요구사항과 달리 프로젝트 단위 물리 교체를 허용한다."""
+
+    def clear_project(self, project_id: str) -> int:
+        with self.db.transaction() as conn:
+            cur = conn.execute(f"DELETE FROM {self.table} WHERE project_id = ?", (project_id,))
+        return int(cur.rowcount)
+
+
+class WBSItemRepository(_ClearableRepository[WBSItem]):
+    table = "wbs_items"
+    model = WBSItem
+    columns = {"code": "code", "parent_id": "parent_id", "level": "level"}
+
+    def tree(self, project_id: str) -> list[WBSItem]:
+        return sorted(self.find(project_id), key=lambda w: (w.order, w.code))
+
+
+class DependencyRepository(_ClearableRepository[Dependency]):
+    table = "dependencies"
+    model = Dependency
+    columns = {"predecessor_id": "predecessor_id", "successor_id": "successor_id"}
+
+
+class StaffRoleRepository(_ClearableRepository[StaffRole]):
+    table = "staff_roles"
+    model = StaffRole
+    columns = {"role_name": "role_name"}
+
+
+class StaffingAllocationRepository(_ClearableRepository[StaffingAllocation]):
+    table = "staffing_allocations"
+    model = StaffingAllocation
+    columns = {"wbs_item_id": "wbs_item_id", "staff_role_id": "staff_role_id"}
+
+
+class ArchitectureComponentRepository(_ClearableRepository[ArchitectureComponent]):
+    table = "architecture_components"
+    model = ArchitectureComponent
+    columns = {"layer": "layer", "name": "name"}
+
+
+class ScreenRepository(_ClearableRepository[Screen]):
+    table = "screens"
+    model = Screen
+    columns = {"name": "name"}
+
+
+class UnitTestRepository(_ClearableRepository[UnitTest]):
+    table = "unit_tests"
+    model = UnitTest
+    columns = {"name": "name"}
+
+
+class IntegrationTestRepository(_ClearableRepository[IntegrationTest]):
+    table = "integration_tests"
+    model = IntegrationTest
+    columns = {"name": "name"}
+
+
 class SequenceRepository:
     """프로젝트별 단조 증가 시퀀스 (요구사항 ID 발급 등). 값은 낮아지지 않는다."""
 
@@ -455,3 +523,11 @@ class Repositories:
         self.research = TechnologyResearchRepository(db)
         self.feasibility = FeasibilityStudyRepository(db)
         self.agent_outputs = AgentOutputRepository(db)
+        self.wbs = WBSItemRepository(db)
+        self.dependencies = DependencyRepository(db)
+        self.staff_roles = StaffRoleRepository(db)
+        self.allocations = StaffingAllocationRepository(db)
+        self.components = ArchitectureComponentRepository(db)
+        self.screens = ScreenRepository(db)
+        self.unit_tests = UnitTestRepository(db)
+        self.integration_tests = IntegrationTestRepository(db)

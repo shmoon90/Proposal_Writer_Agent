@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 GATE_TITLES: dict[str, str] = {
     "gate0": "Gate 0: 문서 추출 품질",
     "gate1": "Gate 1: 요구사항 추출 및 독립 검증",
+    "gate4": "Gate 4: 산출물 QA 및 최종 승인",
 }
 
 

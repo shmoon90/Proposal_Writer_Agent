@@ -1,0 +1,489 @@
+"""산출물 품질 검사 (코드).
+
+- PPT: 열림, 슬라이드 크기·방향(16:9 가로), 도형이 슬라이드 밖으로 나가거나 텍스트 도형끼리 크게 겹치는지, 텍스트 넘침 추정
+- Excel: 열림, 필수 시트·컬럼, 수식 형식, 날짜 순서, ID가 공통 데이터와 일치, WBS 상위 참조
+- 일관성: WBS 총 공수 == 인력 계획 총 공수, 제출용·발표용 PPT 핵심 수치 일치, PPT 기술명이 구성 요소와 일치
+- 추적성: 필수 요구사항이 제출용 PPT 요구사항 대응 표에 모두 있는지
+결과는 ValidationResult(target=deliverable)와 QA 보고서(md)로 남긴다.
+"""
+
+from __future__ import annotations
+
+import io
+import re
+from dataclasses import dataclass, field
+from decimal import Decimal
+from pathlib import Path
+from typing import Any
+
+from proposal_agent.generators.base import GenerationContext
+from proposal_agent.generators.excel.requirement_spec import (
+    REQUIRED_COLUMNS,
+    SHEET_FUNCTIONAL,
+    SHEET_HISTORY,
+    SHEET_NON_FUNCTIONAL,
+    SHEET_OTHER,
+)
+from proposal_agent.generators.excel.staffing_plan import SHEET_MONTHLY, SHEET_PLAN, SHEET_SUMMARY
+from proposal_agent.generators.excel.trace_matrix import SHEET_MAIN, SHEET_TESTS, SHEET_UNTRACED
+from proposal_agent.generators.excel.wbs_gantt import (
+    SHEET_BASIS,
+    SHEET_DEPS,
+    SHEET_GANTT,
+    SHEET_WBS,
+)
+from proposal_agent.generators.pptx.decks import key_figures
+from proposal_agent.models import DeliverableKind, ValidationLevel
+
+REQUIRED_SHEETS: dict[DeliverableKind, dict[str, tuple[str, ...]]] = {
+    DeliverableKind.REQUIREMENT_SPEC_XLSX: {
+        SHEET_FUNCTIONAL: REQUIRED_COLUMNS,
+        SHEET_NON_FUNCTIONAL: REQUIRED_COLUMNS,
+        SHEET_OTHER: REQUIRED_COLUMNS,
+        SHEET_HISTORY: ("요구사항 ID",),
+    },
+    DeliverableKind.TRACE_MATRIX_XLSX: {
+        SHEET_MAIN: (
+            "요구사항 ID",
+            "요구사항 명",
+            "화면 ID",
+            "단위테스트 ID",
+            "단위테스트 결과",
+            "통합테스트 ID",
+            "통합테스트 결과",
+        ),
+        SHEET_TESTS: ("테스트 ID",),
+        SHEET_UNTRACED: ("요구사항 ID",),
+    },
+    DeliverableKind.WBS_GANTT_XLSX: {
+        SHEET_WBS: (
+            "WBS ID",
+            "상위 WBS ID",
+            "요구사항 ID",
+            "Task 명",
+            "계획 시작일",
+            "계획 종료일",
+            "기간(영업일)",
+            "진행 상태",
+            "산정 근거",
+        ),
+        SHEET_GANTT: ("WBS ID",),
+        SHEET_DEPS: ("선행 WBS", "후행 WBS"),
+        SHEET_BASIS: ("WBS ID", "산정 근거"),
+    },
+    DeliverableKind.STAFFING_PLAN_XLSX: {
+        SHEET_PLAN: (
+            "역할",
+            "기술 등급",
+            "투입 인원",
+            "담당 업무",
+            "투입 시작일",
+            "투입 종료일",
+            "예상 공수(MM)",
+            "산정 근거",
+            "단가(원/MM, 입력)",
+            "비용 합계(원)",
+        ),
+        SHEET_SUMMARY: ("역할", "공수(M/D)"),
+        SHEET_MONTHLY: ("역할(MM)",),
+    },
+}
+
+
+@dataclass
+class Finding:
+    level: ValidationLevel
+    rule: str
+    message: str
+    location: str = ""
+
+
+@dataclass
+class QaOutcome:
+    findings: list[Finding] = field(default_factory=list)
+    opened: dict[str, bool] = field(default_factory=dict)
+    figures: dict[str, dict[str, str]] = field(default_factory=dict)
+
+    @property
+    def errors(self) -> list[Finding]:
+        return [f for f in self.findings if f.level == ValidationLevel.ERROR]
+
+    @property
+    def warnings(self) -> list[Finding]:
+        return [f for f in self.findings if f.level == ValidationLevel.WARNING]
+
+    def add(self, level: ValidationLevel, rule: str, message: str, location: str = "") -> None:
+        self.findings.append(Finding(level, rule, message, location))
+
+
+# --- PPT -------------------------------------------------------------------------------------
+
+
+def pptx_texts(path: Path) -> list[str]:
+    from pptx import Presentation
+
+    prs = Presentation(str(path))
+    out: list[str] = []
+    for slide in prs.slides:
+        parts: list[str] = []
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                parts.append(shape.text_frame.text)
+            if getattr(shape, "has_table", False) and shape.has_table:
+                for row in shape.table.rows:
+                    parts.append(" | ".join(c.text for c in row.cells))
+        out.append("\n".join(parts))
+    return out
+
+
+def check_pptx(path: Path, outcome: QaOutcome, label: str) -> list[str]:
+    from pptx import Presentation
+
+    try:
+        prs = Presentation(str(path))
+    except Exception as exc:  # noqa: BLE001
+        outcome.opened[label] = False
+        outcome.add(
+            ValidationLevel.ERROR,
+            "pptx.open",
+            f"{label}: 파일을 열 수 없음 ({type(exc).__name__}: {exc})",
+            path.name,
+        )
+        return []
+    outcome.opened[label] = True
+    w, h = int(prs.slide_width or 0), int(prs.slide_height or 0)
+    if w <= h:
+        outcome.add(
+            ValidationLevel.ERROR,
+            "pptx.orientation",
+            f"{label}: 슬라이드가 가로 방향이 아님",
+            path.name,
+        )
+    ratio = w / h
+    if abs(ratio - 16 / 9) > 0.05:
+        outcome.add(
+            ValidationLevel.WARNING,
+            "pptx.size",
+            f"{label}: 슬라이드 비율 {ratio:.2f} (16:9 아님)",
+            path.name,
+        )
+    if len(prs.slides) < 3:
+        outcome.add(
+            ValidationLevel.ERROR,
+            "pptx.slides",
+            f"{label}: 슬라이드가 {len(prs.slides)}장뿐",
+            path.name,
+        )
+    texts: list[str] = []
+    for idx, slide in enumerate(prs.slides, start=1):
+        boxes: list[tuple[int, int, int, int, bool]] = []
+        slide_text: list[str] = []
+        for shape in slide.shapes:
+            if shape.left is None or shape.top is None:
+                continue
+            left, top, width, height = (
+                int(shape.left),
+                int(shape.top),
+                int(shape.width or 0),
+                int(shape.height or 0),
+            )
+            if left < 0 or top < 0 or left + width > w + 1000 or top + height > h + 1000:
+                outcome.add(
+                    ValidationLevel.ERROR,
+                    "pptx.bounds",
+                    f"{label} {idx}장: 도형 '{shape.name}'이 슬라이드 밖으로 나감",
+                    f"slide {idx}",
+                )
+            has_text = shape.has_text_frame and bool(shape.text_frame.text.strip())
+            if has_text:
+                slide_text.append(shape.text_frame.text)
+                text = shape.text_frame.text
+                width_in = max(width / 914400, 0.1)
+                height_in = max(height / 914400, 0.1)
+                lines = sum(
+                    max(1, len(line) // max(int(width_in * 11), 1) + 1)
+                    for line in text.splitlines()
+                )
+                if lines * 0.33 > height_in * 1.6 and height_in < 5:
+                    outcome.add(
+                        ValidationLevel.WARNING,
+                        "pptx.overflow",
+                        f"{label} {idx}장: 텍스트가 도형을 넘칠 수 있음 ({lines}줄 추정)",
+                        f"slide {idx}",
+                    )
+            if getattr(shape, "has_table", False) and shape.has_table:
+                for row in shape.table.rows:
+                    slide_text.append(" | ".join(c.text for c in row.cells))
+            boxes.append((left, top, width, height, has_text))
+        for i, a in enumerate(boxes):
+            for b in boxes[i + 1 :]:
+                if not (a[4] and b[4]):
+                    continue
+                ix = max(0, min(a[0] + a[2], b[0] + b[2]) - max(a[0], b[0]))
+                iy = max(0, min(a[1] + a[3], b[1] + b[3]) - max(a[1], b[1]))
+                inter = ix * iy
+                smaller = max(1, min(a[2] * a[3], b[2] * b[3]))
+                if inter / smaller > 0.3:
+                    outcome.add(
+                        ValidationLevel.WARNING,
+                        "pptx.overlap",
+                        f"{label} {idx}장: 텍스트 도형이 겹침",
+                        f"slide {idx}",
+                    )
+                    break
+        texts.append("\n".join(slide_text))
+    return texts
+
+
+# --- Excel ------------------------------------------------------------------------------------
+
+
+def check_xlsx(
+    path: Path, kind: DeliverableKind, outcome: QaOutcome, ctx: GenerationContext
+) -> dict[str, list[list[Any]]]:
+    from openpyxl import load_workbook
+
+    label = kind.value
+    try:
+        wb = load_workbook(io.BytesIO(path.read_bytes()))
+    except Exception as exc:  # noqa: BLE001
+        outcome.opened[label] = False
+        outcome.add(
+            ValidationLevel.ERROR,
+            "xlsx.open",
+            f"{label}: 파일을 열 수 없음 ({type(exc).__name__}: {exc})",
+            path.name,
+        )
+        return {}
+    outcome.opened[label] = True
+    sheets: dict[str, list[list[Any]]] = {}
+    for sheet, cols in REQUIRED_SHEETS.get(kind, {}).items():
+        if sheet not in wb.sheetnames:
+            outcome.add(
+                ValidationLevel.ERROR, "xlsx.sheet", f"{label}: 시트 '{sheet}' 없음", path.name
+            )
+            continue
+        ws = wb[sheet]
+        headers = [str(c.value) if c.value is not None else "" for c in ws[1]]
+        missing = [c for c in cols if c not in headers]
+        if missing:
+            outcome.add(
+                ValidationLevel.ERROR,
+                "xlsx.columns",
+                f"{label}/{sheet}: 필수 컬럼 누락 {missing}",
+                sheet,
+            )
+        rows: list[list[Any]] = []
+        for row in ws.iter_rows(min_row=2):
+            values = [c.value for c in row]
+            if not any(v is not None for v in values):
+                break
+            rows.append(values)
+        sheets[sheet] = [headers, *rows]
+        for row in ws.iter_rows():
+            for c in row:
+                if isinstance(c.value, str) and c.value.startswith("="):
+                    if "#REF" in c.value or c.value.count("(") != c.value.count(")"):
+                        outcome.add(
+                            ValidationLevel.ERROR,
+                            "xlsx.formula",
+                            f"{label}/{sheet}: 수식 오류 {c.coordinate} {c.value}",
+                            c.coordinate,
+                        )
+    # 종류별 데이터 검사
+    req_ids = {r.id for r in ctx.requirements}
+    if kind == DeliverableKind.REQUIREMENT_SPEC_XLSX:
+        found: set[str] = set()
+        for sheet in (SHEET_FUNCTIONAL, SHEET_NON_FUNCTIONAL, SHEET_OTHER):
+            data = sheets.get(sheet)
+            if not data:
+                continue
+            idx = data[0].index("요구사항 ID") if "요구사항 ID" in data[0] else None
+            if idx is None:
+                continue
+            found |= {str(r[idx]) for r in data[1:] if r[idx]}
+        if found != req_ids:
+            outcome.add(
+                ValidationLevel.ERROR,
+                "xlsx.ids",
+                f"{label}: 요구사항 ID 집합이 공통 데이터와 다름 (누락 {sorted(req_ids - found)[:5]}, 초과 {sorted(found - req_ids)[:5]})",
+                path.name,
+            )
+    if kind == DeliverableKind.WBS_GANTT_XLSX and SHEET_WBS in sheets:
+        data = sheets[SHEET_WBS]
+        h = data[0]
+        ci = {name: h.index(name) for name in h if name}
+        codes = {str(r[ci["WBS ID"]]) for r in data[1:]}
+        for r in data[1:]:
+            parent = r[ci["상위 WBS ID"]]
+            if parent and str(parent) not in codes:
+                outcome.add(
+                    ValidationLevel.ERROR,
+                    "xlsx.wbs_parent",
+                    f"{label}: {r[ci['WBS ID']]}의 상위 {parent} 없음",
+                    SHEET_WBS,
+                )
+            s, e = r[ci["계획 시작일"]], r[ci["계획 종료일"]]
+            if (
+                s is not None
+                and e is not None
+                and hasattr(s, "toordinal")
+                and hasattr(e, "toordinal")
+                and e < s
+            ):
+                outcome.add(
+                    ValidationLevel.ERROR,
+                    "xlsx.dates",
+                    f"{label}: {r[ci['WBS ID']]} 종료일이 시작일보다 빠름",
+                    SHEET_WBS,
+                )
+            if not r[ci["산정 근거"]]:
+                outcome.add(
+                    ValidationLevel.ERROR,
+                    "xlsx.basis",
+                    f"{label}: {r[ci['WBS ID']]} 산정 근거 없음",
+                    SHEET_WBS,
+                )
+            for rid in str(r[ci["요구사항 ID"]] or "").split(","):
+                rid = rid.strip()
+                if rid and rid not in req_ids:
+                    outcome.add(
+                        ValidationLevel.WARNING,
+                        "xlsx.req_ref",
+                        f"{label}: {r[ci['WBS ID']]}가 없는 요구사항 {rid} 참조",
+                        SHEET_WBS,
+                    )
+    if kind == DeliverableKind.TRACE_MATRIX_XLSX and SHEET_MAIN in sheets:
+        data = sheets[SHEET_MAIN]
+        idx = data[0].index("요구사항 ID")
+        found = {str(r[idx]) for r in data[1:]}
+        if found != req_ids:
+            outcome.add(
+                ValidationLevel.ERROR,
+                "xlsx.ids",
+                f"{label}: 추적표 요구사항 집합 불일치",
+                path.name,
+            )
+        res_idx = [data[0].index(c) for c in ("단위테스트 결과", "통합테스트 결과")]
+        for r in data[1:]:
+            for i in res_idx:
+                if r[i] == "성공":
+                    outcome.add(
+                        ValidationLevel.ERROR,
+                        "xlsx.test_result",
+                        f"{label}: 수행하지 않은 테스트가 '성공'으로 표시됨 ({r[idx]})",
+                        SHEET_MAIN,
+                    )
+    return sheets
+
+
+# --- 일관성·추적성 -----------------------------------------------------------------------------
+
+
+def _find_total_md(sheets: dict[str, list[list[Any]]], sheet: str, col: str) -> Decimal | None:
+    data = sheets.get(sheet)
+    if not data or col not in data[0]:
+        return None
+    i = data[0].index(col)
+    name_i = 0
+    for r in data[1:]:
+        if str(r[name_i]) == "합계" and r[i] is not None:
+            return Decimal(str(r[i]))
+    return None
+
+
+def check_consistency(
+    ctx: GenerationContext,
+    excel: dict[DeliverableKind, dict[str, list[list[Any]]]],
+    ppt_texts: dict[str, list[str]],
+    outcome: QaOutcome,
+) -> None:
+    wbs_total = ctx.total_effort_md
+    staffing_total = _find_total_md(
+        excel.get(DeliverableKind.STAFFING_PLAN_XLSX, {}), SHEET_SUMMARY, "공수(M/D)"
+    )
+    if staffing_total is not None and abs(staffing_total - wbs_total) > Decimal("0.05"):
+        outcome.add(
+            ValidationLevel.ERROR,
+            "consistency.effort",
+            f"WBS 총 공수 {wbs_total} M/D ≠ 인력 계획 합계 {staffing_total} M/D",
+        )
+    alloc_total = sum((a.effort_md for a in ctx.allocations), Decimal("0"))
+    if ctx.allocations and abs(alloc_total - wbs_total) > Decimal("0.05"):
+        outcome.add(
+            ValidationLevel.ERROR,
+            "consistency.allocation",
+            f"배정 공수 합계 {alloc_total} ≠ WBS 총 공수 {wbs_total}",
+        )
+    figs = key_figures(ctx)
+    outcome.figures["expected"] = figs
+    joined = {label: "\n".join(t) for label, t in ppt_texts.items()}
+    for label, text in joined.items():
+        for key in ("period", "total_mm", "headcount"):
+            value = figs[key]
+            if value and value not in text and not (key == "period" and "기간 미정" in value):
+                outcome.add(
+                    ValidationLevel.ERROR,
+                    "consistency.ppt_figures",
+                    f"{label} PPT에 {key} 값 '{value}'이 없음 — Excel·다른 PPT와 불일치 가능",
+                )
+    techs = {c.technology for c in ctx.components if c.technology and "미정" not in c.technology}
+    for label, text in joined.items():
+        for tech in techs:
+            if tech not in text:
+                outcome.add(
+                    ValidationLevel.WARNING,
+                    "consistency.technology",
+                    f"{label} PPT에 구성 요소 기술 '{tech}' 언급 없음",
+                )
+    sub = joined.get("submission", "")
+    missing = [r.id for r in ctx.mandatory_requirements() if not re.search(re.escape(r.id), sub)]
+    if missing:
+        outcome.add(
+            ValidationLevel.ERROR,
+            "traceability.requirements",
+            f"제출용 PPT 요구사항 대응에 필수 요구사항 누락: {', '.join(missing[:10])}",
+        )
+    pres = joined.get("presentation", "")
+    for marker in ("검토 필요", "미정"):
+        n = pres.count(marker)
+        if n > 5:
+            outcome.add(
+                ValidationLevel.WARNING,
+                "quality.placeholders",
+                f"발표용 PPT에 '{marker}' 표기 {n}회 — 확정 후 재생성 권장",
+            )
+
+
+def render_report(
+    project_name: str,
+    outcome: QaOutcome,
+    deliverables: list[tuple[str, str]],
+    review_items: list[str],
+) -> str:
+    lines = [
+        f"# QA 보고서 — {project_name}",
+        "",
+        f"- 오류: {len(outcome.errors)}건 / 경고: {len(outcome.warnings)}건",
+        "",
+    ]
+    lines.append("## 파일 열기 검사")
+    for label, ok in outcome.opened.items():
+        lines.append(f"- {label}: {'열림' if ok else '실패'}")
+    lines += ["", "## 산출물"]
+    for kind, path in deliverables:
+        lines.append(f"- {kind}: `{path}`")
+    lines += ["", "## 검사 결과"]
+    for f in outcome.findings:
+        lines.append(
+            f"- [{f.level.value}] {f.rule}: {f.message}"
+            + (f" ({f.location})" if f.location else "")
+        )
+    if not outcome.findings:
+        lines.append("- 지적 사항 없음")
+    lines += ["", "## 사람 검토 필요"]
+    lines += [f"- {r}" for r in review_items] or ["- 없음"]
+    if outcome.figures.get("expected"):
+        lines += ["", "## 핵심 수치 (공통 데이터)"]
+        lines += [f"- {k}: {v}" for k, v in outcome.figures["expected"].items()]
+    return "\n".join(lines) + "\n"

@@ -221,4 +221,73 @@ MIGRATIONS: tuple[Migration, ...] = (
         CREATE INDEX ix_agent_outputs_role ON agent_outputs(project_id, role, created_at);
         """,
     ),
+    Migration(
+        4,
+        "planning_and_design",
+        f"""
+        CREATE TABLE wbs_items (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            code TEXT NOT NULL,
+            parent_id TEXT,
+            level TEXT NOT NULL,
+            {_COMMON}
+        );
+        CREATE UNIQUE INDEX ux_wbs_items_code ON wbs_items(project_id, code);
+
+        CREATE TABLE dependencies (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            predecessor_id TEXT NOT NULL,
+            successor_id TEXT NOT NULL,
+            {_COMMON}
+        );
+        CREATE INDEX ix_dependencies_project ON dependencies(project_id);
+
+        CREATE TABLE staff_roles (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            role_name TEXT NOT NULL,
+            {_COMMON}
+        );
+        CREATE INDEX ix_staff_roles_project ON staff_roles(project_id);
+
+        CREATE TABLE staffing_allocations (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            wbs_item_id TEXT NOT NULL,
+            staff_role_id TEXT NOT NULL,
+            {_COMMON}
+        );
+        CREATE INDEX ix_staffing_allocations_project ON staffing_allocations(project_id);
+
+        CREATE TABLE architecture_components (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            layer TEXT NOT NULL,
+            name TEXT NOT NULL,
+            {_COMMON}
+        );
+        CREATE INDEX ix_architecture_components_project ON architecture_components(project_id);
+
+        CREATE TABLE screens (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            name TEXT NOT NULL,
+            {_COMMON}
+        );
+        CREATE TABLE unit_tests (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            name TEXT NOT NULL,
+            {_COMMON}
+        );
+        CREATE TABLE integration_tests (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            name TEXT NOT NULL,
+            {_COMMON}
+        );
+        """,
+    ),
 )

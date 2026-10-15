@@ -5,9 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from proposal_agent.agents.runner import AgentRunner, build_runner
+from proposal_agent.generators.service import GenerationService
 from proposal_agent.ingest.ocr import OcrEngine
 from proposal_agent.ingest.service import ExtractionService
 from proposal_agent.orchestrator.gates import GateService
+from proposal_agent.planning.service import PlanningService
 from proposal_agent.requirements.service import RequirementService
 from proposal_agent.research.service import ResearchService
 from proposal_agent.services.agent_step_service import AgentStepService
@@ -16,6 +18,7 @@ from proposal_agent.services.context import AppContext
 from proposal_agent.services.document_service import DocumentService
 from proposal_agent.services.pipeline_service import PipelineService
 from proposal_agent.services.project_service import ProjectService
+from proposal_agent.validation.qa_service import QaService
 
 
 @dataclass
@@ -31,6 +34,9 @@ class Services:
     runner: AgentRunner
     steps: AgentStepService
     research: ResearchService
+    planning: PlanningService
+    generation: GenerationService
+    qa: QaService
 
     @classmethod
     def from_context(
@@ -44,6 +50,10 @@ class Services:
         runner = runner or build_runner(ctx.settings)
         extraction = ExtractionService(ctx.repos, ctx.paths, ctx.settings, audit, ocr=ocr)
         steps = AgentStepService(ctx.repos, ctx.paths, ctx.settings, audit, runner, ctx.files)
+        planning = PlanningService(ctx.repos, ctx.settings, audit)
+        generation = GenerationService(
+            ctx.repos, ctx.paths, ctx.settings, audit, ctx.files, planning, steps, extraction
+        )
         return cls(
             ctx=ctx,
             audit=audit,
@@ -56,6 +66,9 @@ class Services:
             runner=runner,
             steps=steps,
             research=ResearchService(ctx.repos, steps),
+            planning=planning,
+            generation=generation,
+            qa=QaService(ctx.repos, ctx.paths, audit, ctx.files, generation),
         )
 
 
@@ -66,6 +79,9 @@ __all__ = [
     "DocumentService",
     "ExtractionService",
     "GateService",
+    "GenerationService",
+    "PlanningService",
+    "QaService",
     "PipelineService",
     "ProjectService",
     "RequirementService",

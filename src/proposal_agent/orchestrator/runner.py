@@ -17,6 +17,7 @@ from proposal_agent.ingest.service import GATE0_KEY
 from proposal_agent.models import GateStatus, Project, StepRun
 from proposal_agent.orchestrator.gates import GateBlockedError, GateState
 from proposal_agent.requirements.service import GATE1_KEY, ExtractionSummary, VerificationSummary
+from proposal_agent.validation.qa_service import GATE4_KEY
 
 if TYPE_CHECKING:
     from proposal_agent.services import Services
@@ -237,4 +238,99 @@ class StepRunner:
             return StepOutcome(run=run, summary=summary)
         except PWAError as exc:
             pipeline.fail_step(project, run, exc, actor=actor)
+            raise
+
+    # --- 산출물 생성 · QA · 최종 확정 (Phase 4) ------------------------------------------------
+    STEP_GENERATE = "generate_docs"
+    STEP_PPT = "proposal_ppt"
+    STEP_QA = "qa"
+    STEP_FINALIZE = "finalize"
+
+    def run_generation(self, project: Project, *, actor: str = "user") -> StepOutcome:
+        """Gate 1 통과 프로젝트만. 계획(없으면 기본값)·구성도·Excel 4종·PPT 2종을 생성한다."""
+        self._s.gates.require(project, GATE1_KEY)
+        pipeline = self._s.pipeline
+        run = pipeline.start_step(project, self.STEP_GENERATE, actor=actor)
+        try:
+            result = self._s.generation.generate_all(project, actor=actor)
+            summary = (
+                f"산출물 {len(result.deliverables)}건 생성, 목차 출처 {result.outline[0].source if result.outline else '-'}, "
+                f"검토 필요 {len(result.review_items)}건"
+                + (f", 오류 {len(result.errors)}건" if result.errors else "")
+            )
+            if result.errors:
+                pipeline.fail_step(
+                    project,
+                    run,
+                    PWAError(
+                        "일부 산출물 생성 실패",
+                        cause="; ".join(result.errors),
+                        resolution="오류를 해결하고 다시 생성하십시오.",
+                    ),
+                    actor=actor,
+                )
+                raise PWAError(
+                    "일부 산출물 생성 실패",
+                    cause="; ".join(result.errors),
+                    resolution="오류를 해결하고 다시 생성하십시오.",
+                )
+            pipeline.complete_step(
+                project,
+                run,
+                summary=summary,
+                actor=actor,
+                output_refs={"deliverables": [d.id for d in result.deliverables]},
+            )
+            ppt_run = pipeline.start_step(project, self.STEP_PPT, actor=actor)
+            pipeline.complete_step(
+                project,
+                ppt_run,
+                summary="제출용·발표용 PPT 생성 (generate_docs와 동시)",
+                actor=actor,
+            )
+            return StepOutcome(run=run, summary=summary)
+        except PWAError as exc:
+            latest = self._s.ctx.repos.step_runs.latest(project.id, self.STEP_GENERATE)
+            if latest and latest.id == run.id and latest.status.value == "running":
+                pipeline.fail_step(project, run, exc, actor=actor)
+            raise
+
+    def run_qa(self, project: Project, *, actor: str = "user") -> StepOutcome:
+        self._s.gates.require(project, GATE1_KEY)
+        pipeline = self._s.pipeline
+        run = pipeline.start_step(project, self.STEP_QA, actor=actor)
+        try:
+            result = self._s.qa.run(project, actor=actor, step_run_id=run.id)
+            summary = (
+                f"QA 오류 {len(result.outcome.errors)}건, 경고 {len(result.outcome.warnings)}건, 사람 검토 {len(result.review_items)}건 "
+                f"→ {GATE4_KEY} {result.gate.status} (보고서 {result.report_path})"
+            )
+            pipeline.complete_step(
+                project,
+                run,
+                summary=summary,
+                actor=actor,
+                output_refs={"report": result.report_path, "gate4": result.gate.id},
+            )
+            return StepOutcome(
+                run=run, gate=self._s.gates.state(project, GATE4_KEY), summary=summary
+            )
+        except PWAError as exc:
+            pipeline.fail_step(project, run, exc, actor=actor)
+            raise
+
+    def run_finalize(self, project: Project, *, approver: str, comments: str) -> StepOutcome:
+        """Gate 4가 PASS(사람 승인 포함)여야 최종본 폴더로 복사한다."""
+        self._s.gates.require(project, GATE4_KEY)
+        pipeline = self._s.pipeline
+        run = pipeline.start_step(project, self.STEP_FINALIZE, actor=approver)
+        try:
+            copied = self._s.generation.finalize(project, approver=approver, comments=comments)
+            summary = f"최종본 {len(copied)}건 확정 → 13_Final_Deliverables"
+            pipeline.complete_step(
+                project, run, summary=summary, actor=approver, output_refs={"files": copied}
+            )
+            return StepOutcome(run=run, summary=summary)
+        except PWAError as exc:
+            pipeline.fail_step(project, run, exc, actor=approver)
             raise
