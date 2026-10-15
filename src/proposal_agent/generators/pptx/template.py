@@ -30,7 +30,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 ROMAN = "ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ"
 ROMAN_RE = re.compile(r"^\s*([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+|[IVX]{1,4})\s*[.．]?\s*(?P<title>.*)$")
-SECTION_RE = re.compile(r"^\s*(?P<no>\d{1,2})\s*[.．]\s*(?P<title>[^>]{1,60})")
+SECTION_RE = re.compile(r"^\s*(?P<no>\d{1,2})\s*(?P<sep>[.．/])\s*(?P<title>[^>]{1,60})")
+FRACTION_RE = re.compile(r"\s*[(（]\s*\d{1,2}\s*/\s*\d{1,2}\s*[)）]\s*$")
 SUBSECTION_RE = re.compile(
     r"^\s*(?P<no>\d{1,2}\.\d{1,2}(?:\.\d{1,2})?)\s*[.．]?\s*(?P<title>.{1,60})"
 )
@@ -96,6 +97,13 @@ class TemplateProfile(BaseModel):
     )
     band_color: str | None = None
     page_number_pattern: str | None = None
+    section_format: str = Field(
+        default="{no}. {title}",
+        description="머리글 절 번호 표기 (예: '{no}. {title}' 또는 '{no:02d}/ {title}')",
+    )
+    continued_format: str = Field(
+        default="(계속)", description="같은 절 분할 표기: '(계속)' 또는 '({i}/{n})'"
+    )
     fonts: dict[str, str] = Field(default_factory=dict, description="title/body")
     font_sizes: dict[str, float] = Field(default_factory=dict)
     colors: dict[str, str] = Field(default_factory=dict, description="primary/accent/lead")
@@ -211,8 +219,9 @@ def _box_from(shape: Any) -> Box:
 
 
 def _near(a: tuple[float, float, float], b: tuple[float, float, float]) -> bool:
-    """(top, left, width) cm 가 머리글로 볼 만큼 가까운가 (±0.45 / ±1.0 / ±3.0 cm)."""
-    return abs(a[0] - b[0]) <= 0.45 and abs(a[1] - b[1]) <= 1.0 and abs(a[2] - b[2]) <= 3.0
+    """(top, left, width) cm 가 머리글로 볼 만큼 가까운가 (±0.45 / ±1.0 cm). 폭은 제목 길이에 따라
+    자동 맞춤되는 양식(발표용)이 있어 크게 허용한다(±12 cm)."""
+    return abs(a[0] - b[0]) <= 0.45 and abs(a[1] - b[1]) <= 1.0 and abs(a[2] - b[2]) <= 12.0
 
 
 def _geom(shape: Any) -> tuple[float, float, float]:
@@ -221,6 +230,11 @@ def _geom(shape: Any) -> tuple[float, float, float]:
 
 def _norm_title(text: str) -> str:
     return re.sub(r"[\s.．]", "", text)
+
+
+def _strip_no(text: str) -> str:
+    """'01/ 제목', '1. 제목', '1.1 제목' 의 번호를 뗀다."""
+    return re.sub(r"^\s*\d{1,2}(\.\d{1,2})*\s*[.．/]?\s*", "", text).strip()
 
 
 def _solid_fill_hex(shape: Any) -> str | None:
@@ -253,8 +267,8 @@ def profile_template(
         seen: set[int] = set()
         for s in shapes:
             g = _geom(s)
-            if g[2] < w_cm * 0.4:
-                continue
+            if g[2] < w_cm * 0.15:
+                continue  # 발표형은 제목 길이에 따라 폭이 달라 좁은 머리글도 있다
             for ci, (center, members) in enumerate(clusters):
                 if _near(center, g) and ci not in seen:
                     members.append(s)
@@ -264,9 +278,23 @@ def profile_template(
                 clusters.append((g, [s]))
                 seen.add(len(clusters) - 1)
     threshold = max(2, int(len(slides) * 0.5))
-    header_clusters = sorted(
-        [(c, m) for c, m in clusters if len(m) >= threshold], key=lambda cm_: cm_[0][0]
-    )[:2]
+
+    def numbered_ratio(members: list[Any]) -> float:
+        hits = sum(
+            1
+            for m in members
+            if SECTION_RE.match(m.text_frame.text.strip())
+            or SUBSECTION_RE.match(m.text_frame.text.strip())
+        )
+        return hits / max(len(members), 1)
+
+    ranked = sorted([(c, m) for c, m in clusters if len(m) >= threshold], key=lambda cm_: cm_[0][0])
+    header_clusters = ranked[:1]
+    # 2단 머리글은 '절.소절 제목'처럼 번호가 붙은 텍스트가 절반 이상일 때만 (큰따옴표 리드 문장은 머리글이 아니다)
+    for cand in ranked[1:3]:
+        if numbered_ratio(cand[1]) >= 0.5:
+            header_clusters.append(cand)
+            break
     header_keys = [c for c, _m in header_clusters]
     headers: list[Box] = []
     for _key, samples in header_clusters:
@@ -291,9 +319,18 @@ def profile_template(
 
     def looks_like_chapter(i: int) -> bool:
         shapes = _iter_text_shapes(slides[i].shapes)
-        big = any((_run_style(s)[1] or 0) >= 24 for s in shapes)
-        numeral = any(re.fullmatch(rf"[{ROMAN}]+", s.text_frame.text.strip()) for s in shapes)
-        return big or numeral
+        # 장 표지 = 로마숫자 단독 상자 또는 'CHAPTER' 라벨이 있는 슬라이드 (큰 글꼴만으로는 판정하지 않는다: 인용부호·표지 제외)
+        numerals = {
+            s.text_frame.text.strip()
+            for s in shapes
+            if re.fullmatch(rf"[{ROMAN}]+", s.text_frame.text.strip())
+        }
+        chapter_label = any(s.text_frame.text.strip().upper() == "CHAPTER" for s in shapes)
+        agenda = any(
+            s.text_frame.text.strip().upper() in ("CONTENTS", "목차", "AGENDA") for s in shapes
+        )
+        # 로마숫자가 여러 개면 목차(CONTENTS) 슬라이드다
+        return (len(numerals) == 1 or chapter_label) and not agenda and len(numerals) <= 1
 
     content_idx = [i for i, shapes in enumerate(per_slide) if has_headers(shapes)]
     chapter_idx = [i for i in range(len(slides)) if i not in content_idx and looks_like_chapter(i)]
@@ -330,8 +367,10 @@ def profile_template(
                 if PAGE_FIELD in text:
                     page_pattern = text
                     bottom_static = min(bottom_static, _cm(sh.top) - 0.2)
-                elif text and _cm(sh.top) < h_cm * 0.15:
-                    chapter_label_boxes.append(_box_from(sh))
+                elif text and _cm(sh.top) < h_cm * 0.15 and not sh.is_placeholder:
+                    chapter_label_boxes.append(
+                        _box_from(sh)
+                    )  # 자리표시자('마스터 제목 스타일 편집')는 제외
         for sh in layout_obj.slide_master.shapes:
             if _cm(sh.top) > h_cm * 0.8:
                 bottom_static = min(bottom_static, _cm(sh.top) - 0.2)
@@ -436,7 +475,12 @@ def profile_template(
                     colors["primary"] = color
                 if size:
                     font_sizes["chapter"] = float(size)
-            elif SECTION_RE.match(text) and "\n" in text and chapter_list_box is None:
+            elif (
+                "\n" in text
+                and len([ln for ln in text.splitlines() if re.search(r"[가-힣A-Za-z]", ln)]) >= 2
+                and (chapter_list_box is None or _cm(s.width) > chapter_list_box.width)
+            ):
+                # 절 목록 상자: 글자가 있는 줄이 2개 이상인 상자 중 가장 넓은 것 (번호만 있는 '01/02' 상자 제외)
                 chapter_list_box = _box_from(s)
         if chapter_title_box is not None:
             break
@@ -488,6 +532,8 @@ def profile_template(
     chapters: list[TemplateChapter] = []
     current: TemplateChapter | None = None
     layout_numeral: dict[str, str] = {}
+    section_format = "{no}. {title}"
+    continued_format = "(계속)"
     for m in prs.slide_masters:
         for lo in m.slide_layouts:
             for sh in lo.shapes:
@@ -517,15 +563,32 @@ def profile_template(
                     size
                     and size > best
                     and not re.fullmatch(rf"[{ROMAN}]+", text)
-                    and "\n" not in text
+                    and text.upper() != "CHAPTER"
+                    and re.search(r"[가-힣A-Za-z0-9]", text)
+                    and len(text.replace("\n", " ")) <= 30
                 ):
-                    best, title = size, text
+                    best, title = size, " ".join(text.split())
             sections = [
                 ln.strip()
                 for s in shapes
                 for ln in s.text_frame.text.splitlines()
                 if SECTION_RE.match(ln.strip()) and "\n" in s.text_frame.text
             ]
+            if not sections:
+                # 번호 없는 절 목록 (번호는 별도 상자 "01 / 02 …"): 줄 2개 이상, 각 줄 40자 이하, 숫자만인 줄 제외
+                list_cands = [
+                    [ln.strip() for ln in s.text_frame.text.splitlines() if ln.strip()]
+                    for s in shapes
+                    if "\n" in s.text_frame.text
+                ]
+                list_cands = [
+                    c
+                    for c in list_cands
+                    if len(c) >= 2
+                    and all(len(x) <= 40 and not re.fullmatch(r"[\d/ .]+", x) for x in c)
+                ]
+                if list_cands:
+                    sections = max(list_cands, key=len)
             current = TemplateChapter(numeral=numeral, title=title[:60], sections=sections[:12])
             chapters.append(current)
             continue
@@ -538,19 +601,25 @@ def profile_template(
             current.numeral = layout_numeral.get(sl.slide_layout.name, "")
         texts = [s.text_frame.text.strip() for s in shapes[:2]]
         for t in texts:
+            if FRACTION_RE.search(t):
+                continued_format = "({i}/{n})"
             head = t.split(">")[0].strip()
             msub = SUBSECTION_RE.match(t)
             msec = SECTION_RE.match(head)
+            if msec and msec.group("sep") == "/" and section_format == "{no}. {title}":
+                section_format = "{no:02d}/ {title}"
             if msub:
-                sub = CONTINUED_RE.sub("", t).strip()
+                sub = FRACTION_RE.sub("", CONTINUED_RE.sub("", t)).strip()
                 if _norm_title(sub) not in {_norm_title(x) for x in current.subsections}:
                     current.subsections.append(sub[:60])
             elif msec:
                 numbers = {
                     m.group("no") for m in (SECTION_RE.match(x) for x in current.sections) if m
                 }
-                if msec.group("no") not in numbers:
-                    current.sections.append(head[:60])
+                clean = FRACTION_RE.sub("", CONTINUED_RE.sub("", head)).strip()
+                known = {_norm_title(_strip_no(x)) for x in current.sections}
+                if msec.group("no") not in numbers and _norm_title(_strip_no(clean)) not in known:
+                    current.sections.append(clean[:60])
     chapters = [c for c in chapters if c.sections or c.subsections or c.title]
     for c in chapters:
         c.subsections = c.subsections[:30]
@@ -591,6 +660,8 @@ def profile_template(
         chapter_label_boxes=chapter_label_boxes,
         band_color=band_color,
         page_number_pattern=page_pattern,
+        section_format=section_format,
+        continued_format=continued_format,
         fonts=fonts,
         font_sizes=font_sizes,
         colors=colors,
@@ -628,7 +699,10 @@ def _conventions(
             f"2단 '절.소절 소절 제목'({font_sizes.get('subsection', '?')}pt). 같은 소절이 이어지면 '(계속)'"
         )
     elif headers:
-        out.append(f"본문 슬라이드 머리글 1단 '번호 제목'({font_sizes.get('section', '?')}pt)")
+        out.append(
+            f"본문 슬라이드 머리글 1단 '절 번호와 제목'({font_sizes.get('section', '?')}pt), 발표형: 절마다 슬라이드 1~2장, "
+            "리드 문장 1개 + 도식(카드·흐름·2열 비교·구성도) + 요점 5개 이하"
+        )
     if lead:
         out.append(
             f"소절 첫 슬라이드 머리글 아래에 리드 메시지(요약 문장 1~2개, {font_sizes.get('lead', '?')}pt 굵게)"
@@ -712,6 +786,15 @@ class TemplateDeckBuilder:
         self.section_title = ""
         self.sub_no = 0
         self.chapter_slides: list[tuple[str, int]] = []  # (numeral, slide index) — QA용
+        from proposal_agent.generators.pptx.shapes import ShapeStyle
+
+        self.style = ShapeStyle(
+            font=profile.body_font,
+            title_font=profile.title_font,
+            primary=profile.colors.get("primary", "1F4E78"),
+            accent=profile.colors.get("accent", profile.colors.get("lead", "5B9BD5")),
+            base_pt=float(max(min(self.body_font_pt, 12), 7)),
+        )
 
     # --- 내부 --------------------------------------------------------------------------------
     def _remove_all_slides(self) -> None:
@@ -808,6 +891,8 @@ class TemplateDeckBuilder:
         """장 전용 레이아웃이 없을 때 레이아웃에 고정된 장 이름·로마숫자를 현재 장으로 덮어쓴다."""
         if layout is not self._content_layout or not self.profile.chapter_label_boxes:
             return
+        if not self._layout_numeral:
+            return  # 장별 레이아웃(로마숫자 라벨)이 없는 템플릿은 덮어쓸 장 라벨이 없다
         if self._layout_numeral.get(self.profile.content_layout or "") == self.chapter_numeral:
             return
         band = self.profile.band_color
@@ -831,24 +916,66 @@ class TemplateDeckBuilder:
                 align=PP_ALIGN.CENTER if is_numeral else None,
             )
 
-    def _content_slide(self, subsection_title: str, *, continued: bool) -> tuple[Any, Box]:
+    def _content_slide(
+        self, subsection_title: str, *, continued: bool, page: tuple[int, int] | None = None
+    ) -> tuple[Any, Box]:
+        """본문 슬라이드 머리글. 2단 양식: '절' + '절.소절 소절', 1단 양식(발표용): '절번호 소절 제목'."""
         layout = self._layout_for_chapter()
         slide = self._new_slide(layout)
         self._chapter_label_overlay(slide, layout)
+        prof = self.profile
+        fmt = prof.section_format
+        marker = ""
+        fraction = "{i}" in prof.continued_format
+        if fraction and page and page[1] > 1:
+            marker = " " + prof.continued_format.format(i=page[0], n=page[1])  # 모든 쪽에 (i/n)
+        elif continued and not fraction:
+            marker = " " + prof.continued_format  # 이어지는 쪽에만 (계속)
+        default_pt = 16.0 if prof.orientation == "landscape" else 10.0
+        if len(prof.headers) == 1:
+            sec_box = prof.headers[0]
+            text = (
+                fmt.format(no=self.section_no, title=subsection_title)
+                if self.section_no
+                else subsection_title
+            )
+            self._text(
+                slide,
+                sec_box,
+                (text + marker)[:80],
+                size=sec_box.font_size or prof.size("section", default_pt),
+                bold=True,
+                anchor=MSO_ANCHOR.MIDDLE,
+            )
+            return slide, prof.body
         sec_box, sub_box = self._header_boxes()
         sec_label = (
-            f"{self.section_no}. {self.section_title}" if self.section_no else self.section_title
+            fmt.format(no=self.section_no, title=self.section_title)
+            if self.section_no
+            else self.section_title
         )
         sub_label = (
             f"{self.section_no}.{self.sub_no} {subsection_title}"
             if self.section_no
             else subsection_title
         )
-        if continued:
-            sub_label += " (계속)"
-        self._text(slide, sec_box, sec_label[:80], bold=True, anchor=MSO_ANCHOR.MIDDLE)
-        self._text(slide, sub_box, sub_label[:80], bold=True, anchor=MSO_ANCHOR.MIDDLE)
-        return slide, self.profile.body
+        self._text(
+            slide,
+            sec_box,
+            sec_label[:80],
+            size=sec_box.font_size or prof.size("section", default_pt),
+            bold=True,
+            anchor=MSO_ANCHOR.MIDDLE,
+        )
+        self._text(
+            slide,
+            sub_box,
+            (sub_label + marker)[:80],
+            size=sub_box.font_size or prof.size("subsection", default_pt + 3),
+            bold=True,
+            anchor=MSO_ANCHOR.MIDDLE,
+        )
+        return slide, prof.body
 
     def _lead(self, slide: Any, text: str) -> float:
         """리드 메시지 상자를 그리고 그 아래 y(cm)를 돌려준다."""
@@ -1035,7 +1162,7 @@ class TemplateDeckBuilder:
         ]
         prof = self.profile
         for i, page in enumerate(pages):
-            slide, body = self._content_slide(title, continued=i > 0)
+            slide, body = self._content_slide(title, continued=i > 0, page=(i + 1, len(pages)))
             top = body.top
             if lead and i == 0:
                 top = self._lead(slide, lead)
@@ -1075,7 +1202,7 @@ class TemplateDeckBuilder:
         pages = [rows[i : i + per] for i in range(0, max(len(rows), 1), per)] or [[]]
         tsize = float(prof.table_style.get("font_size", max(self.body_font_pt - 1, 7)))
         for i, page in enumerate(pages):
-            slide, body = self._content_slide(title, continued=i > 0)
+            slide, body = self._content_slide(title, continued=i > 0, page=(i + 1, len(pages)))
             top = body.top
             if lead and i == 0:
                 top = self._lead(slide, lead)
@@ -1154,6 +1281,56 @@ class TemplateDeckBuilder:
                 align=PP_ALIGN.CENTER,
             )
         self._notes(slide, notes)
+
+    def canvas_slide(self, title: str, *, lead: str = "", notes: str = "") -> tuple[Any, Box]:
+        """머리글(+리드) 아래 도형을 그릴 본문 영역(cm)."""
+        self.sub_no += 1
+        slide, body = self._content_slide(title, continued=False)
+        top = body.top
+        if lead:
+            top = self._lead(slide, lead)
+        self._notes(slide, notes)
+        return slide, Box(
+            left=body.left, top=top, width=body.width, height=max(body.bottom - top, 3.0)
+        )
+
+    def visual_slide(
+        self,
+        title: str,
+        spec: dict[str, Any],
+        footer: str,
+        *,
+        lead: str = "",
+        bullets: Sequence[str] = (),
+        notes: str = "",
+    ) -> str:
+        from proposal_agent.generators.pptx.shapes import draw_visual
+
+        slide, box = self.canvas_slide(title, lead=lead, notes=notes)
+        items = [b.strip()[: self.max_chars] for b in bullets if b and b.strip()][:5]
+        line_h = self.body_font_pt * 1.6 / 28.35
+        vis_h = box.height - (0.5 + line_h * len(items) if items else 0.0)
+        kind = draw_visual(
+            slide,
+            Box(left=box.left, top=box.top, width=box.width, height=max(vis_h, 3.0)),
+            spec,
+            style=self.style,
+        )
+        if items:
+            tb = slide.shapes.add_textbox(
+                Cm(box.left),
+                Cm(box.top + max(vis_h, 3.0) + 0.2),
+                Cm(box.width),
+                Cm(line_h * len(items) + 0.3),
+            )
+            tf = tb.text_frame
+            tf.word_wrap = True
+            for i, b in enumerate(items):
+                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                p.text = f"• {b}"
+                p.font.size = Pt(self.body_font_pt)
+                p.font.name = self.profile.body_font
+        return kind
 
     def key_message_slide(
         self, title: str, messages: Sequence[str], footer: str, *, notes: str = ""

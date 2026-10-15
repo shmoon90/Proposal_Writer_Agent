@@ -115,6 +115,7 @@
 - 입력 문서 텍스트는 `<document id="…" page="…">` 블록으로 감싸 데이터임을 명시한다.
 - 요구사항 ID, 날짜, 금액은 프롬프트에서 "계산하지 말고 비워 두라"고 지시하고 스키마에서도 받지 않는다.
 - 독립 검증 프롬프트는 추출 프롬프트와 어휘·순서를 달리 작성해 동일 편향을 줄인다.
+- (Phase 13) `proposal_writer`는 `<feasibility>`(필수 요구사항별 구현 방안·근거 조사·구현 가능성·출처 수)를 받아 **구현 가능(feasible/with_risk) 조사 근거가 있는 것만** 구체적 구현 방안으로 쓰고, 조사가 없으면 "조사 후 확정"으로 쓰며 소절마다 `feasibility_basis`를 적는다(규칙 9). 작성 단계는 기술 조사 기록이 없으면 실행되지 않는다(`StepRunner.run_proposal_writing`). 소절 도식은 `visual`(VisualSpec: cards/flow/process/two_column/dataflow/screen/kpis/compare)로 지정하고 코드가 편집 가능한 도형으로 그린다(규칙 10, `generators/pptx/shapes.py`). 조사 결과는 `ResearchService._fill_implementation_approach`가 관련 요구사항의 구현 방안을 채운다.
 - (Phase 12) 제안서 작성(`proposal_writer`)은 `GenerationService.proposal_brief()`가 만든 `<proposal_template>`(템플릿 PPTX에서 읽은 관행: 용지·머리글 2단·리드·번호 체계·RFP ID 카드·표 유형·글꼴)과 `<rfp_toc>`(RFP 지정 목차 장/절·작성방법)를 받아 소절 단위 문안을 쓴다. 장·절 배치와 번호 매기기, 슬라이드 분할, 표 그리기는 코드(`outline.plan_chapters`, `TemplateDeckBuilder`)가 한다. `qa_reviewer`에도 같은 요약이 들어가고 코드 검사 QA-FILE-11이 용지·머리글·장 순서·글꼴을 대조한다.
 - (Phase 11) 코드가 만든 RFP 구조 프로파일을 에이전트에 넘긴다. `rfp_analyst`는 `<rfp_profile>`(절 구성·ID 체계·목차·평가 요약)을 먼저 받고, `requirement_extractor`는 block 태그의 `section="…"`(절 종류)와 `rfp_id="SFR-001"`(RFP 자체 ID)을 보고 `rfp_requirement_id`를 채우며 세로 라벨 잡음을 무시한다(프롬프트 규칙 13·14). ID 부여·커버리지 판정은 여전히 코드가 한다 (`RequirementService._check_rfp_coverage`, QA-RFP-07).
 

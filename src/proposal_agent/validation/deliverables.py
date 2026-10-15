@@ -136,6 +136,17 @@ def pptx_texts(path: Path) -> list[str]:
     return out
 
 
+def _has_picture(shapes: Any, depth: int = 0) -> bool:
+    """슬라이드(그룹 안 포함)에 그림 도형이 있는가. 마스터·레이아웃의 그림은 보지 않는다."""
+    for sh in shapes:
+        st = str(getattr(sh, "shape_type", "") or "")
+        if "PICTURE" in st:
+            return True
+        if "GROUP" in st and depth < 4 and _has_picture(sh.shapes, depth + 1):
+            return True
+    return False
+
+
 def _first_font_pt(shape: Any) -> float | None:
     """텍스트 상자의 첫 run(없으면 문단) 글꼴 크기(pt)."""
     for p in shape.text_frame.paragraphs:
@@ -205,9 +216,12 @@ def check_pptx(
             path.name,
         )
     texts: list[str] = []
+    pictures: list[int] = []
     for idx, slide in enumerate(prs.slides, start=1):
         boxes: list[tuple[int, int, int, int, bool]] = []
         slide_text: list[str] = []
+        if _has_picture(slide.shapes):
+            pictures.append(idx)
         for shape in slide.shapes:
             if shape.left is None or shape.top is None:
                 continue
@@ -263,6 +277,13 @@ def check_pptx(
                     )
                     break
         texts.append("\n".join(slide_text))
+    if pictures:
+        outcome.add(
+            ValidationLevel.ERROR,
+            "pptx.picture",
+            f"{label}: 그림(비트맵) 도형이 있어 편집할 수 없음 — {len(pictures)}장 (예: {', '.join(str(i) for i in pictures[:6])})",
+            path.name,
+        )
     return texts
 
 

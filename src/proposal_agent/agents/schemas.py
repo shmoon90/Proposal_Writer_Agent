@@ -187,6 +187,39 @@ class WBSDraft(_Strict):
 # --- 7. 제안서 작성 ------------------------------------------------------------------------------
 
 
+class VisualItem(_Strict):
+    id: str = Field(default="", description="노드 식별자 (dataflow/process 연결용)")
+    title: str
+    text: str = ""
+    group: str = Field(
+        default="",
+        description="열·그룹 (two_column: left/right, screen: nav/본문, dataflow: 시스템명)",
+    )
+
+
+class VisualEdge(_Strict):
+    source: str
+    target: str
+    label: str = ""
+
+
+class VisualSpec(_Strict):
+    """소절 도식 명세. 코드가 편집 가능한 도형·연결선으로 그린다 (그림 삽입 없음)."""
+
+    kind: str = Field(
+        description="cards(배경·목표·전략 카드) | flow(단계 흐름·절차) | process(호출 순서) | two_column(현황·이슈 ↔ 방안) | "
+        "dataflow(데이터 흐름: items=노드(group=시스템), edges=연결) | screen(화면 설계: items=영역, group=nav는 좌측 메뉴) | "
+        "kpis(핵심 수치: title=라벨, text=값) | compare(비교 표: headers/rows)"
+    )
+    title: str = ""
+    items: list[VisualItem] = Field(default_factory=list)
+    edges: list[VisualEdge] = Field(default_factory=list)
+    left_title: str = ""
+    right_title: str = ""
+    headers: list[str] = Field(default_factory=list)
+    rows: list[list[str]] = Field(default_factory=list)
+
+
 class ProposalSection(_Strict):
     slide_group: str = Field(
         description="cover/toc/understanding/requirements/architecture/schedule/staffing/quality/risk/closing"
@@ -210,6 +243,14 @@ class ProposalSection(_Strict):
     )
     footnotes: list[str] = Field(
         default_factory=list, description="슬라이드 하단 ※ 주석 (전제·협의 사항)"
+    )
+    visual: VisualSpec | None = Field(
+        default=None,
+        description="소절 도식 (배경·목표·구조·데이터 흐름·호출 절차·화면 설계 등). 발표용은 소절마다 권장",
+    )
+    feasibility_basis: list[str] = Field(
+        default_factory=list,
+        description="이 소절 구현 방안의 근거 조사 주제 (tech_researcher 기록의 topic)",
     )
 
 
@@ -295,5 +336,8 @@ __all__ = [
     "RfpAnalysis",
     "TechAlternative",
     "VerificationReport",
+    "VisualEdge",
+    "VisualItem",
+    "VisualSpec",
     "WBSDraft",
 ]

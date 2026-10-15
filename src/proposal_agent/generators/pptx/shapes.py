@@ -1,0 +1,1004 @@
+"""편집 가능한 도형 도식 (Phase 13).
+
+생성 문서는 최종적으로 사람이 수정하므로 도식을 그림(PNG)으로 넣지 않고 python-pptx의 자동 도형·연결선·텍스트
+상자로 그린다. 모든 함수는 슬라이드와 영역(``Box``, cm)을 받아 그 안에만 그린다.
+
+도식 종류: 카드(배경·목표·전략), 단계 흐름(절차·호출 순서), 2열 비교(현황/이슈 ↔ 방안), 데이터 흐름(노드·연결),
+화면 설계(와이어프레임), 시스템 구성도(레이어·구성 요소·연결), 일정 축(간트), 공수 막대, 핵심 수치, 비교 표.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from datetime import date
+from typing import Any
+
+from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_CONNECTOR, MSO_SHAPE
+from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+from pptx.oxml.xmlchemy import OxmlElement
+from pptx.util import Cm, Pt
+
+from proposal_agent.generators.pptx.template import Box
+
+LAYER_ORDER = ("client", "web", "app", "integration", "data", "infra", "security")
+LAYER_LABEL = {
+    "client": "사용자/클라이언트",
+    "web": "웹",
+    "app": "애플리케이션",
+    "integration": "연계",
+    "data": "데이터",
+    "infra": "인프라",
+    "security": "보안",
+}
+VISUAL_KINDS = (
+    "cards",
+    "flow",
+    "two_column",
+    "dataflow",
+    "screen",
+    "process",
+    "architecture",
+    "timeline",
+    "bars",
+    "kpis",
+    "compare",
+)
+
+
+@dataclass(frozen=True)
+class ShapeStyle:
+    font: str = "맑은 고딕"
+    title_font: str | None = None
+    primary: str = "1F4E78"
+    accent: str = "5B9BD5"
+    light: str = "DDEBF7"
+    light2: str = "E2F0D9"
+    text: str = "333333"
+    base_pt: float = 10.0
+
+    @property
+    def heading_font(self) -> str:
+        return self.title_font or self.font
+
+
+def _rgb(hex_str: str) -> RGBColor:
+    return RGBColor.from_string(hex_str.lstrip("#")[:6])
+
+
+def _fit(text: str, width_cm: float, height_cm: float, pt: float) -> str:
+    """상자 용량(줄 수 × 줄당 글자 수)에 맞게 자른다. QA의 넘침 추정과 같은 가정(줄 높이 1.3em, 글자 폭 0.75em)."""
+    if not text or (len(text) <= 6 and "\n" not in text):
+        return text  # 짧은 라벨(월, 번호)은 자르지 않는다
+    cpl = max(4, int(width_cm * 28.35 / (pt * 0.75)))
+    lines = max(1, int(height_cm * 28.35 / (pt * 1.3)))
+    out: list[str] = []
+    used = 0
+    for raw in text.split("\n"):
+        need = max(1, -(-len(raw) // cpl))
+        if used + need > lines:
+            room = (lines - used) * cpl
+            if room > 3:
+                out.append(raw[: room - 1] + "…")
+            break
+        out.append(raw)
+        used += need
+    return "\n".join(out) if out else text[: max(cpl - 1, 1)] + "…"
+
+
+def _set_text(
+    shape: Any,
+    text: str,
+    *,
+    style: ShapeStyle,
+    pt: float | None = None,
+    bold: bool = False,
+    color: str | None = None,
+    align: PP_ALIGN = PP_ALIGN.CENTER,
+    anchor: MSO_ANCHOR = MSO_ANCHOR.MIDDLE,
+    heading: bool = False,
+) -> None:
+    tf = shape.text_frame
+    tf.word_wrap = True
+    tf.vertical_anchor = anchor
+    tf.margin_left = tf.margin_right = Cm(0.15)
+    tf.margin_top = tf.margin_bottom = Cm(0.08)
+    size_pt = pt or style.base_pt
+    try:
+        text = _fit(text, shape.width / 360000 - 0.3, shape.height / 360000 - 0.16, size_pt)
+    except (TypeError, ZeroDivisionError):
+        pass
+    for i, line in enumerate(text.split("\n")):
+        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+        p.text = line
+        p.alignment = align
+        p.font.size = Pt(pt or style.base_pt)
+        p.font.bold = bold
+        p.font.name = style.heading_font if heading else style.font
+        p.font.color.rgb = _rgb(color or style.text)
+
+
+def rect(
+    slide: Any,
+    left: float,
+    top: float,
+    width: float,
+    height: float,
+    text: str = "",
+    *,
+    style: ShapeStyle,
+    fill: str | None = None,
+    line: str | None = None,
+    shape: MSO_SHAPE = MSO_SHAPE.ROUNDED_RECTANGLE,
+    pt: float | None = None,
+    bold: bool = False,
+    color: str | None = None,
+    align: PP_ALIGN = PP_ALIGN.CENTER,
+    anchor: MSO_ANCHOR = MSO_ANCHOR.MIDDLE,
+    heading: bool = False,
+) -> Any:
+    sh = slide.shapes.add_shape(shape, Cm(left), Cm(top), Cm(max(width, 0.2)), Cm(max(height, 0.2)))
+    if fill:
+        sh.fill.solid()
+        sh.fill.fore_color.rgb = _rgb(fill)
+    else:
+        sh.fill.background()
+    if line:
+        sh.line.color.rgb = _rgb(line)
+        sh.line.width = Pt(0.75)
+    else:
+        sh.line.fill.background()
+    sh.shadow.inherit = False
+    if text:
+        _set_text(
+            sh,
+            text,
+            style=style,
+            pt=pt,
+            bold=bold,
+            color=color,
+            align=align,
+            anchor=anchor,
+            heading=heading,
+        )
+    return sh
+
+
+def label(
+    slide: Any,
+    left: float,
+    top: float,
+    width: float,
+    height: float,
+    text: str,
+    *,
+    style: ShapeStyle,
+    pt: float | None = None,
+    bold: bool = False,
+    color: str | None = None,
+    align: PP_ALIGN = PP_ALIGN.LEFT,
+    anchor: MSO_ANCHOR = MSO_ANCHOR.TOP,
+    heading: bool = False,
+) -> Any:
+    box = slide.shapes.add_textbox(Cm(left), Cm(top), Cm(max(width, 0.2)), Cm(max(height, 0.2)))
+    _set_text(
+        box,
+        text,
+        style=style,
+        pt=pt,
+        bold=bold,
+        color=color,
+        align=align,
+        anchor=anchor,
+        heading=heading,
+    )
+    return box
+
+
+def arrow(
+    slide: Any,
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+    *,
+    style: ShapeStyle,
+    text: str = "",
+    color: str | None = None,
+    width_pt: float = 1.25,
+) -> Any:
+    """직선 연결선(끝 화살표). 라벨은 선 중앙 위의 작은 텍스트 상자."""
+    conn = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Cm(x1), Cm(y1), Cm(x2), Cm(y2))
+    conn.line.color.rgb = _rgb(color or style.accent)
+    conn.line.width = Pt(width_pt)
+    ln = conn.line._get_or_add_ln()  # noqa: SLF001 - 화살촉은 python-pptx 공개 API 없음
+    tail = OxmlElement("a:tailEnd")
+    tail.set("type", "triangle")
+    tail.set("w", "med")
+    tail.set("len", "med")
+    ln.append(tail)
+    if text:
+        mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+        label(
+            slide,
+            mx - 1.5,
+            my - 0.45,
+            3.0,
+            0.5,
+            text[:24],
+            style=style,
+            pt=max(style.base_pt - 2, 7),
+            align=PP_ALIGN.CENTER,
+            anchor=MSO_ANCHOR.MIDDLE,
+            color=style.primary,
+        )
+    return conn
+
+
+# --- 도식 -------------------------------------------------------------------------------------
+
+
+def _grid(
+    n: int, box: Box, *, max_cols: int = 4, gap: float = 0.4
+) -> list[tuple[float, float, float, float]]:
+    """n개 항목을 영역 안에 격자로 배치한 (left, top, w, h) 목록."""
+    if n <= 0:
+        return []
+    cols = min(max_cols, n)
+    rows = -(-n // cols)
+    w = (box.width - gap * (cols - 1)) / cols
+    h = (box.height - gap * (rows - 1)) / rows
+    cells = []
+    for i in range(n):
+        r, c = divmod(i, cols)
+        cells.append((box.left + c * (w + gap), box.top + r * (h + gap), w, h))
+    return cells
+
+
+def draw_cards(
+    slide: Any,
+    box: Box,
+    items: list[dict[str, Any]],
+    *,
+    style: ShapeStyle,
+    numbered: bool = True,
+    max_cols: int = 4,
+) -> None:
+    """번호 카드: 제목 띠 + 설명. 배경·목표·핵심 성공 요소·전략에 쓴다."""
+    items = items[:8]
+    if not items:
+        return
+    for i, (left, top, w, h) in enumerate(_grid(len(items), box, max_cols=max_cols)):
+        it = items[i]
+        rect(slide, left, top, w, h, style=style, fill="FFFFFF", line=style.accent)
+        head_h = min(1.1, h * 0.3)
+        rect(
+            slide,
+            left,
+            top,
+            w,
+            head_h,
+            (f"{i + 1:02d}  " if numbered else "") + str(it.get("title", ""))[:40],
+            style=style,
+            fill=style.primary,
+            shape=MSO_SHAPE.RECTANGLE,
+            pt=style.base_pt + 1,
+            bold=True,
+            color="FFFFFF",
+            heading=True,
+        )
+        text = str(it.get("text", ""))
+        if text:
+            label(
+                slide,
+                left + 0.15,
+                top + head_h + 0.1,
+                w - 0.3,
+                h - head_h - 0.2,
+                text[:220],
+                style=style,
+            )
+
+
+def draw_flow(
+    slide: Any,
+    box: Box,
+    steps: list[dict[str, Any]],
+    *,
+    style: ShapeStyle,
+) -> None:
+    """단계 흐름: 셰브론(단계명) 한 줄 + 아래 설명 상자. 절차·호출 순서·방법론 단계에 쓴다."""
+    steps = steps[:7]
+    if not steps:
+        return
+    n = len(steps)
+    gap = 0.15
+    w = (box.width - gap * (n - 1)) / n
+    chev_h = min(1.4, box.height * 0.3)
+    for i, st in enumerate(steps):
+        left = box.left + i * (w + gap)
+        rect(
+            slide,
+            left,
+            box.top,
+            w,
+            chev_h,
+            f"{i + 1}. {str(st.get('title', ''))[:24]}",
+            style=style,
+            fill=style.primary if i % 2 == 0 else style.accent,
+            shape=MSO_SHAPE.CHEVRON if i else MSO_SHAPE.PENTAGON,
+            pt=style.base_pt,
+            bold=True,
+            color="FFFFFF",
+            heading=True,
+        )
+        text = str(st.get("text", ""))
+        if text:
+            rect(
+                slide,
+                left,
+                box.top + chev_h + 0.25,
+                w,
+                max(box.height - chev_h - 0.25, 1.0),
+                text[:200],
+                style=style,
+                fill="FFFFFF",
+                line=style.accent,
+                shape=MSO_SHAPE.RECTANGLE,
+                pt=max(style.base_pt - 1, 7),
+                align=PP_ALIGN.LEFT,
+                anchor=MSO_ANCHOR.TOP,
+            )
+
+
+def draw_two_column(
+    slide: Any,
+    box: Box,
+    left_title: str,
+    left_items: list[str],
+    right_title: str,
+    right_items: list[str],
+    *,
+    style: ShapeStyle,
+) -> None:
+    """2열 비교: 현황·이슈 ↔ 방안, AS-IS ↔ TO-BE. 가운데 화살표."""
+    col_w = (box.width - 1.6) / 2
+    for i, (title, items, fill) in enumerate(
+        ((left_title, left_items, style.light), (right_title, right_items, style.light2))
+    ):
+        left = box.left + i * (col_w + 1.6)
+        rect(
+            slide,
+            left,
+            box.top,
+            col_w,
+            0.9,
+            title[:40],
+            style=style,
+            fill=style.primary if i else style.accent,
+            shape=MSO_SHAPE.RECTANGLE,
+            bold=True,
+            color="FFFFFF",
+            heading=True,
+            pt=style.base_pt + 1,
+        )
+        rect(
+            slide,
+            left,
+            box.top + 1.0,
+            col_w,
+            max(box.height - 1.0, 1.0),
+            "\n".join(f"• {x[:90]}" for x in items[:8]) or "(내용 없음 — 검토 필요)",
+            style=style,
+            fill=fill,
+            shape=MSO_SHAPE.RECTANGLE,
+            align=PP_ALIGN.LEFT,
+            anchor=MSO_ANCHOR.TOP,
+        )
+    mid_y = box.top + box.height / 2
+    arrow(
+        slide,
+        box.left + col_w + 0.3,
+        mid_y,
+        box.left + col_w + 1.3,
+        mid_y,
+        style=style,
+        width_pt=2.5,
+    )
+
+
+def draw_dataflow(
+    slide: Any,
+    box: Box,
+    nodes: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+    *,
+    style: ShapeStyle,
+) -> None:
+    """데이터 흐름·호출 절차: 그룹(열)별 노드 상자와 라벨 달린 화살표."""
+    nodes = nodes[:16]
+    if not nodes:
+        return
+    groups: list[str] = []
+    for n in nodes:
+        g = str(n.get("group", "") or "")
+        if g not in groups:
+            groups.append(g)
+    cols = max(len(groups), 1)
+    col_w = (box.width - 0.6 * (cols - 1)) / cols
+    pos: dict[str, tuple[float, float, float, float]] = {}
+    for ci, g in enumerate(groups):
+        members = [n for n in nodes if str(n.get("group", "") or "") == g]
+        left = box.left + ci * (col_w + 0.6)
+        head = 0.0
+        if g:
+            rect(
+                slide,
+                left,
+                box.top,
+                col_w,
+                0.7,
+                g[:30],
+                style=style,
+                fill=style.light,
+                shape=MSO_SHAPE.RECTANGLE,
+                bold=True,
+                color=style.primary,
+                heading=True,
+            )
+            head = 0.85
+        avail = box.height - head
+        gap = 0.4
+        h = min(1.6, (avail - gap * (len(members) - 1)) / max(len(members), 1))
+        for ri, n in enumerate(members):
+            top = box.top + head + ri * (h + gap)
+            nid = str(n.get("id") or n.get("title") or ri)
+            pos[nid] = (left, top, col_w, h)
+            text = str(n.get("title", ""))[:40]
+            if n.get("text"):
+                text += "\n" + str(n["text"])[:60]
+            rect(
+                slide,
+                left,
+                top,
+                col_w,
+                h,
+                text,
+                style=style,
+                fill="FFFFFF",
+                line=style.primary,
+                pt=max(style.base_pt - 1, 7),
+            )
+    for e in edges[:24]:
+        a, b = pos.get(str(e.get("source", ""))), pos.get(str(e.get("target", "")))
+        if not a or not b:
+            continue
+        if a[0] < b[0]:
+            x1, y1, x2, y2 = a[0] + a[2], a[1] + a[3] / 2, b[0], b[1] + b[3] / 2
+        elif a[0] > b[0]:
+            x1, y1, x2, y2 = a[0], a[1] + a[3] / 2, b[0] + b[2], b[1] + b[3] / 2
+        else:
+            x1, y1, x2, y2 = a[0] + a[2] / 2, a[1] + a[3], b[0] + b[2] / 2, b[1]
+        arrow(slide, x1, y1, x2, y2, style=style, text=str(e.get("label", ""))[:24])
+
+
+def draw_screen(
+    slide: Any,
+    box: Box,
+    title: str,
+    regions: list[dict[str, Any]],
+    *,
+    style: ShapeStyle,
+) -> None:
+    """화면 설계(와이어프레임): 창 틀 + 상단 바 + 좌측 메뉴 + 콘텐츠 영역 격자. 영역 상자는 모두 편집 가능."""
+    rect(
+        slide,
+        box.left,
+        box.top,
+        box.width,
+        box.height,
+        style=style,
+        fill="FAFAFA",
+        line=style.text,
+        shape=MSO_SHAPE.RECTANGLE,
+    )
+    bar_h = 0.9
+    rect(
+        slide,
+        box.left,
+        box.top,
+        box.width,
+        bar_h,
+        title[:50] or "화면",
+        style=style,
+        fill=style.primary,
+        shape=MSO_SHAPE.RECTANGLE,
+        bold=True,
+        color="FFFFFF",
+        align=PP_ALIGN.LEFT,
+        heading=True,
+    )
+    nav = [r for r in regions if str(r.get("group", "")) == "nav"]
+    body = [r for r in regions if str(r.get("group", "")) != "nav"][:8]
+    nav_w = min(4.0, box.width * 0.22) if nav else 0.0
+    if nav:
+        rect(
+            slide,
+            box.left,
+            box.top + bar_h,
+            nav_w,
+            box.height - bar_h,
+            "\n".join(f"▸ {str(r.get('title', ''))[:16]}" for r in nav[:10]),
+            style=style,
+            fill=style.light,
+            shape=MSO_SHAPE.RECTANGLE,
+            align=PP_ALIGN.LEFT,
+            anchor=MSO_ANCHOR.TOP,
+            pt=max(style.base_pt - 1, 7),
+        )
+    inner = Box(
+        left=box.left + nav_w + 0.3,
+        top=box.top + bar_h + 0.3,
+        width=box.width - nav_w - 0.6,
+        height=box.height - bar_h - 0.6,
+    )
+    for i, (left, top, w, h) in enumerate(_grid(len(body), inner, max_cols=2, gap=0.3)):
+        r = body[i]
+        rect(
+            slide,
+            left,
+            top,
+            w,
+            h,
+            style=style,
+            fill="FFFFFF",
+            line=style.accent,
+            shape=MSO_SHAPE.RECTANGLE,
+        )
+        label(
+            slide,
+            left + 0.1,
+            top + 0.05,
+            w - 0.2,
+            0.5,
+            str(r.get("title", ""))[:30],
+            style=style,
+            bold=True,
+            color=style.primary,
+            pt=max(style.base_pt - 1, 7),
+        )
+        if r.get("text"):
+            label(
+                slide,
+                left + 0.1,
+                top + 0.55,
+                w - 0.2,
+                max(h - 0.6, 0.3),
+                str(r["text"])[:120],
+                style=style,
+                pt=max(style.base_pt - 2, 7),
+            )
+
+
+def draw_architecture(
+    slide: Any,
+    box: Box,
+    components: list[Any],
+    *,
+    style: ShapeStyle,
+) -> None:
+    """시스템 구성도: 레이어 띠(세로 순서) 안에 구성 요소 상자, 연결은 화살표. 그림이 아닌 도형이라 편집 가능."""
+    by_layer: dict[str, list[Any]] = {}
+    for c in components:
+        by_layer.setdefault(c.layer if c.layer in LAYER_ORDER else "app", []).append(c)
+    rows = [(layer, by_layer[layer]) for layer in LAYER_ORDER if layer in by_layer]
+    if not rows:
+        label(
+            slide,
+            box.left,
+            box.top,
+            box.width,
+            1.0,
+            "구성 요소 없음 — 아키텍처 설계 필요",
+            style=style,
+        )
+        return
+    gap = 0.3
+    row_h = (box.height - gap * (len(rows) - 1)) / len(rows)
+    label_w = min(3.2, box.width * 0.18)
+    pos: dict[str, tuple[float, float, float, float]] = {}
+    for ri, (layer, comps) in enumerate(rows):
+        top = box.top + ri * (row_h + gap)
+        rect(
+            slide,
+            box.left,
+            top,
+            box.width,
+            row_h,
+            style=style,
+            fill=style.light if ri % 2 == 0 else "F5F5F5",
+            shape=MSO_SHAPE.RECTANGLE,
+        )
+        rect(
+            slide,
+            box.left,
+            top,
+            label_w,
+            row_h,
+            LAYER_LABEL.get(layer, layer),
+            style=style,
+            fill=style.primary,
+            shape=MSO_SHAPE.RECTANGLE,
+            bold=True,
+            color="FFFFFF",
+            heading=True,
+            pt=max(style.base_pt - 1, 7),
+        )
+        n = len(comps)
+        cw = (box.width - label_w - 0.3 * (n + 1)) / n
+        ch = min(row_h - 0.4, 2.2)
+        for ci, c in enumerate(comps):
+            left = box.left + label_w + 0.3 + ci * (cw + 0.3)
+            ctop = top + (row_h - ch) / 2
+            pos[c.id] = (left, ctop, cw, ch)
+            tech = c.technology or "미정"
+            rect(
+                slide,
+                left,
+                ctop,
+                cw,
+                ch,
+                f"{c.name[:24]}\n{tech[:28]}",
+                style=style,
+                fill="FFFFFF",
+                line=style.primary,
+                pt=max(style.base_pt - 1, 7),
+            )
+    row_of = {c.id: ri for ri, (_layer, comps) in enumerate(rows) for c in comps}
+    for c in components:
+        for conn in c.connections:
+            a, b = pos.get(c.id), pos.get(conn.to_component_id)
+            if not a or not b or a == b:
+                continue
+            adjacent = abs(row_of.get(c.id, 0) - row_of.get(conn.to_component_id, 0)) == 1
+            # 세로(레이어 간) 연결만 라벨을 단다 — 라벨은 레이어 사이 간격(gap)에 놓여 상자와 겹치지 않는다
+            if a[1] < b[1]:
+                far = adjacent and b[1] - (a[1] + a[3]) >= 0.8
+                arrow(
+                    slide,
+                    a[0] + a[2] / 2,
+                    a[1] + a[3],
+                    b[0] + b[2] / 2,
+                    b[1],
+                    style=style,
+                    text=conn.protocol[:16] if far else "",
+                )
+            elif a[1] > b[1]:
+                far = adjacent and a[1] - (b[1] + b[3]) >= 0.8
+                arrow(
+                    slide,
+                    a[0] + a[2] / 2,
+                    a[1],
+                    b[0] + b[2] / 2,
+                    b[1] + b[3],
+                    style=style,
+                    text=conn.protocol[:16] if far else "",
+                )
+            else:
+                arrow(
+                    slide,
+                    a[0] + a[2],
+                    a[1] + a[3] / 2,
+                    b[0],
+                    b[1] + b[3] / 2,
+                    style=style,
+                )
+
+
+def _month_starts(start: date, end: date) -> list[date]:
+    out: list[date] = []
+    y, m = start.year, start.month
+    while date(y, m, 1) <= end:
+        out.append(date(y, m, 1))
+        m += 1
+        if m > 12:
+            y, m = y + 1, 1
+    return out
+
+
+def draw_timeline(
+    slide: Any,
+    box: Box,
+    items: list[tuple[str, date | None, date | None]],
+    period_start: date | None,
+    period_end: date | None,
+    *,
+    style: ShapeStyle,
+) -> None:
+    """일정 축(간트): 월 눈금 + 작업별 막대. 막대·라벨은 개별 도형."""
+    dated = [(n, s, e) for n, s, e in items if s and e][:14]
+    if not dated or not period_start or not period_end or period_end <= period_start:
+        label(slide, box.left, box.top, box.width, 1.0, "일정 데이터 없음 — 검토 필요", style=style)
+        return
+    label_w = min(5.0, box.width * 0.3)
+    axis_left = box.left + label_w
+    axis_w = box.width - label_w
+    total_days = max((period_end - period_start).days, 1)
+
+    def x_of(d: date) -> float:
+        return axis_left + axis_w * max(0.0, min(1.0, (d - period_start).days / total_days))
+
+    head_h = 0.7
+    months = _month_starts(period_start, period_end)
+    spacing = axis_w / max(len(months), 1)
+    step = 1 if spacing >= 1.6 else (2 if spacing >= 0.8 else 3)
+    for mi, ms in enumerate(months):
+        x = x_of(max(ms, period_start))
+        if mi % step:
+            continue  # 월 간격이 좁으면 격월·3개월 단위로만 라벨
+        label(
+            slide,
+            x,
+            box.top,
+            min(1.55, spacing * step - 0.05),
+            head_h,
+            ms.strftime("%y.%m"),
+            style=style,
+            pt=max(style.base_pt - 2, 7),
+            color=style.primary,
+            bold=True,
+        )
+        line = slide.shapes.add_connector(
+            MSO_CONNECTOR.STRAIGHT, Cm(x), Cm(box.top + head_h), Cm(x), Cm(box.top + box.height)
+        )
+        line.line.color.rgb = _rgb("BFBFBF")
+        line.line.width = Pt(0.5)
+    row_h = (box.height - head_h) / len(dated)
+    bar_h = min(0.7, row_h * 0.6)
+    for i, (name, s, e) in enumerate(dated):
+        top = box.top + head_h + i * row_h
+        label(
+            slide,
+            box.left,
+            top,
+            label_w - 0.2,
+            row_h,
+            name[:28],
+            style=style,
+            pt=max(style.base_pt - 1, 7),
+            anchor=MSO_ANCHOR.MIDDLE,
+        )
+        x1, x2 = x_of(s), x_of(e)
+        rect(
+            slide,
+            x1,
+            top + (row_h - bar_h) / 2,
+            max(x2 - x1, 0.25),
+            bar_h,
+            style=style,
+            fill=style.accent if i % 2 == 0 else style.primary,
+            shape=MSO_SHAPE.RECTANGLE,
+        )
+
+
+def draw_bars(
+    slide: Any,
+    box: Box,
+    items: list[tuple[str, float, str]],
+    *,
+    style: ShapeStyle,
+) -> None:
+    """가로 막대: 역할별 공수(MM) 등. 막대 길이는 최대값 기준."""
+    items = items[:10]
+    if not items:
+        label(slide, box.left, box.top, box.width, 1.0, "데이터 없음 — 검토 필요", style=style)
+        return
+    vmax = max((v for _n, v, _u in items), default=0.0) or 1.0
+    label_w = min(4.5, box.width * 0.3)
+    val_w = 2.6
+    row_h = box.height / len(items)
+    bar_h = min(0.8, row_h * 0.6)
+    for i, (name, v, unit) in enumerate(items):
+        top = box.top + i * row_h
+        label(
+            slide,
+            box.left,
+            top,
+            label_w - 0.2,
+            row_h,
+            name[:24],
+            style=style,
+            anchor=MSO_ANCHOR.MIDDLE,
+        )
+        w = max((box.width - label_w - val_w) * (v / vmax), 0.2)
+        rect(
+            slide,
+            box.left + label_w,
+            top + (row_h - bar_h) / 2,
+            w,
+            bar_h,
+            style=style,
+            fill=style.accent,
+            shape=MSO_SHAPE.RECTANGLE,
+        )
+        label(
+            slide,
+            box.left + label_w + w + 0.15,
+            top,
+            val_w,
+            row_h,
+            f"{v:g} {unit}",
+            style=style,
+            anchor=MSO_ANCHOR.MIDDLE,
+            bold=True,
+            color=style.primary,
+        )
+
+
+def draw_kpis(slide: Any, box: Box, items: list[tuple[str, str]], *, style: ShapeStyle) -> None:
+    """핵심 수치 카드: 큰 값 + 라벨 (기간·인력·공수·요구사항 수)."""
+    items = items[:5]
+    if not items:
+        return
+    for i, (left, top, w, h) in enumerate(_grid(len(items), box, max_cols=5)):
+        lab, val = items[i]
+        rect(
+            slide,
+            left,
+            top,
+            w,
+            h,
+            style=style,
+            fill=style.light if i % 2 == 0 else style.light2,
+            line=style.accent,
+        )
+        label(
+            slide,
+            left,
+            top + 0.1,
+            w,
+            h * 0.55,
+            str(val)[:24],
+            style=style,
+            pt=min(style.base_pt * 2.4, 32),
+            bold=True,
+            color=style.primary,
+            align=PP_ALIGN.CENTER,
+            anchor=MSO_ANCHOR.MIDDLE,
+            heading=True,
+        )
+        label(
+            slide,
+            left,
+            top + h * 0.68,
+            w,
+            h * 0.3,
+            str(lab)[:30],
+            style=style,
+            align=PP_ALIGN.CENTER,
+            anchor=MSO_ANCHOR.MIDDLE,
+        )
+
+
+def draw_compare(
+    slide: Any, box: Box, headers: list[str], rows: list[list[str]], *, style: ShapeStyle
+) -> None:
+    """비교 표 (네이티브 표)."""
+    headers = headers or ["항목"]
+    n_rows = min(len(rows), 12) + 1
+    shape = slide.shapes.add_table(
+        n_rows,
+        len(headers),
+        Cm(box.left),
+        Cm(box.top),
+        Cm(box.width),
+        Cm(min(box.height, 0.7 * n_rows)),
+    )
+    table = shape.table
+    for ci, hd in enumerate(headers):
+        cell = table.cell(0, ci)
+        cell.text = str(hd)[:30]
+        p = cell.text_frame.paragraphs[0]
+        p.font.size = Pt(max(style.base_pt - 1, 7))
+        p.font.bold = True
+        p.font.name = style.heading_font
+        p.font.color.rgb = _rgb("FFFFFF")
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = _rgb(style.primary)
+    for ri, row in enumerate(rows[:12], start=1):
+        for ci in range(len(headers)):
+            cell = table.cell(ri, ci)
+            cell.text = str(row[ci] if ci < len(row) else "")[:80]
+            p = cell.text_frame.paragraphs[0]
+            p.font.size = Pt(max(style.base_pt - 1, 7))
+            p.font.name = style.font
+
+
+# --- 에이전트 지정 도식 ----------------------------------------------------------------------------
+
+
+def draw_visual(slide: Any, box: Box, spec: dict[str, Any], *, style: ShapeStyle) -> str:
+    """``VisualSpec``(dict)을 종류에 맞게 그린다. 돌려주는 값은 실제로 그린 종류."""
+    kind = str(spec.get("kind", "cards") or "cards")
+    items = [dict(x) for x in spec.get("items", []) or []]
+    edges = [dict(x) for x in spec.get("edges", []) or []]
+    if kind == "flow" or kind == "process":
+        draw_flow(slide, box, items, style=style)
+    elif kind == "two_column":
+        left = [
+            str(x.get("title") or x.get("text") or "")
+            for x in items
+            if str(x.get("group", "")) in ("", "left")
+        ]
+        right = [
+            str(x.get("title") or x.get("text") or "")
+            for x in items
+            if str(x.get("group", "")) == "right"
+        ]
+        if not right and len(left) > 1:
+            half = -(-len(left) // 2)
+            left, right = left[:half], left[half:]
+        draw_two_column(
+            slide,
+            box,
+            str(spec.get("left_title") or "현황 및 이슈"),
+            left,
+            str(spec.get("right_title") or "구성·개선 방안"),
+            right,
+            style=style,
+        )
+    elif kind == "dataflow":
+        draw_dataflow(slide, box, items, edges, style=style)
+    elif kind == "screen":
+        draw_screen(slide, box, str(spec.get("title") or ""), items, style=style)
+    elif kind == "kpis":
+        draw_kpis(
+            slide,
+            box,
+            [(str(x.get("title", "")), str(x.get("text", ""))) for x in items],
+            style=style,
+        )
+    elif kind == "compare":
+        draw_compare(
+            slide,
+            box,
+            [str(h) for h in spec.get("headers", []) or []],
+            [[str(c) for c in r] for r in spec.get("rows", []) or []],
+            style=style,
+        )
+    else:
+        kind = "cards"
+        draw_cards(slide, box, items, style=style)
+    return kind
+
+
+def visual_summary_text(spec: dict[str, Any]) -> str:
+    """QA·검색용: 도식에 들어간 텍스트를 한 줄로."""
+    parts = [str(spec.get("title", "") or "")]
+    for x in spec.get("items", []) or []:
+        parts.append(f"{x.get('title', '')} {x.get('text', '')}".strip())
+    return re.sub(r"\s+", " ", " / ".join(p for p in parts if p)).strip()
+
+
+__all__ = [
+    "LAYER_LABEL",
+    "LAYER_ORDER",
+    "VISUAL_KINDS",
+    "ShapeStyle",
+    "arrow",
+    "draw_architecture",
+    "draw_bars",
+    "draw_cards",
+    "draw_compare",
+    "draw_dataflow",
+    "draw_flow",
+    "draw_kpis",
+    "draw_screen",
+    "draw_timeline",
+    "draw_two_column",
+    "draw_visual",
+    "label",
+    "rect",
+    "visual_summary_text",
+]

@@ -199,6 +199,7 @@ class ResearchService:
             )
             self._repos.research.insert(rec)
             items.append(rec)
+            self._fill_implementation_approach(project, rec, actor)
         study: FeasibilityStudy | None = None
         if report.comparisons:
             comparisons = [
@@ -236,6 +237,31 @@ class ResearchService:
             topics=topics,
             unverified_count=unverified,
         )
+
+    def _fill_implementation_approach(
+        self, project: Project, rec: TechnologyResearch, actor: str
+    ) -> None:
+        """조사 결과(impact_on_implementation)를 관련 요구사항의 구현 방안으로 채운다 (비어 있을 때만, 구현 불가·미확인 제외).
+
+        제안서의 구현 방안이 조사 근거 없이 쓰이지 않게 하는 장치다. 사람이 요구사항 화면에서 고칠 수 있다.
+        """
+        if rec.feasibility in (FeasibilityVerdict.INFEASIBLE, FeasibilityVerdict.UNKNOWN):
+            return
+        text = (rec.impact_on_implementation or "").strip()
+        if not text:
+            return
+        all_reqs = self._repos.requirements.find(project.id, order_by="id")
+        by_any_id = {r.id: r for r in all_reqs}
+        by_any_id.update({r.rfp_requirement_id: r for r in all_reqs if r.rfp_requirement_id})
+        for rid in rec.related_requirement_ids:
+            req = by_any_id.get(rid)  # 내부 ID(FR-001) 또는 RFP ID(SFR-001)
+            if req is None or req.implementation_approach:
+                continue
+            req.implementation_approach = (
+                f"{text[:300]} (근거: 조사 '{rec.topic[:40]}', {rec.feasibility.value})"
+            )
+            req.add_history(actor, "approach_from_research", note=rec.topic[:60])
+            self._repos.requirements.update(req)
 
     @staticmethod
     def _missing_criteria(comparison: Any) -> list[str]:

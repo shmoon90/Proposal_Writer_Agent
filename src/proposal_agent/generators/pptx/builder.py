@@ -9,11 +9,15 @@ from __future__ import annotations
 import io
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
-from pptx.util import Emu, Inches, Pt
+from pptx.util import Cm, Emu, Inches, Pt
+
+from proposal_agent.generators.pptx.shapes import ShapeStyle, draw_visual
+from proposal_agent.generators.pptx.template import Box
 
 SLIDE_W = Inches(13.333)
 SLIDE_H = Inches(7.5)
@@ -40,6 +44,12 @@ class DeckBuilder:
         self.max_chars = max_chars
         self.body_font_pt = body_font_pt
         self.slide_count = 0
+        self.style = ShapeStyle(
+            font=FONT,
+            primary="1F4E78",
+            accent="5B9BD5",
+            base_pt=float(max(min(body_font_pt - 4, 12), 8)),
+        )
 
     # --- 기본 요소 --------------------------------------------------------------------------
     def _new_slide(self):
@@ -107,11 +117,27 @@ class DeckBuilder:
     def begin_chapter(self, numeral: str, title: str, sections: Sequence[str]) -> None:
         """장 표지 (기본 양식: 제목 슬라이드 + 절 목록)."""
         label = f"{numeral}. {title}" if numeral else title
-        self.section_slide(label, "")
+        slide = self._new_slide()
+        box = slide.shapes.add_textbox(MARGIN, Inches(1.6), BODY_W, Inches(1.2))
+        p = box.text_frame.paragraphs[0]
+        p.text = label[:60]
+        p.font.size = Pt(32)
+        p.font.bold = True
+        p.font.name = FONT
+        p.font.color.rgb = PRIMARY
         if sections:
-            self.bullet_slides(
-                f"{label} — 구성", [f"{i + 1}. {s}" for i, s in enumerate(sections)], ""
+            lst = slide.shapes.add_textbox(
+                MARGIN + Inches(0.4), Inches(3.0), BODY_W - Inches(0.8), Inches(3.6)
             )
+            tf = lst.text_frame
+            tf.word_wrap = True
+            for i, s in enumerate(sections[:10]):
+                para = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                para.text = f"{i + 1}. {s}"
+                para.font.size = Pt(18)
+                para.font.name = FONT
+                para.font.color.rgb = GREY
+        self._footer(slide, "")
 
     def begin_section(self, title: str, number: int | None = None) -> None:
         """기본 양식은 절 번호를 머리글에 쓰지 않는다 (템플릿 빌더만 사용)."""
@@ -254,6 +280,62 @@ class DeckBuilder:
             p.alignment = PP_ALIGN.CENTER
         self._footer(slide, footer)
         self._notes(slide, notes)
+
+    def canvas_slide(self, title: str, *, lead: str = "", notes: str = "") -> tuple[Any, Box]:
+        """제목(+리드) 아래 도형을 그릴 빈 영역(cm)을 돌려준다. 도식은 shapes.draw_* 로 그린다."""
+        slide = self._new_slide()
+        self._title(slide, title)
+        left, top = Emu(MARGIN).cm, Emu(BODY_TOP).cm
+        width, height = Emu(BODY_W).cm, Emu(BODY_H).cm
+        if lead:
+            box = slide.shapes.add_textbox(Cm(left), Cm(top), Cm(width), Cm(1.0))
+            p = box.text_frame.paragraphs[0]
+            p.text = lead[:200]
+            p.font.size = Pt(self.body_font_pt - 2)
+            p.font.bold = True
+            p.font.name = FONT
+            p.font.color.rgb = PRIMARY
+            top += 1.1
+            height -= 1.1
+        self._footer(slide, "")
+        self._notes(slide, notes)
+        return slide, Box(left=left, top=top, width=width, height=height)
+
+    def visual_slide(
+        self,
+        title: str,
+        spec: dict[str, Any],
+        footer: str,
+        *,
+        lead: str = "",
+        bullets: Sequence[str] = (),
+        notes: str = "",
+    ) -> str:
+        """에이전트 지정 도식(VisualSpec) 슬라이드. 글머리가 있으면 도식 아래에 요점 4개까지."""
+        slide, box = self.canvas_slide(title, lead=lead, notes=notes)
+        items = [b.strip()[: self.max_chars] for b in bullets if b and b.strip()][:4]
+        vis_h = box.height - (0.8 + 0.55 * len(items) if items else 0.0)
+        kind = draw_visual(
+            slide,
+            Box(left=box.left, top=box.top, width=box.width, height=max(vis_h, 3.0)),
+            spec,
+            style=self.style,
+        )
+        if items:
+            tb = slide.shapes.add_textbox(
+                Cm(box.left),
+                Cm(box.top + max(vis_h, 3.0) + 0.3),
+                Cm(box.width),
+                Cm(0.55 * len(items) + 0.4),
+            )
+            tf = tb.text_frame
+            tf.word_wrap = True
+            for i, b in enumerate(items):
+                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                p.text = f"• {b}"
+                p.font.size = Pt(self.body_font_pt - 2)
+                p.font.name = FONT
+        return kind
 
     def key_message_slide(
         self, title: str, messages: Sequence[str], footer: str, *, notes: str = ""

@@ -463,6 +463,14 @@ def check_tech_feasibility(inp: QaInputs, ppt_texts: dict[str, list[str]]) -> li
             fix_suggestion="위험 대응 방안을 제안서·아키텍처에 반영",
         ),
         _check(
+            "QA-TECH-07",
+            cat,
+            "기능 요구사항 구현 근거",
+            "수용된 필수 기능 요구사항마다 구현 방안이 있고, 구현 가능(feasible/with_risk)으로 조사된 근거 기록이 연결되어 있는가 (조사 선행 원칙)",
+            gate=gate,
+            fix_suggestion="기술 조사를 실행해 해당 요구사항을 조사 주제에 연결하고 구현 방안을 확정",
+        ),
+        _check(
             "QA-TECH-06",
             cat,
             "기술 주장 근거",
@@ -551,6 +559,33 @@ def check_tech_feasibility(inp: QaInputs, ppt_texts: dict[str, list[str]]) -> li
             f"보안·성능·가용성 요구사항 {len(sec_reqs)}건이 있으나 보안/인프라 구성 요소가 없음"
         )
     _finish(checks[4], review=rev05, req_ids=[r.id for r in sec_reqs] if rev05 else [])
+    # 07: 기능 요구사항 구현 근거 (조사 선행)
+    fail07: list[str] = []
+    rev07: list[str] = []
+    ok_verdicts = (FeasibilityVerdict.FEASIBLE, FeasibilityVerdict.FEASIBLE_WITH_RISK)
+    for r in inp.requirements:
+        if r.type != RequirementType.FUNCTIONAL or not r.is_mandatory:
+            continue
+        if r.acceptance_status not in (
+            AcceptanceStatus.ACCEPTED,
+            AcceptanceStatus.PARTIALLY_ACCEPTED,
+        ):
+            continue
+        linked = [
+            t
+            for t in research
+            if r.id in t.related_requirement_ids
+            or (r.rfp_requirement_id and r.rfp_requirement_id in t.related_requirement_ids)
+        ]
+        if not r.implementation_approach:
+            rev07.append(f"{r.id}: 구현 방안 미작성")
+        if not linked:
+            rev07.append(f"{r.id}: 근거 조사 없음 (웹 검색 기반 기술 조사 필요)")
+        elif not any(t.feasibility in ok_verdicts for t in linked):
+            rev07.append(
+                f"{r.id}: 연결된 조사가 구현 가능으로 확인되지 않음 ({', '.join(t.feasibility.value for t in linked[:3])})"
+            )
+    _finish(checks[5], fail=fail07, review=_cap(rev07), req_ids=[x.split(":")[0] for x in rev07])
     # 06
     evidence = " ".join(
         [
@@ -575,7 +610,7 @@ def check_tech_feasibility(inp: QaInputs, ppt_texts: dict[str, list[str]]) -> li
     rev06 = [f"근거 조사 없는 기술: {t}" for t in sorted(unbacked)]
     if not techs and inp.mode == ProjectMode.PROPOSAL:
         rev06.append("구성 요소 기술이 모두 미정 — 아키텍처 확정 필요")
-    _finish(checks[5], review=rev06)
+    _finish(checks[6], review=rev06)
     return checks
 
 
@@ -998,6 +1033,15 @@ def run_file_checks(inp: QaInputs) -> tuple[list[QaCheck], CheckArtifacts]:
             fix_suggestion="산출물 재생성",
         ),
         _check(
+            "QA-FILE-12",
+            cat,
+            "편집 가능성",
+            "생성 PPT에 그림(비트맵) 도형이 없고 모든 요소가 도형·표·텍스트로 편집 가능한가",
+            gate=gate,
+            fixable=FIX_REGENERATE,
+            fix_suggestion="산출물 재생성 (도식은 코드가 도형으로 그림)",
+        ),
+        _check(
             "QA-FILE-11",
             cat,
             "제안서 템플릿 준수",
@@ -1065,13 +1109,25 @@ def run_file_checks(inp: QaInputs) -> tuple[list[QaCheck], CheckArtifacts]:
         return fails, revs
 
     all_files = [d.file_path for d in inp.deliverables.values()]
+    f, r = split(("pptx.picture",))
     if inp.mode != ProjectMode.PROPOSAL:
         _not_run(checks[10], "구축 단계는 PPT를 생성하지 않음")
-    elif not inp.template_profiles:
-        _not_run(checks[10], "제안서 템플릿(PPT) 미등록 — 코드 기본 양식으로 생성됨")
     else:
         _finish(
             checks[10],
+            fail=f,
+            review=r,
+            files=_kind_files(
+                inp, DeliverableKind.SUBMISSION_PPTX, DeliverableKind.PRESENTATION_PPTX
+            ),
+        )
+    if inp.mode != ProjectMode.PROPOSAL:
+        _not_run(checks[11], "구축 단계는 PPT를 생성하지 않음")
+    elif not inp.template_profiles:
+        _not_run(checks[11], "제안서 템플릿(PPT) 미등록 — 코드 기본 양식으로 생성됨")
+    else:
+        _finish(
+            checks[11],
             fail=list(art.template_fails),
             review=list(art.template_reviews),
             files=_kind_files(

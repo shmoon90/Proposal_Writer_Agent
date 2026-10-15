@@ -111,6 +111,9 @@ DEFAULT_KEYS: tuple[tuple[str, str], ...] = (
 )
 
 
+ESSENTIAL_KEYS = ("requirements", "system_diagram", "schedule", "organization")
+
+
 def default_outline(ctx: GenerationContext) -> list[OutlineSection]:
     reqs = ctx.requirements
     nonf = [r for r in reqs if r.type == RequirementType.NON_FUNCTIONAL]
@@ -215,7 +218,7 @@ def decide_outline(ctx: GenerationContext, rfp_toc: list[str]) -> list[OutlineSe
     content = ctx.proposal_content or {}
     sections = content.get("sections") or []
     if sections:
-        return [
+        agent_sections = [
             OutlineSection(
                 key=canonical_key(str(s.get("slide_group", f"agent_{i}"))),
                 title=str(s.get("title", ""))[:60],
@@ -230,6 +233,19 @@ def decide_outline(ctx: GenerationContext, rfp_toc: list[str]) -> list[OutlineSe
             )
             for i, s in enumerate(sections)
         ]
+        # 에이전트 문안이 다루지 않은 데이터 기반 필수 섹션(요구사항 표·구성도·일정·인력)은 코드가 보강한다
+        have = {sec.key for sec in agent_sections}
+        for key in ESSENTIAL_KEYS:
+            if key not in have:
+                agent_sections.append(
+                    OutlineSection(
+                        key=key,
+                        title=dict(DEFAULT_KEYS)[key],
+                        source="default",
+                        reason="필수 섹션 보강 (기준 데이터)",
+                    )
+                )
+        return agent_sections
     if len(rfp_toc) >= 3:
         return map_rfp_toc(rfp_toc, ctx)
     return default_outline(ctx)

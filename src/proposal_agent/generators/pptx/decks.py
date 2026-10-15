@@ -13,7 +13,15 @@ from proposal_agent.generators.pptx.outline import (
     canonical_key,
     plan_chapters,
 )
-from proposal_agent.generators.pptx.template import TemplateDeckBuilder, TemplateProfile
+from proposal_agent.generators.pptx.shapes import (
+    draw_architecture,
+    draw_bars,
+    draw_cards,
+    draw_kpis,
+    draw_timeline,
+    draw_two_column,
+)
+from proposal_agent.generators.pptx.template import Box, TemplateDeckBuilder, TemplateProfile
 from proposal_agent.models import RequirementType
 from proposal_agent.planning.effort import md_to_mm
 
@@ -150,6 +158,32 @@ def _staff_rows(ctx: GenerationContext) -> list[list[object]]:
     ]
 
 
+def _timeline_items(ctx: GenerationContext) -> list[tuple[str, Any, Any]]:
+    return [
+        (f"{w.code} {w.name[:22]}", w.planned_start, w.planned_end)
+        for w in ctx.wbs
+        if w.code.count(".") <= 1
+    ]
+
+
+def _staff_bars(ctx: GenerationContext) -> list[tuple[str, float, str]]:
+    roles = ctx.roles_by_id
+    totals: dict[str, Decimal] = {}
+    for a in ctx.allocations:
+        r = roles.get(a.staff_role_id)
+        if r:
+            totals[r.id] = totals.get(r.id, Decimal("0")) + a.effort_md
+    return [
+        (r.role_name, round(float(md_to_mm(totals.get(r.id, Decimal("0")))), 2), "MM")
+        for r in ctx.roles
+    ]
+
+
+def _card_title(text: str) -> str:
+    head = text.split("(")[0].split(":")[0].split("—")[0].strip()
+    return head[:18] if head else text[:18]
+
+
 def _risk_bullets(ctx: GenerationContext) -> list[str]:
     out: list[str] = []
     for t in ctx.research:
@@ -203,6 +237,27 @@ def _render_section(
             footnotes=["RFP가 요구한 절이며 기준 데이터에서 채울 내용이 없음"],
         )
         return
+    visual = (agent or {}).get("visual")
+    if (
+        agent
+        and isinstance(visual, dict)
+        and visual.get("items")
+        or (agent and isinstance(visual, dict) and visual.get("rows"))
+    ):
+        # 에이전트가 도식을 지정한 소절: 도식(편집 가능 도형) + 요점. 표가 함께 있으면 표 슬라이드도.
+        b.visual_slide(
+            sec.title,
+            visual,
+            footer,
+            lead=lead,
+            bullets=[
+                *(["대응 요구사항: " + ", ".join(req_ids[:12])] if req_ids else []),
+                *list(agent.get("bullets") or []),
+            ],
+            notes=notes,
+        )
+        _render_agent_extras(b, sec, agent, footer)
+        return
     if agent and req_ids and agent.get("bullets"):
         # 템플릿 관행: 소절 상단에 대응 요구사항 ID 카드 → 글머리 첫 줄로
         agent = {
@@ -227,6 +282,24 @@ def _render_section(
         return
     if key in ("purpose", "understanding"):
         a = ctx.analysis or {}
+        goals = [str(g) for g in a.get("client_goals", []) or [] if g][:4]
+        if goals:
+            # 배경·목표 시각화: 목표 카드 + 요약 (편집 가능 도형)
+            b.visual_slide(
+                sec.title,
+                {
+                    "kind": "cards",
+                    "items": [{"title": f"목표 {i + 1}", "text": g} for i, g in enumerate(goals)],
+                },
+                footer,
+                lead=lead or str(a.get("overview", ""))[:200],
+                bullets=list((agent or {}).get("bullets") or [])[:3],
+                notes=notes,
+            )
+            if not compact and (agent or {}).get("bullets"):
+                return
+            if compact:
+                return
         bullets = (
             [a.get("overview", "")]
             + list(a.get("client_goals", []))
@@ -251,18 +324,39 @@ def _render_section(
             notes=notes,
         )
     elif key == "requirements":
-        lead = f"{figs['requirements']} ({figs['mandatory']}) — 요구사항 정의서와 동일 데이터"
+        lead_default = (
+            f"{figs['requirements']} ({figs['mandatory']}) — 요구사항 정의서와 동일 데이터"
+        )
         if compact:
             counts = {
                 t.label: len([r for r in ctx.requirements if r.type == t]) for t in RequirementType
             }
-            b.bullet_slides(
-                sec.title,
-                [f"{k}: {v}건" for k, v in counts.items() if v]
-                + (agent or {}).get("bullets", [])[:3],
-                footer,
-                lead=lead,
-                notes=notes,
+            slide, box = b.canvas_slide(sec.title, lead=lead or lead_default, notes=notes)
+            kpi_h = min(4.0, box.height * 0.4)
+            draw_kpis(
+                slide,
+                Box(left=box.left, top=box.top, width=box.width, height=kpi_h),
+                [(k, f"{v}건") for k, v in counts.items() if v][:5],
+                style=b.style,
+            )
+            approaches = [
+                f"{r.id} {r.name[:24]}: {r.implementation_approach[:60]}"
+                for r in ctx.mandatory_requirements()
+                if r.implementation_approach
+            ][:6]
+            draw_two_column(
+                slide,
+                Box(
+                    left=box.left,
+                    top=box.top + kpi_h + 0.4,
+                    width=box.width,
+                    height=max(box.height - kpi_h - 0.4, 3.0),
+                ),
+                "필수 요구사항",
+                [f"{r.id} {r.name[:40]}" for r in ctx.mandatory_requirements()][:8],
+                "구현 방안 (조사 근거)",
+                approaches or ["구현 방안 미작성 — 기술 조사·제안 문안 작성 필요"],
+                style=b.style,
             )
         else:
             b.table_slides(
@@ -271,7 +365,7 @@ def _render_section(
                 _requirement_rows(ctx),
                 footer,
                 col_widths=(1, 3, 1, 1, 1, 3),
-                notes=notes or lead,
+                notes=notes or lead_default,
                 lead=lead or f"{figs['requirements']} ({figs['mandatory']}) 전수 대응",
                 footnotes=footnotes,
             )
@@ -282,21 +376,22 @@ def _render_section(
             "3단계 WBS와 영업일 기준 일정으로 투명한 공정 관리",
             "독립 검증과 사람 승인 게이트를 통한 품질 관리",
         ]
-        b.bullet_slides(sec.title, bullets, footer, notes=notes, lead=lead, footnotes=footnotes)
+        slide, box = b.canvas_slide(sec.title, lead=lead or "핵심 전략", notes=notes)
+        draw_cards(
+            slide,
+            box,
+            [{"title": _card_title(x), "text": x} for x in bullets[:4]],
+            style=b.style,
+        )
     elif key in ("system_diagram", "sw_diagram", "service_diagram"):
         kind = key.split("_")[0]
-        path = ctx.diagram_paths.get(kind)
-        if path:
-            b.image_slide(
-                sec.title,
-                path,
-                footer,
-                caption="자체 작성 도형 (코드 생성)",
-                notes=notes,
-                lead=lead,
-            )
-        else:
-            b.bullet_slides(sec.title, ["구성도 생성 실패 — 검토 필요"], footer)
+        comps = [c for c in ctx.components if not c.diagram_kinds or kind in c.diagram_kinds]
+        slide, box = b.canvas_slide(
+            sec.title,
+            lead=lead or f"{sec.title} — 구성 요소 {len(comps)}개 (편집 가능 도형)",
+            notes=notes,
+        )
+        draw_architecture(slide, box, comps, style=b.style)
     elif key == "architecture":
         rows = [
             [c.id, c.layer, c.name, c.technology or "미정", c.description[:50]]
@@ -362,8 +457,11 @@ def _render_section(
         )
     elif key == "schedule":
         lead = f"기간 {figs['period']} · 총 공수 {figs['total_md']} ({figs['total_mm']})"
-        if compact and ctx.diagram_paths.get("gantt"):
-            b.image_slide(sec.title, ctx.diagram_paths["gantt"], footer, caption=lead, notes=notes)
+        if compact:
+            slide, box = b.canvas_slide(sec.title, lead=lead, notes=notes)
+            draw_timeline(
+                slide, box, _timeline_items(ctx), ctx.period_start, ctx.period_end, style=b.style
+            )
         else:
             b.table_slides(
                 sec.title,
@@ -373,8 +471,10 @@ def _render_section(
                 col_widths=(1, 3, 1.3, 1.3, 1, 1),
                 notes=notes or lead,
             )
-            if ctx.diagram_paths.get("gantt"):
-                b.image_slide("일정 (간트)", ctx.diagram_paths["gantt"], footer, caption=lead)
+            slide, box = b.canvas_slide("일정 (간트)", lead=lead)
+            draw_timeline(
+                slide, box, _timeline_items(ctx), ctx.period_start, ctx.period_end, style=b.style
+            )
     elif key == "organization":
         lead = f"{figs['headcount']} · 총 {figs['total_mm']}"
         b.table_slides(
@@ -385,17 +485,28 @@ def _render_section(
             col_widths=(1.5, 1, 1, 3, 1),
             notes=notes or lead,
         )
-        if ctx.diagram_paths.get("staffing"):
-            b.image_slide("역할별 공수", ctx.diagram_paths["staffing"], footer, caption=lead)
+        slide, box = b.canvas_slide("역할별 공수", lead=lead)
+        draw_bars(slide, box, _staff_bars(ctx), style=b.style)
     elif key == "risk":
-        b.bullet_slides(
-            sec.title,
-            (agent or {}).get("bullets") or _risk_bullets(ctx),
-            footer,
-            notes=notes,
-            lead=lead,
-            footnotes=footnotes,
-        )
+        risk_lines = list((agent or {}).get("bullets") or _risk_bullets(ctx))
+        if compact:
+            slide, box = b.canvas_slide(sec.title, lead=lead or "위험과 대응", notes=notes)
+            pairs = [
+                x.split("→", 1) if "→" in x else [x, "대응 방안 수립 필요"] for x in risk_lines[:6]
+            ]
+            draw_two_column(
+                slide,
+                box,
+                "위험",
+                [p[0].strip() for p in pairs],
+                "대응",
+                [p[1].strip() for p in pairs],
+                style=b.style,
+            )
+        else:
+            b.bullet_slides(
+                sec.title, risk_lines, footer, notes=notes, lead=lead, footnotes=footnotes
+            )
     elif key == "evaluation":
         a = ctx.analysis or {}
         b.bullet_slides(
@@ -469,18 +580,120 @@ def build_submission_deck(
     return b.to_bytes()
 
 
+PRESENTATION_KEYS = {
+    "purpose",
+    "understanding",
+    "current",
+    "requirements",
+    "strategy",
+    "system_diagram",
+    "architecture",
+    "security",
+    "testing",
+    "schedule",
+    "organization",
+    "risk",
+}
+
+PRESENTATION_DEFAULT_CHAPTERS: list[dict[str, Any]] = [
+    {
+        "numeral": "Ⅰ",
+        "title": "사업의 이해",
+        "sections": [
+            {"number": "1", "title": "제안 배경 및 목적", "guide": []},
+            {"number": "2", "title": "사업 범위 및 현황", "guide": []},
+            {"number": "3", "title": "사업 수행 전략", "guide": []},
+        ],
+    },
+    {
+        "numeral": "Ⅱ",
+        "title": "사업 수행 방안",
+        "sections": [
+            {"number": "1", "title": "목표 시스템 구성", "guide": []},
+            {"number": "2", "title": "요구사항 구현 방안", "guide": []},
+            {"number": "3", "title": "서비스·연계 구성", "guide": []},
+        ],
+    },
+    {
+        "numeral": "Ⅲ",
+        "title": "성능 및 품질",
+        "sections": [
+            {"number": "1", "title": "보안·성능 확보 방안", "guide": []},
+            {"number": "2", "title": "테스트 및 품질 보증", "guide": []},
+        ],
+    },
+    {
+        "numeral": "Ⅳ",
+        "title": "사업 관리 및 지원",
+        "sections": [
+            {"number": "1", "title": "추진 일정", "guide": []},
+            {"number": "2", "title": "수행 조직 및 인력", "guide": []},
+            {"number": "3", "title": "위험 관리", "guide": []},
+            {"number": "4", "title": "교육·운영 지원", "guide": []},
+        ],
+    },
+]
+
+
 def build_presentation_deck(
     ctx: GenerationContext,
     outline: list[OutlineSection],
     *,
     template_profile: TemplateProfile | None = None,
     template_data: bytes | None = None,
+    toc_tree: list[dict[str, Any]] | None = None,
 ) -> bytes:
+    """발표용 PPT: 표지 → 사업 필요성(카드) → CONTENTS → 장마다 CHAPTER 구분·절(리드 + 도식 + 요점) → 핵심 메시지 → 마무리.
+
+    장 뼈대는 발표용 템플릿 샘플의 장 → RFP 지정 목차 → 기본 4장 순. 도식은 모두 편집 가능한 도형이다.
+    """
     b = _make_builder(template_profile, template_data, max_bullets=5, max_chars=70, body_font_pt=20)
-    b.begin_section("제안 발표", 0)
     footer = _footer(ctx, "발표용")
     figs = key_figures(ctx)
+    a = ctx.analysis or {}
+    template_chapters = template_profile.chapters if template_profile else None
+    skeleton = toc_tree if (toc_tree and not template_chapters) else None
+    if not template_chapters and not skeleton:
+        skeleton = PRESENTATION_DEFAULT_CHAPTERS
+    pres_outline = [
+        o for o in outline if o.key in PRESENTATION_KEYS or o.key.startswith(("generic", "agent"))
+    ]
+    plan = plan_chapters(pres_outline, skeleton, template_chapters)
     b.title_slide(f"{ctx.project.name}", f"제안 발표 · {ctx.generated_on}", footer)
+    # 사업 필요성·목표 (카드)
+    goals = [str(g) for g in a.get("client_goals", []) or [] if g][:3]
+    need_items = (
+        [{"title": f"목표 {i + 1}", "text": g} for i, g in enumerate(goals)]
+        if goals
+        else [
+            {
+                "title": "요구사항",
+                "text": f"{figs['requirements']} ({figs['mandatory']}) 전수 대응",
+            },
+            {"title": "기간", "text": figs["period"]},
+            {"title": "투입", "text": f"{figs['headcount']} · {figs['total_mm']}"},
+        ]
+    )
+    b.begin_section("제안 개요", 0)
+    b.visual_slide(
+        "제안 발표에 앞서 — 사업의 필요성",
+        {"kind": "cards", "items": need_items},
+        footer,
+        lead=str(a.get("overview", "") or f"{ctx.project.name} 제안 요약")[:200],
+    )
+    b.bullet_slides(
+        "CONTENTS",
+        [f"{ch.numeral}. {ch.title}" if ch.numeral else ch.title for ch in plan],
+        footer,
+    )
+    for ch in plan:
+        b.begin_chapter(ch.numeral, ch.title, [sp.title for sp in ch.sections])
+        for sp in ch.sections:
+            b.begin_section(sp.title, sp.number)
+            for sub in sp.subsections:
+                if sub.key == "placeholder":
+                    continue  # 발표용은 데이터 없는 절을 장 목록에만 남기고 슬라이드는 만들지 않는다
+                _render_section(b, ctx, sub, "발표용", compact=True)
     agent_messages = list((ctx.proposal_content or {}).get("key_messages") or [])
     figure_line = f"{figs['headcount']}, {figs['total_mm']}, 기간 {figs['period']}"
     messages = (
@@ -493,27 +706,15 @@ def build_presentation_deck(
             "출처 기반 기술 선정과 독립 검증",
         ]
     )
+    b.begin_section("마무리", len(plan) + 1)
     b.key_message_slide("핵심 메시지", messages[:5], footer)
-    keep = {
-        "purpose",
-        "understanding",
-        "requirements",
-        "strategy",
-        "system_diagram",
-        "sw_diagram",
-        "service_diagram",
-        "architecture",
-        "schedule",
-        "organization",
-        "risk",
-    }
-    for sec in outline:
-        if sec.key in keep or sec.key.startswith(("generic", "agent")):
-            _render_section(b, ctx, sec, "발표용", compact=True)
     b.bullet_slides(
         "핵심 기술과 차별점",
         [f"기술: {figs['technologies']}"]
         + [f"{t.topic[:30]}: {t.summary[:60]}" for t in ctx.research[:4]],
         footer,
     )
+    claims = (ctx.proposal_content or {}).get("unverified_claims") or []
+    if claims:
+        b.bullet_slides("사람 확인 필요 문구", list(claims), footer)
     return b.to_bytes()

@@ -69,6 +69,38 @@ WRITER_SECTIONS: list[dict[str, Any]] = [
 ]
 
 
+def _researcher(request: AgentRequest) -> dict[str, Any]:
+    return {
+        "items": [
+            {
+                "topic": "사건 접수·배정 워크플로 구현",
+                "related_requirement_ids": ["SFR-001", "SFR-002"],
+                "summary": "워크플로 엔진 없이 상태 전이 테이블로 구현 가능",
+                "confirmed_facts": ["상태 전이 방식은 공식 가이드에 예시가 있음"],
+                "applicability_conditions": [],
+                "unverified_items": [],
+                "impact_on_implementation": "상태 전이 테이블 + 배정 알림 배치로 구현",
+                "impact_on_proposal": "",
+                "feasibility": "feasible",
+                "risks": [],
+                "recommended_stack": ["Spring Boot"],
+                "sources": [
+                    {
+                        "url": "https://docs.example.com/workflow",
+                        "title": "Workflow guide",
+                        "product": "Spring Boot",
+                        "version": "3.2",
+                        "trust": "official_doc",
+                        "excerpt": "state transition example",
+                    }
+                ],
+            }
+        ],
+        "comparisons": [],
+        "notes": "",
+    }
+
+
 def _writer(request: AgentRequest) -> dict[str, Any]:
     return {
         "profile": "submission",
@@ -86,6 +118,7 @@ def tpl(tmp_path: Path) -> Iterator[tuple[Services, Project, FakeAgentRunner]]:
             "requirement_extractor": _extract_only(set(bld.STRUCTURED_RFP_IDS)),
             "requirement_verifier": verifier_all_ok,
             "proposal_writer": _writer,
+            "tech_researcher": _researcher,
         }
     )
     s = Services.from_context(ctx, runner=runner)
@@ -364,10 +397,17 @@ def test_writer_agent_gets_template_brief_and_deck_uses_lead_table_footnotes(
 ) -> None:
     s, p, runner = tpl
     r = StepRunner(s)
+    with pytest.raises(ValidationError, match="기술 조사 기록이 없어"):
+        r.run_proposal_writing(p)  # 구현 가능한 내용만 쓰도록 조사(웹 검색) 선행 강제
+    r.run_tech_research(p)
     r.run_proposal_writing(p)
+    # 조사 결과가 요구사항 구현 방안을 채운다 (근거 표기)
+    sfr1 = next(r for r in s.requirements.list_requirements(p) if r.rfp_requirement_id == "SFR-001")
+    assert sfr1.implementation_approach and "근거: 조사" in sfr1.implementation_approach
     call = next(c for c in runner.calls if c.role == "proposal_writer")
-    for tag in ("<proposal_template>", "<rfp_toc>", "<data>"):
+    for tag in ("<proposal_template>", "<rfp_toc>", "<data>", "<feasibility>"):
         assert tag in call.prompt
+    assert "SFR-001" in call.prompt.split("<feasibility>")[1].split("</feasibility>")[0]
     assert (
         "머리글 2단" in call.prompt
         and "Ⅰ. 제안 개요" in call.prompt

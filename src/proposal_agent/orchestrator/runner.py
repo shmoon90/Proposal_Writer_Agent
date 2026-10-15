@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from proposal_agent.agents.control import CancellationToken
-from proposal_agent.config.errors import PWAError
+from proposal_agent.config.errors import PWAError, ValidationError
 from proposal_agent.config.logging import get_logger
 from proposal_agent.ingest.chunker import build_chunks
 from proposal_agent.ingest.service import GATE0_KEY
@@ -255,9 +255,29 @@ class StepRunner:
     def run_proposal_writing(
         self, project: Project, *, actor: str = "user", cancel: CancellationToken | None = None
     ) -> StepOutcome:
-        """제안서 작성 에이전트(proposal_writer). Gate 1 통과 필요. 템플릿 관행·RFP 지정 목차·기준 데이터를 넣는다."""
+        """제안서 작성 에이전트(proposal_writer). Gate 1 통과 필요. 템플릿 관행·RFP 지정 목차·기준 데이터를 넣는다.
+
+        구현 가능한 내용만 쓰도록 **기술 조사(웹 검색)가 선행**되어야 한다: 조사 기록이 하나도 없으면 거부하고,
+        근거 조사가 없는 필수 기능 요구사항이 남아 있으면 경고를 감사 기록·요약에 남긴다(에이전트는 '조사 후 확정'으로 쓴다).
+        """
+        self._s.gates.require(project, GATE1_KEY)
+        if not self._s.research.list_research(project):
+            raise ValidationError(
+                "기술 조사 기록이 없어 제안 문안을 작성할 수 없습니다.",
+                cause="구현 방안은 웹 검색 기반 기술 조사 결과에 근거해야 함",
+                resolution="에이전트·조사 화면에서 '기술 조사 실행(에이전트, 웹 검색)'을 먼저 수행하십시오.",
+            )
+        ctx = self._s.generation.build_context(project, actor=actor)
+        gaps = self._s.generation.research_gaps(ctx)
+        if gaps:
+            self._s.audit.record(
+                project.id,
+                "proposal.writing.research_gaps",
+                actor=actor,
+                payload={"requirement_ids": gaps[:50], "count": len(gaps)},
+            )
         prompt = self._s.generation.proposal_brief(project)
-        return self.run_role_step(
+        outcome = self.run_role_step(
             project,
             self.STEP_PPT,
             "proposal_writer",
@@ -266,6 +286,11 @@ class StepRunner:
             actor=actor,
             cancel=cancel,
         )
+        if gaps:
+            outcome.summary += (
+                f" · 근거 조사 없는 필수 기능 요구사항 {len(gaps)}건 ({', '.join(gaps[:5])})"
+            )
+        return outcome
 
     def run_generation(self, project: Project, *, actor: str = "user") -> StepOutcome:
         """Gate 1 통과 프로젝트만. 계획(없으면 기본값)·구성도·Excel 4종·PPT 2종을 생성한다."""

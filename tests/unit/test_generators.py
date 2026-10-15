@@ -267,7 +267,9 @@ def test_pptx_decks_open_and_share_key_figures(services: Services, ready: Projec
     sub = Presentation(str(_path(services, latest[DeliverableKind.SUBMISSION_PPTX])))
     pres = Presentation(str(_path(services, latest[DeliverableKind.PRESENTATION_PPTX])))
     assert sub.slide_width > sub.slide_height and len(sub.slides) >= 10
-    assert len(pres.slides) < len(sub.slides)
+    assert (
+        len(pres.slides) <= len(sub.slides) + 6
+    )  # 발표용: 표지·필요성·CONTENTS·CHAPTER·마무리 포함
     sub_text = "\n".join(pptx_texts(_path(services, latest[DeliverableKind.SUBMISSION_PPTX])))
     pres_text = "\n".join(pptx_texts(_path(services, latest[DeliverableKind.PRESENTATION_PPTX])))
     for r in services.requirements.list_requirements(ready):

@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import shutil
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from proposal_agent.config.errors import PWAError, ValidationError
 from proposal_agent.config.logging import get_logger
@@ -68,6 +68,12 @@ KIND_TARGETS: dict[DeliverableKind, tuple[str, str, str]] = {
     DeliverableKind.SW_DIAGRAM_PNG: ("10_Diagrams_Charts_Images", "SW구성도", ".png"),
     DeliverableKind.SERVICE_DIAGRAM_PNG: ("10_Diagrams_Charts_Images", "서비스구성도", ".png"),
 }
+
+
+def research_links(req: Any, research: Any) -> bool:
+    """조사 기록이 요구사항을 가리키는가 (내부 ID 또는 RFP 자체 ID)."""
+    ids = set(research.related_requirement_ids)
+    return req.id in ids or bool(req.rfp_requirement_id and req.rfp_requirement_id in ids)
 
 
 @dataclass
@@ -323,6 +329,7 @@ class GenerationService:
                     outline,
                     template_profile=pres_hit.profile if pres_hit else None,
                     template_data=pres_hit.data if pres_hit else None,
+                    toc_tree=toc_tree,
                 ),
             ),
         ):
@@ -372,6 +379,34 @@ class GenerationService:
         if self._templates is None:
             return None
         return self._templates.for_purpose(project, purpose)
+
+    def feasibility_brief(self, ctx: GenerationContext) -> str:
+        """필수 요구사항별 구현 방안·근거 조사 요약 (에이전트·QA 공용)."""
+        lines: list[str] = []
+        missing = 0
+        for r in ctx.mandatory_requirements():
+            if r.type.value not in ("functional", "non_functional"):
+                continue
+            linked = [t for t in ctx.research if research_links(r, t)]
+            basis = "; ".join(
+                f"'{t.topic[:30]}'={t.feasibility.value}(출처 {len(t.sources)})" for t in linked[:3]
+            )
+            if not linked:
+                missing += 1
+            lines.append(
+                f"- {r.id}{' / ' + r.rfp_requirement_id if r.rfp_requirement_id else ''} {r.name[:40]} | "
+                f"구현 방안: {(r.implementation_approach or '미작성')[:100]} | 근거 조사: {basis or '조사 없음'}"
+            )
+        head = f"필수 기능·비기능 요구사항 {len(lines)}건, 근거 조사 없음 {missing}건"
+        return head + "\n" + "\n".join(lines[:150])
+
+    def research_gaps(self, ctx: GenerationContext) -> list[str]:
+        """근거 조사가 없는 필수 기능 요구사항 ID."""
+        return [
+            r.id
+            for r in ctx.mandatory_requirements()
+            if r.type.value == "functional" and not any(research_links(r, t) for t in ctx.research)
+        ]
 
     def proposal_brief(self, project: Project) -> str:
         """제안서 작성 에이전트 프롬프트: 템플릿 관행 + RFP 지정 목차 + 기준 데이터 요약."""
@@ -462,6 +497,7 @@ class GenerationService:
                 if w.parent_id is None
             ][:30],
         }
+        parts.append("<feasibility>\n" + self.feasibility_brief(ctx) + "\n</feasibility>")
         parts.append("<data>\n" + json.dumps(data, ensure_ascii=False)[:24000] + "\n</data>")
         parts.append(
             "위 템플릿 관행과 RFP 지정 목차를 따르는 제출용 제안 문안(profile=submission)을 JSON으로 반환하라. "
