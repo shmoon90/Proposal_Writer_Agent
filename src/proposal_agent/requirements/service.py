@@ -6,6 +6,7 @@ ID 발급, 출처(block) 검증과 SourceRef 생성, 중복 병합, 상태 전�
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -92,6 +93,7 @@ class ExtractionSummary:
     skipped_chunks: int = 0
     cached_chunks: int = 0
     input_chars: int = 0
+    uncovered_rfp_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -303,6 +305,37 @@ class RequirementService:
         )
         return response.output, False
 
+    def _check_rfp_coverage(self, project: Project, reqs: list[Requirement]) -> list[str]:
+        """RFP가 부여한 요구사항 ID마다 추출된 요구사항이 하나 이상 연결되었는지 (코드 검사)."""
+        prof = self._extraction.rfp_profile(project)
+        if prof is None or not prof.requirement_index:
+            return []
+        covered_ids = {r.rfp_requirement_id for r in reqs if r.rfp_requirement_id}
+        covered_blocks = {ref.block_id for r in reqs for ref in r.source_refs if ref.block_id}
+        uncovered = [
+            e.rfp_id
+            for e in prof.requirement_index
+            if e.rfp_id not in covered_ids and not (set(e.block_ids) & covered_blocks)
+        ]
+        for rid in uncovered:
+            entry = next(e for e in prof.requirement_index if e.rfp_id == rid)
+            self._repos.validations.insert(
+                ValidationResult(
+                    project_id=project.id,
+                    target_type=ValidationTargetType.REQUIREMENT,
+                    target_id=rid,
+                    rule_id="rfp.uncovered_id",
+                    level=ValidationLevel.WARNING,
+                    message=f"RFP 요구사항 {rid} '{entry.name}'에 연결된 추출 요구사항이 없음",
+                    detail={
+                        "resolution": "해당 절을 확인해 요구사항을 수동 추가하거나 재추출하십시오.",
+                        "page": entry.page,
+                    },
+                    validator="code:rfp_profile",
+                )
+            )
+        return uncovered
+
     # --- 추출 -------------------------------------------------------------------------------
     def extract(
         self, project: Project, *, actor: str = "agent:requirement_extractor"
@@ -398,6 +431,15 @@ class RequirementService:
                 req = Requirement.from_draft(
                     draft, id=req_id, project_id=project.id, created_by=actor, source_refs=refs
                 )
+                if not req.rfp_requirement_id:
+                    req.rfp_requirement_id = next(
+                        (
+                            block_map[bid].rfp_requirement_id
+                            for bid in valid_ids
+                            if block_map[bid].rfp_requirement_id
+                        ),
+                        None,
+                    )
                 req.add_history(actor, "extracted", note=f"chunk {chunk.index}")
                 if draft.confidence < LOW_CONFIDENCE:
                     req.review_status = ReviewStatus.PENDING
@@ -405,6 +447,7 @@ class RequirementService:
                 seen_in_batch.append(req)
                 summary.created.append(req)
 
+        summary.uncovered_rfp_ids = self._check_rfp_coverage(project, [*existing, *summary.created])
         self._audit.record(
             project.id,
             "requirements.extracted",
@@ -427,8 +470,18 @@ class RequirementService:
         return summary
 
     def _extraction_prompt(self, project: Project, chunk: Chunk) -> str:
+        ids = sorted({m for m in re.findall(r'rfp_id="([^"]+)"', chunk.text)})
+        kinds = sorted({m for m in re.findall(r'section="([^"]+)"', chunk.text)})
+        hint = ""
+        if kinds:
+            hint += f"절 종류: {', '.join(kinds)}\n"
+        if ids:
+            hint += (
+                f"이 청크의 RFP 요구사항 ID: {', '.join(ids)} — block의 rfp_id 속성을 각 항목의 rfp_requirement_id에 적고, "
+                "ID 아래 1) 2) / -. 세부 항목은 각각 별도 요구사항으로 추출하라.\n"
+            )
         return (
-            f"프로젝트: {project.name}\n청크 {chunk.index + 1} / 섹션: {', '.join(chunk.sections) or '(없음)'}\n\n"
+            f"프로젝트: {project.name}\n청크 {chunk.index + 1} / 섹션: {', '.join(chunk.sections) or '(없음)'}\n{hint}\n"
             f"<document>\n{chunk.text}\n</document>\n\n"
             "위 원문에서 요구사항을 추출해 JSON으로 반환하라. source_block_ids에는 위 block id만 사용하라."
         )
@@ -440,7 +493,8 @@ class RequirementService:
             block_id=block.id,
             page=block.location.page,
             section=block.location.section,
-            location_label=block.source_label,
+            location_label=block.source_label
+            + (f" · {block.rfp_requirement_id}" if block.rfp_requirement_id else ""),
             quote=quote or block.text[:300],
         )
 

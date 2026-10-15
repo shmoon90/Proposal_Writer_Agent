@@ -28,6 +28,8 @@
 10. `confidence`: 원문이 명확하면 0.9 이상, OCR 오탈자·모호한 표현이면 0.6 이하.
 11. `implementation_approach`, `impact_note`는 이 단계에서 null로 둔다.
 12. 같은 요구를 두 번 추출하지 않는다. 비슷한 항목이 여러 block에 있으면 하나로 합치고 `source_block_ids`에 모두 넣는다.
+13. block에 `rfp_id="SFR-001"` 속성이 있으면 그 block에서 추출한 항목의 `rfp_requirement_id`에 같은 값을 적는다. RFP의 한 ID 아래 `1)`, `2)`, `-.`로 나뉜 세부 항목은 각각 별도 요구사항으로 추출한다(ID는 공유). `section="evaluation"`인 block은 `evaluation`, `section="submission"`·`appendix`인 block은 `submission`, `proposal_guide`는 제안서 작성 조건(`submission`)으로 분류한다.
+14. 표에서 "요구사항 / 세부 / 상세 / 내용 / 설명" 같은 라벨 셀이 본문 사이에 끼어 있으면 무시한다(원문 서식 잡음).
 
 # 출력
 

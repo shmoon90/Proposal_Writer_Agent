@@ -25,6 +25,7 @@ SIGNAL_RE = re.compile(
     r"이상|이하|이내|초|분|건|명|%|구현|개발|설계|운영|유지보수|교육|검수|산출물|\|)"
 )
 HEADING_TYPES = {BlockType.HEADING, BlockType.TITLE, BlockType.TOC}
+SIGNAL_KINDS = {"requirements", "submission", "proposal_guide"}
 MIN_CHUNK_TEXT = 120  # 태그 제외 본문이 이보다 짧으면 요구사항이 들어 있다고 보지 않는다
 DESC_MAX = 400
 QUOTE_MAX = 200
@@ -37,7 +38,11 @@ def plain_text(chunk: Chunk) -> str:
 
 
 def has_signal(chunk: Chunk, blocks_by_id: dict[str, ExtractedBlock]) -> bool:
-    kinds = {blocks_by_id[b].block_type for b in chunk.block_ids if b in blocks_by_id}
+    tagged = [blocks_by_id[b] for b in chunk.block_ids if b in blocks_by_id]
+    # RFP 프로파일이 요구·제출·작성조건 절로 판별한 블록은 길이와 무관하게 신호로 본다
+    if any(b.rfp_requirement_id or b.section_kind in SIGNAL_KINDS for b in tagged):
+        return True
+    kinds = {b.block_type for b in tagged}
     if kinds and kinds <= HEADING_TYPES:
         return False
     if BlockType.TABLE in kinds:

@@ -126,6 +126,7 @@ class QaInputs:
     revisions: list[Revision] = field(default_factory=list)
     rfp_analysis: dict[str, Any] | None = None
     id_prefixes: dict[str, str] = field(default_factory=dict)
+    rfp_profile: Any | None = None  # ingest.rfp_profile.RfpProfile
 
     @property
     def mode(self) -> ProjectMode:
@@ -277,6 +278,14 @@ def check_rfp_fit(inp: QaInputs, ppt_sub_text: str) -> list[QaCheck]:
             gate=gate,
             fix_suggestion="추출을 다시 실행하고 요구사항을 재검증",
         ),
+        _check(
+            "QA-RFP-07",
+            cat,
+            "RFP 요구사항 ID 커버리지",
+            "RFP가 부여한 요구사항 ID(예: SFR-001)마다 추출 요구사항이 하나 이상 연결되어 있는가",
+            gate=gate,
+            fix_suggestion="누락 ID의 절을 확인해 요구사항을 추가 추출·수동 추가",
+        ),
     ]
     if not inp.blocks or inp.mode != ProjectMode.PROPOSAL:
         return [
@@ -376,6 +385,24 @@ def check_rfp_fit(inp: QaInputs, ppt_sub_text: str) -> list[QaCheck]:
             elif s.block_id and s.block_id not in block_ids:
                 dangling.append(f"{r.id}: 블록 {s.block_id[:12]} 없음 (재추출됨?)")
     _finish(checks[5], fail=dangling, req_ids=[d.split(":")[0] for d in dangling])
+    # 07: RFP ID 커버리지 (프로파일이 ID 체계를 찾은 경우만)
+    prof = inp.rfp_profile
+    if prof is None or not getattr(prof, "requirement_index", None):
+        _not_run(checks[6], "RFP 자체 요구사항 ID 체계를 찾지 못함 (문장 단위 RFP)")
+    else:
+        covered_ids = {r.rfp_requirement_id for r in reqs if r.rfp_requirement_id}
+        covered_blocks = {s.block_id for r in reqs for s in r.source_refs if s.block_id}
+        uncovered = [
+            f"{e.rfp_id} {e.name}".strip()
+            for e in prof.requirement_index
+            if e.rfp_id not in covered_ids and not (set(e.block_ids) & covered_blocks)
+        ]
+        _finish(
+            checks[6],
+            fail=[f"연결된 요구사항이 없는 RFP ID {len(uncovered)}건: " + ", ".join(uncovered[:10])]
+            if uncovered
+            else [],
+        )
     return checks
 
 

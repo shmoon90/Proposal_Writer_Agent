@@ -153,3 +153,62 @@ if (
             show_error(exc, context="Gate 0 반려")
         else:
             st.rerun()
+
+# --- RFP 구조 프로파일 (코드가 찾은 절 구성·요구사항 ID 체계·목차·평가 항목) -------------------------
+_profile = services.extraction.rfp_profile(project)
+if _profile is not None:
+    from proposal_agent.ingest.rfp_profile import SECTION_LABELS
+
+    with st.expander(
+        f"RFP 구조 프로파일 — 절 {len(_profile.sections)}개 · RFP 요구사항 ID {len(_profile.requirement_index)}건 · 목차 {len(_profile.proposal_toc)}항목 · 평가 항목 {len(_profile.evaluation_items)}개",
+        expanded=False,
+    ):
+        if _profile.sections:
+            st.dataframe(
+                pd.DataFrame(
+                    [
+                        {
+                            "종류": SECTION_LABELS.get(s.kind, s.kind),
+                            "제목": s.heading,
+                            "쪽": f"{s.page_start or '-'}~{s.page_end or '-'}",
+                            "블록 수": s.block_count,
+                        }
+                        for s in _profile.sections
+                    ]
+                ),
+                hide_index=True,
+                alt="RFP 절 구성",
+            )
+        if _profile.requirement_index:
+            st.caption(
+                "RFP 요구사항 ID 체계: "
+                + ", ".join(f"{p} {n}건" for p, n in _profile.id_prefixes.items())
+                + " — 추출 시 각 요구사항에 원본 ID가 연결되고, 연결되지 않은 ID는 경고로 표시됩니다."
+            )
+            st.dataframe(
+                pd.DataFrame(
+                    [
+                        {
+                            "RFP ID": e.rfp_id,
+                            "명칭": e.name,
+                            "분류(절)": e.category,
+                            "쪽": e.page,
+                            "블록": len(e.block_ids),
+                        }
+                        for e in _profile.requirement_index
+                    ]
+                ),
+                hide_index=True,
+                alt="RFP 요구사항 색인",
+            )
+        if _profile.proposal_toc:
+            st.caption("제안서 목차 지정: " + " / ".join(_profile.proposal_toc))
+        if _profile.evaluation_items:
+            st.caption(
+                "평가 항목: "
+                + ", ".join(f"{e['name']}({e['points']})" for e in _profile.evaluation_items)
+            )
+        if _profile.noise_lines_removed:
+            st.caption(f"표 라벨 잡음 {_profile.noise_lines_removed}줄 제거")
+        for w in _profile.warnings:
+            st.caption(f"⚠ {w}")

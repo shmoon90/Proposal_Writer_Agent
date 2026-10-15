@@ -10,7 +10,7 @@
 
 명령: `python -m pytest -q -rs` (기본 `-m 'not llm'`)
 
-결과: **215 passed, 1 skipped, 2 deselected** (43.3s)
+결과: **231 passed, 1 skipped, 2 deselected** (48.8s, 2026-10-15 Phase 11 반영. Phase 8 시점 215 passed)
 
 - skipped 1: `tests/unit/test_paths.py::test_ensure_within_blocks_symlink` — 이 PC 계정에 심볼릭 링크 생성 권한이 없음(WinError 1314). 코드 결함이 아니라 환경 제약.
 - deselected 2: `tests/integration/llm/` — 실제 Claude API 호출이 필요한 LLM 계약 테스트. **크레딧 부족으로 실행하지 않음.**
@@ -19,6 +19,8 @@
 |---|---|---|
 | tests/unit/test_agent_controls.py | 22 | 도구 정책·취소·시간 제한·훅·비밀값 마스킹 |
 | tests/unit/test_ingest.py | 18 | DOCX/TXT/PDF/스캔 PDF 추출, OCR, 손상·암호화 처리, Gate 0 |
+| tests/unit/test_extraction_optimizer.py | 11 | (Phase 10) 저신호 청크 건너뛰기·캐시·검증 창 병합·호출/예산 상한 |
+| tests/unit/test_rfp_profile.py | 5 | (Phase 11) 절 분류·잡음 정리, 구조화 RFP 픽스처의 ID 색인·블록 태그·목차/평가/제출, 청크 태그·저신호 예외, RFP ID 커버리지 경고·QA-RFP-07 |
 | tests/unit/test_planning.py | 16 | 영업일 달력, FS/SS/FF/SF 일정, 롤업, 순환 검출, 인력 월별 분배 |
 | tests/unit/test_phase6_changes.py | 15 | 구축 단계 14 시나리오(적재·매핑·분류·영향·승인·롤백·버전 파일) |
 | tests/unit/test_paths.py | 15 | 경로 제한·안전한 파일명·프로젝트 폴더 |
@@ -41,6 +43,8 @@
 | tests/integration/test_sdk_connection.py | 3 | **실제 번들 Claude Code 프로세스**로 pwa·외부 HTTP MCP 연결, 깨진 서버 실패 보고 (모델 호출 없음) |
 | tests/integration/test_ui_deliverables.py | 1 | AppTest: 생성→QA→Gate 5 승인→최종본 |
 | tests/integration/test_ui_build.py | 1 | AppTest: 구축 기준 문서→변경 요청→승인 |
+
+**Phase 11 실문서 점검 (저장소 밖 샘플, 커밋하지 않음)**: 고객 제공 RFP 샘플 PDF(48쪽, 저장소 밖·공개 금지)를 추출해 프로파일러를 돌린 결과 절 9종 인식, RFP ID 22건(SCR 5·SFR 3·UIXR 3·DAR 2·PCR 2·QUR 2·PER/PMR/SER/TOR/TSR 각 1, 자리수 3), 요구사항 절 블록 257개 중 225개에 ID 태그, 세로 라벨 잡음 220줄 제거, 제안서 목차 Ⅰ~Ⅴ 5항목, 평가 항목 19행(기술 90·가격 10 포함), 청크 14개 중 요구사항 청크는 ID 경계에서 분할됨. 이 문서로 에이전트 추출은 실행하지 않았다(API 크레딧 없음).
 
 ## 2. 정적 검사
 

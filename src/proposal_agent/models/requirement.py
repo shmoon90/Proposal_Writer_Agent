@@ -57,6 +57,9 @@ class RequirementDraft(BaseModel):
     is_mandatory: bool = Field(default=True, description="RFP가 요구하는 필수 항목인지")
     priority: Priority = Priority.MEDIUM
     rfp_quote: str = Field(default="", description="근거가 된 원문 인용 (그대로 복사)")
+    rfp_requirement_id: str | None = Field(
+        default=None, description="RFP 자체 요구사항 ID (block의 rfp_id 속성, 예: SFR-001)"
+    )
     source_block_ids: list[str] = Field(
         default_factory=list, description="입력으로 받은 블록 ID. 반드시 입력 블록 ID 중에서 선택"
     )
@@ -101,6 +104,9 @@ class Requirement(ProjectScoped):
     verification_method: str | None = None
     source_refs: list[SourceRef] = Field(default_factory=list)
     rfp_quote: str | None = None
+    rfp_requirement_id: str | None = Field(
+        default=None, description="RFP 자체 요구사항 ID (원본 추적용)"
+    )
     rationale: str | None = None
     impact_note: str | None = None
     notes: str = ""

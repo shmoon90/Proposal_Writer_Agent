@@ -30,6 +30,10 @@ def render_block(block: ExtractedBlock) -> str:
         flags += f' ocr="1" conf="{block.confidence:.2f}"'
     if block.needs_review:
         flags += ' needs_review="1"'
+    if block.section_kind:
+        flags += f' section="{block.section_kind}"'
+    if block.rfp_requirement_id:
+        flags += f' rfp_id="{block.rfp_requirement_id}"'
     return f'<block id="{block.id}" type="{block.block_type.value}" loc="{loc}"{flags}>\n{block.text}\n</block>'
 
 
@@ -43,6 +47,7 @@ def build_chunks(blocks: list[ExtractedBlock], max_chars: int) -> list[Chunk]:
             chunks.append(current)
             current = Chunk(index=len(chunks))
 
+    last_rfp_id: str | None = None
     for block in sorted(blocks, key=lambda b: b.order):
         if block.block_type in SKIP_TYPES:
             continue
@@ -53,11 +58,16 @@ def build_chunks(blocks: list[ExtractedBlock], max_chars: int) -> list[Chunk]:
             BlockType.TITLE,
             BlockType.APPENDIX,
         )
+        # RFP 요구사항 ID가 바뀌는 지점은 자연스러운 경계 — 한 요구사항 표가 청크에 걸쳐 쪼개지지 않게 한다
+        new_rfp = bool(block.rfp_requirement_id) and block.rfp_requirement_id != last_rfp_id
         if current.block_ids and (
             current.char_count + size > max_chars
             or (starts_section and current.char_count > max_chars * 0.6)
+            or (new_rfp and current.char_count > max_chars * 0.5)
         ):
             flush()
+        if block.rfp_requirement_id:
+            last_rfp_id = block.rfp_requirement_id
         current.block_ids.append(block.id)
         current.text += ("\n\n" if current.text else "") + rendered
         current.char_count += size

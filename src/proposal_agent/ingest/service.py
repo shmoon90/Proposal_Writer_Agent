@@ -18,9 +18,11 @@ from proposal_agent.ingest.base import ReaderResult
 from proposal_agent.ingest.docx_reader import read_docx
 from proposal_agent.ingest.ocr import OcrEngine, build_ocr_engine
 from proposal_agent.ingest.pdf_reader import read_pdf
+from proposal_agent.ingest.rfp_profile import RfpProfile, profile_blocks
 from proposal_agent.ingest.txt_reader import read_txt
 from proposal_agent.models import (
     ActorKind,
+    DocumentKind,
     ExtractedBlock,
     ExtractionMethod,
     ExtractionRun,
@@ -133,6 +135,10 @@ class ExtractionService:
             result = self._read(fmt, data, project, document)
             if hint and result.status in (ExtractionStatus.FAILED, ExtractionStatus.PARTIAL):
                 result.warnings.insert(0, hint)
+        profile = None
+        if result.blocks and document.kind in (DocumentKind.RFP, DocumentKind.RFP_ATTACHMENT):
+            profile = profile_blocks(result.blocks)  # 블록 텍스트 정리·절/ID 태깅 (제자리)
+            result.warnings.extend(profile.warnings)
 
         run = ExtractionRun(
             project_id=project.id,
@@ -153,6 +159,7 @@ class ExtractionService:
             page_stats=list(result.page_stats),
             ocr_engine=result.ocr_engine,
             created_by=actor,
+            rfp_profile=profile.model_dump(mode="json") if profile else None,
         )
         for b in result.blocks:
             b.extraction_run_id = run.id
@@ -272,6 +279,29 @@ class ExtractionService:
     # --- 조회 ------------------------------------------------------------------------
     def latest_runs(self, project: Project) -> dict[str, ExtractionRun]:
         return self._repos.extraction_runs.latest_by_document(project.id)
+
+    def rfp_profile(self, project: Project) -> RfpProfile | None:
+        """필수 RFP 문서의 최신 성공 추출에서 구조 프로파일을 돌려준다 (없으면 None)."""
+        runs = self.latest_runs(project)
+        run_map = runs if isinstance(runs, dict) else {r.source_document_id: r for r in runs}
+        docs = sorted(
+            self._repos.documents.find(project.id),
+            key=lambda d: 0 if d.kind == DocumentKind.RFP else 1,
+        )
+        for doc in docs:
+            run = run_map.get(doc.id)
+            if run is not None and run.rfp_profile:
+                return RfpProfile.model_validate(run.rfp_profile)
+        return None
+
+    def rfp_proposal_toc(self, project: Project) -> list[str]:
+        """제안서 목차: 구조 프로파일의 작성요령 절에서 찾은 목차 우선, 없으면 블록 휴리스틱."""
+        from proposal_agent.generators.pptx.outline import rfp_toc_from_blocks
+
+        prof = self.rfp_profile(project)
+        if prof and len(prof.proposal_toc) >= 3:
+            return prof.proposal_toc
+        return rfp_toc_from_blocks(self.current_blocks(project, required_only=True))
 
     def current_blocks(
         self, project: Project, *, required_only: bool = False

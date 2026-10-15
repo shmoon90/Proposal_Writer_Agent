@@ -31,7 +31,6 @@ from proposal_agent.generators.pptx import (
     build_presentation_deck,
     build_submission_deck,
     decide_outline,
-    rfp_toc_from_blocks,
 )
 from proposal_agent.generators.pptx.outline import OutlineSection
 from proposal_agent.models import (
@@ -277,7 +276,7 @@ class GenerationService:
                 log.exception("생성 실패 %s", dk)
                 result.errors.append(f"{dk.value} 생성 실패: {type(exc).__name__}: {exc}")
         # PPT
-        rfp_toc = rfp_toc_from_blocks(self._extraction.current_blocks(project, required_only=True))
+        rfp_toc = self._extraction.rfp_proposal_toc(project)
         outline = decide_outline(ctx, rfp_toc)
         result.outline = outline
         for dk, fn in (

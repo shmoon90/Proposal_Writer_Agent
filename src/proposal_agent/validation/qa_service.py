@@ -139,6 +139,11 @@ class QaService:
             revisions=self._repos.revisions.find(project.id, order_by="created_at"),
             rfp_analysis=analysis,
             id_prefixes=prefixes,
+            rfp_profile=(
+                self._extraction.rfp_profile(project)
+                if self._extraction and project.mode == ProjectMode.PROPOSAL
+                else None
+            ),
         )
 
     # --- 실행 ------------------------------------------------------------------------------------

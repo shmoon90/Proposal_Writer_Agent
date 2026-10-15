@@ -157,7 +157,13 @@ class StepRunner:
             blocks = self._s.extraction.current_blocks(project, required_only=True)
             chunks = build_chunks(blocks, self._s.ctx.settings.extraction_chunk_chars)
             head = "\n\n".join(c.text for c in chunks[:2])
-            prompt = (
+            prof = self._s.extraction.rfp_profile(project)
+            profile_text = (
+                f"<rfp_profile>\n{prof.summary_text()}\n</rfp_profile>\n\n"
+                if prof and prof.sections
+                else ""
+            )
+            prompt = profile_text + (
                 f"프로젝트: {project.name}\n청크 {min(2, len(chunks))}/{len(chunks)}개를 아래에 넣었다. 나머지는 "
                 "mcp__pwa__search_source_text 로 검색하라.\n\n<document>\n"
                 + head

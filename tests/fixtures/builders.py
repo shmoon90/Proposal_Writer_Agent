@@ -11,6 +11,7 @@ import io
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 KOREAN_FONT = Path(r"C:\Windows\Fonts\malgun.ttf")
 
@@ -289,3 +290,107 @@ def build_corrupted_bytes(seed: int = 7, size: int = 4096) -> bytes:
 
 def build_corrupted_docx() -> bytes:
     return b"PK\x03\x04" + b"\x00" * 64 + b"not-a-zip"
+
+
+# --- 구조화 RFP (공공 SI 표준 형식 모사) ------------------------------------------------------
+# 실제 고객 RFP가 아닌 가상 문서. Ⅰ~Ⅵ 로마숫자 장, 요구사항 목록·상세 표(세로 병합 라벨 포함),
+# 제안서 목차 표, 평가 배점 표, 제출 서류 목록을 담아 ingest.rfp_profile 의 구조 인식을 검증한다.
+STRUCTURED_RFP_TITLE = "가상 민원 사건관리 시스템 구축 제안요청서"
+STRUCTURED_RFP_IDS = ["PER-001", "SER-001", "SFR-001", "SFR-002"]
+STRUCTURED_RFP_TOC = ["제안 개요", "사업 수행 방안", "사업 관리 방안", "지원 방안"]
+
+_STRUCTURED_DETAILS: list[tuple[str, str, str, list[str]]] = [
+    (
+        "SFR-001",
+        "사건 접수 관리",
+        "민원 사건을 접수·배정·종결까지 관리한다.",
+        [
+            "1) 사건 접수 화면에서 제보 내용과 첨부 파일을 등록해야 한다.",
+            "2) 담당자 배정 시 배정 알림을 발송해야 한다.",
+        ],
+    ),
+    (
+        "SFR-002",
+        "통계 조회",
+        "사건 처리 현황을 기간·유형별로 조회한다.",
+        ["1) 월별·유형별 처리 건수를 조회하고 엑셀로 내려받을 수 있어야 한다."],
+    ),
+    (
+        "SER-001",
+        "접근 통제",
+        "사용자 권한에 따른 접근 통제를 적용한다.",
+        ["1) 역할 기반 권한을 적용하고 접근 이력을 3년간 보관해야 한다."],
+    ),
+    (
+        "PER-001",
+        "응답 시간",
+        "주요 화면의 응답 시간 기준을 만족한다.",
+        ["1) 평균 응답 시간은 3초 이내여야 한다."],
+    ),
+]
+
+
+def build_structured_rfp_docx() -> bytes:
+    from docx import Document
+
+    doc = Document()
+    doc.add_heading(STRUCTURED_RFP_TITLE, level=0)
+    doc.add_heading("Ⅰ. 사업 개요", level=1)
+    doc.add_paragraph("1. 사업명 : 가상 민원 사건관리 시스템 구축")
+    doc.add_paragraph("2. 사업 기간 : 계약일로부터 8개월")
+    doc.add_paragraph("3. 사업 예산 : 금 500,000,000원 (부가세 포함)")
+    doc.add_heading("Ⅱ. 사업 범위", level=1)
+    doc.add_paragraph("민원 사건 접수·배정·종결 관리 시스템 신규 구축", style="List Bullet")
+    doc.add_paragraph("통계 조회 및 접근 통제 기능 구축", style="List Bullet")
+    doc.add_heading("Ⅲ. 요구사항", level=1)
+    doc.add_paragraph("1. 요구사항 요약")
+    _add_table(
+        doc, [["구분", "요구사항 수"], ["기능(SFR)", "2"], ["보안(SER)", "1"], ["성능(PER)", "1"]]
+    )
+    doc.add_paragraph("2. 요구사항 목록")
+    _add_table(
+        doc,
+        [["고유번호", "요구사항명", "정의"]]
+        + [[rid, name, definition] for rid, name, definition, _ in _STRUCTURED_DETAILS],
+    )
+    doc.add_paragraph("3. 요구사항 상세")
+    for rid, name, definition, details in _STRUCTURED_DETAILS:
+        _add_table(
+            doc,
+            [
+                ["요구사항", "고유번호", rid],
+                ["요구", "명칭", name],
+                ["사항", "정의", definition],
+                ["세부", "내용", "\n".join(details)],
+                ["", "설명", "세부 내용은 제안서에 구현 방안을 기술한다."],
+            ],
+        )
+    doc.add_heading("Ⅳ. 제안서 작성 요령", level=1)
+    doc.add_paragraph("제안서는 아래 목차 순서로 작성한다.")
+    _add_table(
+        doc,
+        [["목차", "작성 내용"]]
+        + [
+            [f"{r}. {t}", f"{t}에 대한 세부 내용"]
+            for r, t in zip("ⅠⅡⅢⅣ", STRUCTURED_RFP_TOC, strict=True)
+        ],
+    )
+    doc.add_heading("Ⅴ. 제안서 평가 기준", level=1)
+    doc.add_paragraph("기술 능력 평가와 가격 평가를 합산한다.")
+    _add_table(doc, [["평가 항목", "배점"], ["기술 능력", "90"], ["가격", "10"], ["합계", "100"]])
+    doc.add_heading("Ⅵ. 제안 안내사항", level=1)
+    doc.add_paragraph("1. 제출서류")
+    doc.add_paragraph("○ 제안서 7부")
+    doc.add_paragraph("○ 제안요약서 1부 및 USB 1본")
+    doc.add_paragraph("2. 제안서 제출기한 : 2026년 12월 1일 15:00까지")
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+def _add_table(doc: Any, rows: list[list[str]]) -> None:
+    table = doc.add_table(rows=len(rows), cols=len(rows[0]))
+    table.style = "Table Grid"
+    for r, row in enumerate(rows):
+        for c, val in enumerate(row):
+            table.cell(r, c).text = val

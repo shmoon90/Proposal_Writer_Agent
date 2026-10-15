@@ -67,6 +67,13 @@ class ExtractedBlock(ProjectScoped):
     table_cells: list[list[str]] | None = Field(
         default=None, description="block_type=table일 때 전체 셀"
     )
+    section_kind: str | None = Field(
+        default=None, description="RFP 절 종류 (overview/scope/requirements/evaluation/submission…)"
+    )
+    rfp_requirement_id: str | None = Field(
+        default=None,
+        description="RFP가 부여한 요구사항 ID (예: SFR-001). 블록이 그 요구사항 표에 속할 때",
+    )
 
     @property
     def source_label(self) -> str:
@@ -103,6 +110,9 @@ class ExtractionRun(ProjectScoped):
     page_stats: list[PageStat] = Field(default_factory=list)
     ocr_engine: str | None = None
     blocks_path: str | None = Field(default=None, description="workspace 내 블록 JSON 상대 경로")
+    rfp_profile: dict[str, Any] | None = Field(
+        default=None, description="RFP 구조 프로파일 (ingest.rfp_profile.RfpProfile dump)"
+    )
 
     @property
     def ok(self) -> bool:
