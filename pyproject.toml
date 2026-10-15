@@ -1,0 +1,67 @@
+[project]
+name = "proposal-writer-agent"
+version = "0.1.0"
+description = "SI 제안서 자동 생성 및 구축 단계 요구사항 변경관리 멀티 에이전트 시스템"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Proprietary" }
+
+# 버전은 2026-10-15 PyPI 조회 결과 기준. 설치 전 재확인 필요 (docs/IMPLEMENTATION_PLAN.md 참고).
+dependencies = [
+    "claude-agent-sdk>=0.2.165,<0.3",
+    "mcp>=2.3,<3",
+    "pydantic>=2.14,<3",
+    "pandas>=2.2,<4",
+    "openpyxl>=3.1.5,<4",
+    "python-pptx>=1.0.2,<2",
+    "python-docx>=1.2,<2",
+    "pymupdf>=1.26,<2",
+    "matplotlib>=3.10,<4",
+    "streamlit>=1.60,<2",
+    "python-dotenv>=1.0,<2",
+]
+
+[project.optional-dependencies]
+ocr = [
+    # 후보 1 (순수 pip, 한국어 모델 별도 확인 필요): rapidocr-onnxruntime
+    # 후보 2 (Tesseract 바이너리 필요): pytesseract
+    # docs/RISK_REGISTER.md R-07 참고. 확정 전까지 설치하지 않음.
+]
+dev = [
+    "pytest>=9,<10",
+    "pytest-asyncio>=1.0",
+    "ruff>=0.14",
+    "mypy>=1.17",
+]
+
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "ASYNC", "PTH"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+warn_unused_ignores = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "llm: 실제 Claude API 호출이 필요한 테스트 (기본 제외, -m llm 로 실행)",
+    "slow: 느린 통합 테스트",
+]
+addopts = "-m 'not llm'"

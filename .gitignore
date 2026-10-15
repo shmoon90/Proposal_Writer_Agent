@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+*.key
+
+# Business deliverables (generated per project; kept out of source control)
+Output/*
+!Output/.gitkeep
+
+# Temporary working files
+workspace/*
+!workspace/.gitkeep
+
+# Local DB
+*.sqlite3
+*.db
+data/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Streamlit
+.streamlit/secrets.toml

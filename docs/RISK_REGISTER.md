@@ -1,0 +1,80 @@
+# RISK_REGISTER — 위험, 외부 의존성, 비용, 미확정 사항
+
+문서 버전 0.1 · 2026-10-15
+
+---
+
+## 1. 위험 목록
+
+| ID | 위험 | 영향 | 가능성 | 대응 | 상태 |
+|---|---|---|---|---|---|
+| R-01 | `ANTHROPIC_API_KEY` 미설정. claude.ai 구독 로그인은 서드파티 앱에 허용되지 않음(공식 문서) | 런타임 에이전트 실행 불가 | 확실(현재) | Phase 1 전 Console에서 API 키 발급, `.env` + `python-dotenv` 로드. 키 없으면 LLM 테스트 skip | 열림 |
+| R-02 | Agent SDK는 0.x 버전으로 API 변경이 잦음 (0.2.165 설치, 0.2.167 최신) | 업그레이드 시 호환 깨짐 | 중 | `claude-agent-sdk>=0.2.165,<0.3` 고정, `runner.py` 한 곳에만 SDK 의존, 변경 로그 확인 후 업그레이드 | 열림 |
+| R-03 | LLM 비용 초과 (긴 RFP, 서브에이전트 폭주) | 예산 초과 | 중 | `max_budget_usd`/`max_turns`/깊이 1/동시 4 제한, 단계별 비용 기록·UI 표시, 섹션 분할은 sonnet | 열림 |
+| R-04 | 내장 `WebSearch`는 Claude API·Foundry에서 제공, Bedrock 미제공 | Bedrock 전환 시 기술 조사 불가 | 낮음 | 1차는 Claude API. Bedrock 필요 시 외부 검색 MCP(예: Brave/Tavily) 어댑터를 `research/`에 추가 | 열림 |
+| R-05 | 에이전트가 입력 문서 안의 지시문을 명령으로 오인(프롬프트 인젝션) | 잘못된 출력, 도구 오남용 | 중 | 문서는 `<document>` 데이터 블록으로 전달, 쓰기 도구 전면 금지, 훅으로 경로 제한, 출력은 스키마 검증만 수용 | 열림 |
+| R-06 | Streamlit 동기 실행 모델과 Agent SDK asyncio 충돌, 긴 작업 중 rerun | 작업 중단·중복 실행 | 중 | `jobs.py`에서 별도 스레드 이벤트 루프 + 작업 테이블(SQLite)로 상태 공유, 진행률 폴링. `st.fragment`/`st.status` 활용. Phase 1에서 스파이크 | 열림 |
+| R-07 | OCR 엔진 미확정: Tesseract 미설치, `rapidocr-onnxruntime` 한국어 모델은 별도 확인 필요 | 스캔 RFP 처리 불가 | 중 | Phase 2 스파이크로 두 후보 비교(한국어 인식률·설치 난이도). 미결정 시 "스캔 PDF 미지원" 명시 | 열림 |
+| R-08 | HWP 형식 RFP (공공 RFP 다수) | 입력 불가 | 높음 | 1차: 사용자가 PDF 변환 후 업로드(안내 문구). 2차: `pyhwp`/`hwp5txt` 검토(Phase 7) | 열림 |
+| R-09 | pandas 3.x(최신 3.0.6) 변경점(Copy-on-Write, 문자열 dtype) + streamlit 1.66 호환 | 예기치 않은 동작 | 중 | Phase 1에서 pandas 2.x 고정 테스트. pandas 의존 최소화(openpyxl 직접 사용 우선) | 열림 |
+| R-10 | 한글 폰트: matplotlib 기본 폰트에 한글 없음, PPT 폰트 임베딩 불가 | 다이어그램 글자 깨짐 | 높음 | Windows `malgun.ttf` 경로를 설정으로 지정, 없으면 경고. 폰트 설정은 `generators/diagrams/fonts.py` 한 곳 | 열림 |
+| R-11 | 구축 단계 업로드 Excel 양식이 고객사마다 다름 | 파싱 실패 | 높음 | B1 매핑 제안 + 사용자 확정 + 템플릿 프로파일 저장. 필수 필드 누락 행은 오류 목록으로 보고 | 열림 |
+| R-12 | 구조화 출력 실패(`error_max_structured_output_retries`) 또는 빈 결과 | 단계 실패 | 중 | 스키마 단순화(필수 필드 최소), 오류 첨부 1회 재시도, 입력 분할 | 열림 |
+| R-13 | 요구사항 추출 누락·과잉 (LLM 품질) | 제안 품질 저하 | 중 | 독립 검증 에이전트 + 사람 승인 게이트 + 원문 출처 필수 | 열림 |
+| R-14 | 공수·일정 산정 근거 부실 | 신뢰도 저하 | 중 | `estimate_basis` 필수 검증, 산정근거 시트 자동 생성 | 열림 |
+| R-15 | 동일 Output 경로 덮어쓰기·수동 편집 충돌 | 데이터 손실 | 낮음 | 덮어쓰기 금지, 버전 파일명, sha256 대조, 수동 편집 파일은 기준 데이터로 쓰지 않음 | 열림 |
+| R-16 | Windows 경로 길이(260자) 초과, 한글 파일명 인코딩 | 저장 실패 | 낮음 | slug 길이 제한, 긴 경로 허용 레지스트리 안내, UTF-8 고정 | 열림 |
+| R-17 | Agent SDK 번들 `claude.exe`가 Windows Defender·사내 보안 정책에 차단 | 에이전트 기동 실패 | 낮음 | `CLINotFoundError`/`ProcessError` 포착 후 원인·조치 안내, `cli_path` 옵션으로 수동 지정 | 열림 |
+| R-18 | API 데이터 보존 정책·보안: RFP가 외부 API로 전송됨 | 고객 보안 요건 위반 가능 | 중 | 프로젝트 생성 시 외부 전송 고지, 민감 문서는 사용자 책임으로 마스킹, 필요 시 Bedrock/Vertex 경로(R-04 연계) | 열림 |
+
+## 2. 외부 의존성
+
+| 의존성 | 용도 | 상태 | 대안 |
+|---|---|---|---|
+| Anthropic Claude API (API 키) | 모든 에이전트 | 키 미설정 | Bedrock/Vertex/Foundry(SDK 지원, WebSearch 제약) |
+| claude-agent-sdk 0.2.x + 번들 claude.exe | 에이전트 런타임 | 설치됨 | 없음 (설계 전제) |
+| mcp 2.3 | 외부 MCP 서버 필요 시 | 설치됨 | 인프로세스 SDK MCP로 충분 |
+| Node.js 24 | npx 기반 외부 MCP 서버 | 설치됨 | 현재 계획엔 외부 MCP 없음 |
+| OCR 엔진 | 스캔 PDF | 미확정 | R-07 |
+| 한글 폰트(malgun) | 다이어그램 | Windows 기본 제공 | 나눔고딕 번들 |
+| PyMuPDF | PDF | PyPI 1.28.2 | pypdf(텍스트만) |
+
+## 3. 비용 추정 (가정치, 측정 후 갱신)
+
+가정: 모델 `claude-opus-5-5` 입력 $4/MTok·출력 $20/MTok, 보조 `claude-sonnet-5-5` $2/$10 (2026-10 기준 요율표). RFP 100페이지(약 150K 토큰) 기준.
+
+| 단계 | 호출 | 추정 비용(USD) | 비고 |
+|---|---|---|---|
+| RFP 분석 + 추출(섹션 서브에이전트 sonnet) | 1 + N | 3 ~ 8 | 청크 재읽기 횟수에 좌우 |
+| 독립 검증 | 1 | 2 ~ 5 | |
+| 기술 조사 (WebSearch 포함) | 1 + N | 2 ~ 6 | 웹 검색 사용량 별도 과금 가능 |
+| 아키텍처 + 계획 | 2 | 1 ~ 3 | |
+| 문안 작성 ×2 | 2 + N | 2 ~ 5 | |
+| QA | 1 | 1 ~ 2 | |
+| **제안 단계 합계** | | **11 ~ 29** | 프로젝트당 |
+| 구축 단계 변경 1건 | 3~4 | 0.5 ~ 2 | |
+
+- 단계별 `max_budget_usd` 기본값: 추출 10, 검증 6, 조사 8, 기타 4. 설정으로 조정.
+- Phase 2·3 완료 시 실측치로 표를 갱신한다.
+
+## 4. 미확정 사항 (결정 필요)
+
+| ID | 항목 | 선택지 | 결정 시점 | 담당 |
+|---|---|---|---|---|
+| D-01 | API 키 발급·보관 방식 | `.env` 로컬 / OS 환경변수 | Phase 1 시작 전 | 사용자 |
+| D-02 | OCR 엔진 | rapidocr / pytesseract / 미지원 | Phase 2 | 개발 |
+| D-03 | pandas 버전 | 2.x 고정 / 3.x | Phase 1 | 개발 |
+| D-04 | 역할별 모델 | opus/sonnet/haiku 조합 | Phase 2 실측 후 | 사용자+개발 |
+| D-05 | 다이어그램 렌더링 | matplotlib / python-pptx 도형 / 외부 Mermaid | Phase 4 | 개발 |
+| D-06 | PPT 템플릿 | 기본 생성 / 사용자 .pptx 템플릿 | Phase 4 | 사용자 |
+| D-07 | 인력 단가·공휴일 데이터 | 설정 파일 입력 방식 | Phase 3 | 사용자 |
+| D-08 | HWP 지원 | 미지원(안내) / 변환 라이브러리 | Phase 7 | 사용자 |
+| D-09 | 승인자 식별 | 단일 사용자 입력 / 로그인 | Phase 5 | 사용자 |
+| D-10 | 외부 전송 고지 문구·마스킹 정책 | — | Phase 2 | 사용자 |
+
+## 5. 설계 단계에서 확인된 사실 (가정이 아님)
+
+- Agent SDK Python 0.2.165의 공개 API 목록과 `ClaudeAgentOptions`/`AgentDefinition` 필드 전체를 설치 패키지에서 직접 확인했다.
+- 공식 문서에서 구조화 출력(`output_format` + `ResultMessage.structured_output`, draft-07 검증), 서브에이전트(`agents`, 깊이·동시성 환경변수, `max_budget_usd`), MCP 설정(stdio/http/sdk, `mcp__server__tool` 명명, `allowed_tools` 우선), 인증(API 키 필수, 구독 로그인 불허), 내장 도구 목록(WebSearch/WebFetch 포함)을 확인했다.
+- MCP Python SDK 2.x에서 `FastMCP`가 `MCPServer`로 개명되었음을 설치 패키지 오류 메시지와 공식 마이그레이션 가이드에서 확인했다.
+- Streamlit 1.66.0은 Python ≥3.11, pandas <4를 요구한다(wheel 메타데이터 확인).
