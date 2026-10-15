@@ -37,3 +37,10 @@ Thumbs.db
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Customer sample materials (RFP, proposals, requirement specs, trace matrices, WBS, staffing plans)
+# are confidential and must never be committed. Keep them outside the repository (separate drive/folder).
+samples/
+samples_private/
+*.local
+.sensitive-terms.local
