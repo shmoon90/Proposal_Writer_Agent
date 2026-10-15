@@ -1,0 +1,67 @@
+# OUTPUT_STRUCTURE — 산출물 폴더와 파일 규칙
+
+문서 버전 1.0 · 2026-10-15 · 구현: `config/paths.py`, `storage/files.py`, `generators/service.py`, `changes/service.py`
+
+---
+
+## 1. 루트
+
+| 경로 | 내용 | 설정 |
+|---|---|---|
+| `Output\` | 업무 산출물. 프로젝트별 폴더 | `PWA_OUTPUT_ROOT` |
+| `workspace\` | 임시 파일: `logs\app.log`, `pwa.sqlite3`, `<project_id>\`(추출 텍스트·청크, 에이전트 cwd), `mcp_check.json`, `final_inspection.*` | `PWA_WORKSPACE_ROOT`, `PWA_DB_PATH` |
+
+두 루트는 git에서 제외된다. DB에는 파일의 **상대 경로**(Output 루트 기준)와 sha256이 기록된다.
+
+## 2. 프로젝트 폴더
+
+프로젝트 생성 시 `Output\Project_<YYYYMMDD>_<안전한 이름>\`이 만들어지고(같은 이름이면 `_1`), 아래 14개 하위 폴더가 항상 생성된다.
+
+| 폴더 | 내용 | 파일명 |
+|---|---|---|
+| `00_Project_Summary` | (예약) 프로젝트 요약 | — |
+| `01_RFP_Original` | 업로드 원본(제안: RFP·첨부, 구축: 정의서·추적표·WBS·투입계획·기타, 변경 요청 첨부). **수정하지 않음** | 원본 파일명, 충돌 시 `name_1.ext` |
+| `02_RFP_Analysis` | RFP 분석 에이전트 결과 | `rfp_analysis_vX.Y.json` |
+| `03_Requirements` | 요구사항 추출·검증 에이전트 결과 | `requirement_extraction_vX.Y.json`, `verification_vX.Y.json` |
+| `04_Technology_Research` | 기술 조사 결과 | `research_vX.Y.json` |
+| `05_Architecture_Design` | 아키텍처 에이전트 결과 | `architecture_vX.Y.json` |
+| `06_WBS_Effort_Schedule` | WBS·간트, 인력 투입계획 Excel | 제안: `WBS_간트_vX.Y.xlsx`, `인력투입계획_vX.Y.xlsx` · 구축: `WBS_Gantt_YYYYMMDDHHMM.xlsx`, `Staffing_Plan_YYYYMMDDHHMM.xlsx` |
+| `07_Submission_Proposal_PPT` | 제출용 PPT, 목차 결정 기록 | `제안서_제출용_vX.Y.pptx`, `목차결정_vX.Y.json` |
+| `08_Presentation_PPT` | 발표용 PPT | `제안서_발표용_vX.Y.pptx` |
+| `09_Excel_Deliverables` | 요구사항 정의서·추적표 | 제안: `요구사항정의서_vX.Y.xlsx`, `요구사항추적표_vX.Y.xlsx` · 구축: `Requirements_Definition_YYYYMMDDHHMM.xlsx`, `Traceability_Matrix_YYYYMMDDHHMM.xlsx` |
+| `10_Diagrams_Charts_Images` | 구성도 3종·차트 PNG | `시스템구성도_vX.Y.png`, `SW구성도_vX.Y.png`, `서비스구성도_vX.Y.png`, `일정차트_vX.Y.png`, `공수차트_vX.Y.png` |
+| `11_QA_Validation_Reports` | 통합 QA 보고서, 에이전트 QA 결과 | `통합QA보고서_vX.Y.md` + `.json`, `qa_report_vX.Y.json` |
+| `12_Revision_History` | 기준선·변경 반영 스냅샷, 의미 비교 결과 | `baseline_snapshot_vX.Y.json`, `revision_CR-nnn_vX.Y.json`, `semantic_diff_vX.Y.json` |
+| `13_Final_Deliverables` | Gate 5 승인 후 확정한 최종본 복사본 | 원 파일명 그대로 (같은 버전 재확정 거부) |
+
+## 3. 버전과 덮어쓰기 규칙
+
+- 제안 단계 산출물은 `stem_vX.Y.ext`로 저장하며, 폴더에 있는 최신 버전의 다음 minor(`v1.0 → v1.1 → …`)를 코드가 정한다.
+- 구축 단계 변경 반영 문서는 `Stem_YYYYMMDDHHMM.ext`(분 단위 타임스탬프)이며, 같은 이름이 있으면 `_1`, `_2`를 붙인다.
+- `FileStore.save_bytes`는 같은 이름이 있으면 `FileExistsConflict`로 거부한다(`open("xb")`). 업로드 원본·보존 저장은 `store_unique`로 `_n` 접미사를 붙인다. **기존 파일을 덮어쓰는 경로는 없다.**
+- 모든 경로는 `ensure_within`으로 프로젝트 폴더 안으로 제한되며, 벗어나면 `PathSecurityError`.
+- 최종본(`13_`)은 복사본이다. 임시본은 원 폴더에 그대로 남는다.
+
+## 4. DB 레코드와 파일의 관계
+
+| 레코드 | 파일 |
+|---|---|
+| `source_documents.stored_path`, `sha256` | `01_RFP_Original\…` |
+| `agent_outputs.file_path`, `sha256` | `02_~05_`, `11_`, `12_`의 JSON |
+| `deliverables.file_path`, `version`, `sha256`, `revision_id`, `integrity_status`, `qa_status` | `06_~10_` 파일 |
+| `revisions.snapshot_path`, `change_ids`, `approval_id`, `parent_revision_id` | `12_Revision_History\…json` |
+| `qa_runs.report_path`, `json_path` | `11_QA_Validation_Reports\…` |
+| `change_requests.before_files`, `after_files` | 변경 전후 파일 경로 목록 |
+
+불일치(파일 없음·해시 다름·프로젝트 폴더 밖)는 통합 QA `QA-FILE-09`·`QA-CON-07`과 `scripts\final_inspection.py`가 검출한다.
+
+## 5. Excel 시트 구성 (생성 파일)
+
+| 파일 | 시트 |
+|---|---|
+| 요구사항 정의서 | 기능요구사항 · 비기능요구사항 · 제약·평가·제출조건 · 변경이력 · (구축) 변경관리대장. 필수 컬럼: 요구사항 ID·요구사항 명·요구사항 상세 내용·구현방안·수용여부·비고 + 범위 분류·필수 여부·중요도·검증 방법·원본 출처·검토/검증 상태·연결 산출물·추가 요청자·추가일·변경 상태·변경 내용 |
+| 요구사항 추적표 | 추적표(요구사항 ID·명·화면 ID·단위/통합테스트 ID·결과·WBS·검토 상태·변경 사유·비고) · 테스트상세 · 미추적 |
+| WBS·간트 | WBS(18컬럼) · 간트(주 단위) · 의존관계(FS/SS/FF/SF·lag) · 산정근거 |
+| 인력 투입계획 | 투입계획(역할·등급·기술·인원·담당·기간·MM·월별·근거·단가 입력란·비용 수식) · 공수요약 · 월별투입 |
+
+구축 단계에서 업로드하는 기존 문서는 이 구조가 아니어도 되며, 컬럼 매핑 제안·확정을 거쳐 적재된다 ([USER_GUIDE.md 3.1](USER_GUIDE.md)).

@@ -4,7 +4,9 @@
 
 ---
 
-## 0. Phase 3 구현 반영 (2026-10-15) — 실제 구현된 역할·도구·통제
+## 0. 구현 반영 (Phase 3·6·7, 2026-10-15) — 실제 구현된 역할·도구·통제
+
+> 2026-10-15 기준 역할 10종. 실제 모델 호출은 크레딧 부족으로 미검증이며, 모든 역할은 FakeAgentRunner(모의 응답)와 SDK 연결 점검(비용 0)으로만 검증했다. 통합 QA(Phase 7)는 에이전트 자기 평가를 쓰지 않고 코드(`validation/independent_qa.py`)가 독립 검증하며, `qa_reviewer` 결과는 사람 검토 항목으로만 덧붙는다 ([PHASE7_REPORT.md](PHASE7_REPORT.md)).
 
 구현 코드: `agents/roles.py`(역할 정의), `agents/runner.py`(SDK 어댑터), `agents/control.py`·`hooks.py`(정책·훅), `agents/tools/project_tools.py`(인프로세스 MCP), `services/agent_step_service.py`(역할 실행·재사용·저장), `research/`(기술 조사).
 
@@ -19,6 +21,7 @@
 | 7 | `proposal_writer` | 기준 데이터 | `ProposalContent` | 없음 | pwa 읽기 9종 | 15 / $4 / 600s | 1·4·5·6 |
 | 8 | `document_generator` | 기준 데이터 | `DocumentPlan` (파일은 코드 생성) | 없음 | pwa 읽기 9종 | 10 / $2 / 600s | 7·6·5 |
 | 9 | `qa_reviewer` | 산출물 텍스트·기준·변경 요청 | `QaReport` | 없음 | pwa 읽기 9종 + `verify_deliverable_file` | 12 / $3 / 600s | 8·7 |
+| 10 | `semantic_differ` (Phase 6) | 변경 요청 항목·기존 요구사항·규칙 분류 | `SemanticDiffDraft` | 없음 | `pwa.list_requirements`, `pwa.get_requirement` | 8 / $1.5 / 600s | — (규칙 결과를 입력으로 받음) |
 
 공통 실패 처리: `AgentRunError(subtype, cause, resolution, detail.category)` → StepRun `failed` + 감사 이벤트. 일시 오류(rate_limit/overloaded/connection/process)만 `retries` 횟수 재시도, 크레딧·인증·예산·스키마 오류는 즉시 실패. 시간 초과·취소는 `ClaudeSDKClient.interrupt()`로 중단.
 
