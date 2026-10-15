@@ -107,6 +107,14 @@ flowchart TD
     G6 --> B14[14. Revision vN.m 확정<br/>12_Revision_History 스냅샷, 변경 이력 보존]
 ```
 
+### 구현 대조 (2026-10-15 검증)
+
+- 구현된 단계 키: `upload → doc_structure → load_baseline → change_request → diff → impact(변경 승인: Approval) → apply → regenerate → qa(게이트 5: 최종 독립 QA) → finalize` (`services/pipeline_service.py` BUILD_STEPS).
+- B1(문서 구조 분석)·B3(영향 분석)·B4(문서 갱신)는 에이전트가 아니라 코드가 수행한다. B2(`semantic_differ`)만 에이전트이며 규칙 분류 뒤에 선택적으로 덧붙는다. 변경 승인은 번호 게이트가 아니라 `Approval(CHANGE_REQUEST)` 기록이고, 변경 후 QA는 제안 단계와 같은 게이트 5(최종 독립 QA)를 쓴다(G6은 없음).
+- 템플릿 프로파일(`config/templates/<client>.json`)은 미구현. 확정 매핑은 `SourceDocument.column_mapping`에만 저장된다.
+- 갱신 문서 파일명은 `Requirements_Definition_YYYYMMDDHHMM.xlsx` 형식(타임스탬프, 충돌 시 `_n`)이다. 원안의 `요구사항정의서_v1.1.xlsx`는 제안 단계 생성 파일에만 적용된다.
+- 변경 이력은 `ChangeRequest`(후보 before/after·영향·승인·전후 파일) + `Revision` 스냅샷 + 정의서 `변경관리대장` 시트로 보존된다. 원안의 `RequirementChange` 엔티티는 남아 있으나 구축 흐름에서는 `ChangeRequest`를 쓴다.
+
 ### 핵심 규칙
 
 - **승인 전 기준 데이터 불변**: 7~10단계 결과는 `RequirementChange.impact`에만 저장. `Requirement` 레코드는 G5 승인 후 11단계에서만 갱신.

@@ -288,6 +288,10 @@ stateDiagram-v2
 - Phase 1 테이블: projects, source_documents, requirements, requirement_changes, requirement_traces, step_runs, gate_results, deliverables, validation_results, approvals, revisions, audit_events(추가 전용), sequences. WBS·인력·조사·아키텍처·화면·테스트 테이블은 모델만 정의하고 Phase 3~에서 마이그레이션 0002 이후로 추가한다.
 - 리비전 스냅샷은 DB 외에 `12_Revision_History/revision_v1.0.json`으로도 보존(파일 기반 복구 가능).
 
+### 4.15 구현에서 추가된 엔티티 (2026-10-15 검증)
+
+원안 14종 외에 구현 과정에서 추가되어 `models/`에 존재하는 엔티티: `ExtractionRun`, `ExtractedBlock`(Phase 2), `GateEvaluation`, `StepRun`, `GateResult`(Phase 1·2), `TechnologyResearch`·`FeasibilityStudy`·`AgentOutput`(Phase 3, `models/research.py`), `Dependency`, `StaffingAllocation`, `UnitTest`, `IntegrationTest`(Phase 4), `AuditEvent`, `Revision`, `ChangeRequest`(Phase 6, `models/change.py` — 후보·영향·승인·파일 연결 포함, 프로젝트 복합 PK), `QaRun`(Phase 7, `models/qa.py`). `Screen`·`UnitTest`·`IntegrationTest`는 문서 표시용 `code` 필드를 가진다. `Requirement`에는 `added_by/added_on/change_state/change_summary/previous_versions`, `RequirementTrace`에는 `review_status/review_reason`이 추가되었다. 마이그레이션은 0001~0006.
+
 ### 6.2 Phase 2 추가 엔티티 (마이그레이션 0002)
 
 | 엔티티 | 주요 필드 | 설명 |

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any
 
@@ -732,7 +731,3 @@ def _priority(text: str) -> Priority:
     if t in ("하", "low", "낮음", "3"):
         return Priority.LOW
     return Priority.MEDIUM
-
-
-def business_date_or_none(value: Any) -> date | None:
-    return parse_date(value)

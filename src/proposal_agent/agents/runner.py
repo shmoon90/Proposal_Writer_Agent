@@ -381,7 +381,7 @@ class ClaudeAgentRunner:
             if failed_servers:
                 cause = f"{cause} (MCP 서버 연결 실패: {', '.join(failed_servers)})"
             raise AgentRunError(
-                f"에이전트 '{request.role}' 실행 실패 ({subtype or 'unknown'})",
+                f"에이전트 '{request.role}' 실행 실패 ({category or subtype or 'unknown'})",
                 subtype=subtype or "no_structured_output",
                 cause=cause,
                 resolution=resolution,

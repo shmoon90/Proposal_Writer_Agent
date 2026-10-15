@@ -246,14 +246,3 @@ class BlockBuilder:
             confidence=confidence,
             table_cells=clean,
         )
-
-
-def render_table_markdown(cells: list[list[str]]) -> str:
-    if not cells:
-        return ""
-    width = max(len(r) for r in cells)
-    rows = [r + [""] * (width - len(r)) for r in cells]
-    head = "| " + " | ".join(rows[0]) + " |"
-    sep = "|" + "---|" * width
-    body = ["| " + " | ".join(r) + " |" for r in rows[1:]]
-    return "\n".join([head, sep, *body])

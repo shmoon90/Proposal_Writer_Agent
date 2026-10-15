@@ -10,7 +10,7 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from proposal_agent.config.errors import IngestError, PWAError
+from proposal_agent.config.errors import IngestError
 from proposal_agent.config.logging import get_logger
 from proposal_agent.config.paths import ProjectPaths
 from proposal_agent.config.settings import Settings
@@ -391,13 +391,3 @@ class ExtractionService:
             payload={"gate": GATE0_KEY, "status": str(status), "reasons": reasons},
         )
         return ev
-
-
-def describe_error(exc: BaseException) -> dict[str, str]:
-    if isinstance(exc, PWAError):
-        return {"message": exc.message, "cause": exc.cause, "resolution": exc.resolution}
-    return {
-        "message": str(exc),
-        "cause": type(exc).__name__,
-        "resolution": PWAError.default_resolution,
-    }

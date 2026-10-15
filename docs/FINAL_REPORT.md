@@ -140,3 +140,15 @@ streamlit run src\proposal_agent\app.py
 6. 제출 전 PowerPoint·Excel에서 최종 육안 확인.
 7. 미확정 정책 결정: D-04(역할별 모델), D-06(PPT 템플릿), D-08(HWP), D-09(승인자 식별), D-10(외부 전송 고지).
 8. 백업 절차 운영(DB와 `Output` 동시 백업).
+
+## 12. 독립 점검 결과 (2026-10-15, 브랜치 `phase/9-verification`)
+
+| 항목 | 결과 |
+|---|---|
+| 요구사항 구현 | **부분 완료** — 코드·문서·테스트는 전 단계 구현. 실제 Claude 모델 응답 경로만 미검증 |
+| 실제 실행 테스트 | **통과** — `pytest -q` 215 passed · 1 skipped(심볼릭 링크 권한) · 2 deselected(llm); `compileall`·`ruff`·`mypy` 통과; `scripts/final_inspection.py` 42 PASS; `pytest -m llm` 1 failed(크레딧) |
+| 외부 연동 | **확인(부분)** — SDK 프로세스·`pwa` MCP(10 도구)·외부 HTTP MCP 실제 연결 `connected`, 깨진 서버 `failed` 보고(`scripts/check_mcp.py`). Anthropic API 호출은 인증까지 도달하나 `Credit balance is too low`로 응답 미검증 |
+| 발견한 문제 | `services/pipeline_service.py`: 존재하지 않는 역할 키 `deliverable_qa`와 구현과 다른 게이트 제목("게이트 4: 최종 승인", "게이트 5: 변경 승인", "게이트 6")이 UI 단계 표에 노출 · `agents/runner.py`: 실패 메시지가 범주 대신 SDK 서브타입("success")을 표시 · 미사용 함수 4건(`baseline_service.business_date_or_none`, `impact.md_summary`, `ingest/service.describe_error`, `ingest/base.render_table_markdown`) · 설계 문서(AGENT_DESIGN §4, WORKFLOW_DESIGN §4, ARCHITECTURE §3, DATA_MODEL §4)가 원안 그대로여서 구현과 불일치 |
+| 수정한 문제 | `pipeline_service.py` 단계 정의를 `qa_reviewer`·게이트 5·"변경 승인(사람)"으로 정정 · `runner.py` 메시지에 실패 범주 표시 · 미사용 함수 4건 삭제, `sha256_file`은 검수 스크립트에서 사용 · `ARCHITECTURE.md` 디렉터리 구조를 실제 트리로 교체, `AGENT_DESIGN.md`·`WORKFLOW_DESIGN.md`·`DATA_MODEL.md`에 구현 대조 절 추가 |
+| 잔여 문제 | 실제 LLM 응답 품질·비용 미검증(크레딧) · 내장 WebSearch 실제 실행 미검증 · 심볼릭 링크 차단 테스트 미실행(권한) · 규칙 기반 의미 비교·RFP 검사 한계(R-28, R-31) · 공수 휴리스틱(R-29) |
+| 다음 단계 진행 가능 여부 | **보류** — 모의 LLM 기준 기능은 완료되었으나, 실제 모델 호출 검증이 끝나기 전에는 운영 투입(다음 단계)을 보류한다. 크레딧 확보 후 `scripts/run_phase2_llm.py` → `pytest -m llm` 순으로 검증 |

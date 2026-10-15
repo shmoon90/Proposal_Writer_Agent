@@ -71,7 +71,19 @@
 
 쓰기 도구는 제공하지 않는다. 모든 쓰기는 구조화 출력을 받은 오케스트레이터가 수행한다.
 
-## 4. 에이전트 역할 정의
+## 4. 에이전트 역할 정의 (Phase 0 원안 — 구현과 다른 부분은 아래 표 참고)
+
+> **구현 대조 (2026-10-15 검증)**: 실제 역할·도구는 0절 표가 기준이다. 원안과 달라진 점:
+>
+> | 원안 | 구현 |
+> |---|---|
+> | P1~P3 허용 도구 `Read, Glob, Grep` | 내장 파일 도구는 주지 않음. `pwa` MCP 조회만 (파일은 워크스페이스에 두되 에이전트가 직접 읽지 않음) |
+> | 서브에이전트(`section-extractor`, `source-checker`, `section-writer`) | 미구현. 청크 분할·병렬은 코드가 수행하고 역할당 단일 세션으로 호출 |
+> | P8 `deliverable_qa` | 키 `qa_reviewer`. 통합 QA의 1차 판정은 코드(`validation/independent_qa.py`)가 하고 에이전트 결과는 사람 검토 항목으로만 덧붙음 |
+> | B1 `legacy_doc_analyst` | 에이전트 대신 코드(`ingest/excel_reader.py`: 동의어·유사도 매핑 제안) + 사용자 확정 |
+> | B2 `semantic_differ` 출력 `SemanticDiff{…}` | `SemanticDiffDraft{candidates[{item_index, classification, requirement_id, rationale, confidence…}]}`. 규칙 분류(`changes/semantic.py`)가 먼저 수행 |
+> | B3 `impact_analyst` | 에이전트 없음. 영향 분석 전부 코드(`changes/impact.py`) |
+> | B4 `revision_writer` | 에이전트 없음. 새 버전 문서는 generators가 생성 |
 
 ### 4.1 제안 단계
 

@@ -61,7 +61,7 @@ PROPOSAL_STEPS = _steps(
     ("staffing", "인력 투입계획", "게이트 3: 계획 승인", None),
     ("generate_docs", "문서 생성 (Excel·다이어그램)", None, None),
     ("proposal_ppt", "제안 문안·PPT 생성", None, "proposal_writer"),
-    ("qa", "무결성 검사·QA", "게이트 4: 최종 승인", "deliverable_qa"),
+    ("qa", "통합 QA (독립 검증)", "게이트 5: 최종 독립 QA 승인", "qa_reviewer"),
     ("finalize", "최종 산출물 확정", None, None),
 )
 
@@ -71,10 +71,10 @@ BUILD_STEPS = _steps(
     ("load_baseline", "기준 데이터 적재", None, None),
     ("change_request", "변경 요청 등록", None, None),
     ("diff", "결정적·의미 비교", None, "semantic_differ"),
-    ("impact", "영향 분석·재계산", "게이트 5: 변경 승인", None),
+    ("impact", "영향 분석·재계산", "변경 승인 (사람, Approval 기록)", None),
     ("apply", "기준 데이터 적용", None, None),
     ("regenerate", "문서 갱신 (새 버전)", None, None),
-    ("qa", "무결성·QA", "게이트 6: 최종 QA 승인", "deliverable_qa"),
+    ("qa", "변경 후 통합 QA", "게이트 5: 최종 독립 QA 승인", "qa_reviewer"),
     ("finalize", "Revision 확정", None, None),
 )
 

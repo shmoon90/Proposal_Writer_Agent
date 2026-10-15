@@ -85,110 +85,40 @@ flowchart TB
 | 저장소 | `storage/` | SQLite 리포지토리, 파일 저장소, 버전 파일명 | 비즈니스 규칙 |
 | 설정·로깅 | `config/` | 경로, 환경변수, 로깅, 예외 계층 | — |
 
-## 3. 디렉터리 구조
+## 3. 디렉터리 구조 (2026-10-15 실제 파일 기준으로 갱신)
 
 ```
 Proposal_Writer_Agent/
-├── pyproject.toml
-├── README.md                         (Phase 1)
-├── .env.example                      (Phase 1)  ANTHROPIC_API_KEY 등
-├── docs/                             설계 문서
-├── src/proposal_agent/
-│   ├── __init__.py
-│   ├── app.py                        Streamlit 진입점 (st.navigation)        [Phase 1 구현]
-│   ├── ui/                                                                   [Phase 1 구현]
-│   │   ├── app_pages/home.py         모드 선택, 신규 생성, 기존 열기
-│   │   ├── app_pages/project.py      입력 문서·진행 상태·이슈·저장 위치·승인
-│   │   ├── components.py             단계 표, 이슈 패널, 승인 이력 (값 객체만 그림)
-│   │   └── state.py                  st.session_state 래퍼, 서비스 접근, 오류 표시
-│   ├── services/                     애플리케이션 서비스 (UI ↔ 도메인/저장소)   [Phase 1 구현]
-│   │   ├── context.py                AppContext: 설정·경로·DB·리포지토리 조립
-│   │   ├── project_service.py        프로젝트 생성·조회·열기·저장 위치
-│   │   ├── document_service.py       입력 문서 등록, 모드별 필수 문서 규칙
-│   │   ├── pipeline_service.py       모드별 단계 정의, StepRun 상태 전이, 게이트, 이슈
-│   │   ├── agent_step_service.py     역할 실행: 요청 조립(도구·MCP), 이전 출력 재사용, JSON 산출물 버전 저장, 감사   [Phase 3]
-│   │   └── audit.py                  감사 이벤트 기록 (비밀값 마스킹)
-│   │   ├── app_pages/extraction.py   문서별 추출 결과·OCR 페이지·경고·재처리, Gate 0        [Phase 2]
-│   │   └── app_pages/requirements.py 추출·검증 실행, 목록·원본 위치·검토·수정·승인, Gate 1  [Phase 2]
-│   ├── orchestrator/                                                         [Phase 2 구현]
-│   │   ├── gates.py                  GateService: PASS/FAIL/NEEDS_HUMAN_REVIEW 유효 상태, 사람 승인·반려, require()
-│   │   ├── runner.py                 StepRunner: 추출→Gate0, 요구사항 추출(Gate0 필요), 검증→Gate1, 생성 진입 검사
-│   │   └── jobs.py                   (Phase 3~) 비동기 작업 상태 (Streamlit ↔ asyncio 브리지)
-│   ├── agents/                                                               [Phase 3 구현]
-│   │   ├── roles.py                  9개 역할 정의 (입력·출력 스키마·도구·MCP·턴·예산·시간·재시도·재사용)
-│   │   ├── runner.py                 ClaudeSDKClient 어댑터: 역할별 tools/allowed_tools/mcp_servers, 훅, can_use_tool,
-│   │   │                             시간 제한·취소(interrupt)·일시 오류 재시도·비용/도구 호출 기록, test_connection; FakeAgentRunner
-│   │   ├── control.py                CancellationToken, ToolPolicy(금지 도구·허용 폴더·웹 URL 규칙), 도구 호출 기록(비밀값 마스킹)
-│   │   ├── hooks.py                  PreToolUse(정책 deny/allow), PostToolUse(기록), can_use_tool 폴백
-│   │   ├── tools/project_tools.py    인프로세스 SDK MCP 서버 `pwa` (읽기 전용 조회 9종 + 산출물 파일 검증)
-│   │   ├── prompts/                  9개 역할 시스템 프롬프트 (.md)
-│   │   └── schemas.py                역할별 구조화 출력 스키마 (RfpAnalysis, ResearchReport, ArchitectureDraft, WBSDraft, ProposalContent, DocumentPlan, QaReport …)
-│   ├── research/                                                             [Phase 3 구현]
-│   │   ├── sources.py                출처 신뢰도 도메인 규칙 (official_doc/standard/vendor_guide/community/unknown)
-│   │   └── service.py                조사 주제 식별(결정적), 조사 실행, 출처 재분류·미확인 강등, 구현 가능성 비교 저장
-│   ├── models/
-│   │   ├── enums.py
-│   │   ├── project.py                Project, ProjectMode, SourceDocument
-│   │   ├── requirement.py            Requirement, RequirementChange, RequirementTrace
-│   │   ├── design.py                 Screen, ArchitectureComponent, TechnologyResearch
-│   │   ├── test.py                   UnitTest, IntegrationTest
-│   │   ├── planning.py               WBSItem, Dependency, StaffRole, StaffingAllocation
-│   │   ├── deliverable.py            Deliverable, ValidationResult, Approval, Revision
-│   │   └── audit.py                  AuditEvent
-│   ├── ingest/                                                               [Phase 2 구현]
-│   │   ├── base.py                   ReaderResult, BlockBuilder, 제목/목록/목차 휴리스틱, 섹션 추적
-│   │   ├── pdf_reader.py             pdfplumber(텍스트·표) + pypdf(암호화·손상) + pypdfium2(스캔 렌더링→OCR)
-│   │   ├── docx_reader.py            python-docx 본문 순서(문단·표), 페이지 번호는 기록하지 않음
-│   │   ├── txt_reader.py             인코딩 자동 판별, 줄 번호 위치
-│   │   ├── ocr.py                    OCR 플러그인 (rapidocr 한국어, Null 엔진)
-│   │   ├── chunker.py                블록 → LLM 청크 (<block id> 태그, 표 분할 금지, 목차 제외)
-│   │   ├── service.py                ExtractionService: 형식 판별·추출·블록 저장·Gate 0 (코드 판정)
-│   │   └── excel_reader.py           (Phase 6) 구축 단계 기존 산출물 파싱
-│   ├── requirements/                                                         [Phase 2 구현]
-│   │   ├── id_policy.py              설정 가능한 접두사(FR/NFR/CON/EVA/SUB) ID 발급, 재발급 금지, 재추출 매칭
-│   │   ├── service.py                RequirementService: 청크별 추출·독립 검증, 출처 검증, 사람 검토·수정·삭제, Gate 1
-│   │   ├── diff.py                   (Phase 6) 기존 vs 신규 요구사항 구조적 비교
-│   │   └── trace.py                  (Phase 4) 추적표 매트릭스 구성
-│   ├── research/
-│   │   ├── sources.py                출처 레코드, 공식 문서 우선순위
-│   │   └── feasibility.py            구현 가능성 판정 스키마 병합
-│   ├── planning/                                                             [Phase 4 구현]
-│   │   ├── calendar.py               영업일 계산(주말·설정 공휴일)
-│   │   ├── scheduler.py              선후행 검증(참조·자기참조·순환·3단계), FS/SS/FF/SF+lag 전진 계산, 롤업, 기간 초과
-│   │   ├── effort.py                 공수 롤업, 역할 비율 분배, M/D→M/M (1 MM = 20 M/D 가정)
-│   │   ├── staffing.py               월별 M/D 분배, 역할별 M/M·인원, 단가 있을 때만 비용
-│   │   └── service.py                PlanningService: 기간 결정(UI→RFP→입력 요청), 기본 WBS, 계획 저장
-│   ├── generators/                                                           [Phase 4 구현]
-│   │   ├── base.py                   GenerationContext(공통 데이터), 수용여부 라벨, 비고 규칙
-│   │   ├── excel/                    style(서식·필터·고정창·유효성), 요구사항정의서, 추적표, WBS·간트, 인력계획
-│   │   ├── pptx/                     builder(16:9 슬라이드), outline(목차 결정), decks(제출용·발표용)
-│   │   ├── diagrams/                 시스템·SW·서비스 구성도, 간트·공수 차트 (Pillow 직접 드로잉)
-│   │   └── service.py                GenerationService: 데이터 조립, 기본 구성 요소, 9종 생성, 최종본 복사
-│   ├── changes/
-│   │   ├── change_request.py         변경 요청 수명주기
-│   │   ├── impact.py                 영향 대상 식별 (결정적 부분: 추적표 그래프 탐색)
-│   │   └── versioning.py             Revision 생성, 파일 버전명, 변경 이력 보존
-│   ├── validation/                                                           [Phase 4 구현]
-│   │   ├── deliverables.py           PPT/Excel 열기·구조·서식·수식·날짜·ID 검사, 공수·수치 일관성, 추적성
-│   │   └── qa_service.py             QaService: 검사 실행, ValidationResult·QA 보고서, Gate 4 평가
-│   ├── storage/                                                              [Phase 1 구현]
-│   │   ├── db.py                     SQLite 연결(잠금, WAL), 마이그레이션 적용
-│   │   ├── migrations.py             버전별 SQL (추가 전용)
-│   │   ├── repositories.py           엔티티별 Repository (조회 컬럼 + data JSON)
-│   │   └── files.py                  덮어쓰기 금지 저장, 중복 파일명, 버전 파일명, 해시
-│   └── config/                                                               [Phase 1 구현]
-│       ├── settings.py               .env/환경변수 로드, dev/prod 구분, 키 마스킹
-│       ├── paths.py                  ProjectPaths, OUTPUT_SUBDIRS, ensure_within(경로 탈출 차단)
-│       ├── logging.py                파일(회전)+콘솔 로거
-│       └── errors.py                 예외 계층 (message/cause/resolution)
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── fixtures/                     샘플 RFP, 샘플 Excel
-├── Output/<Project_YYYYMMDD_이름>/00_… ~ 13_…
-├── workspace/<project_id>/           에이전트 임시 파일, 추출 텍스트
-└── scripts/                          개발 보조 스크립트
+├── pyproject.toml · requirements.lock.txt · README.md · .env.example
+├── docs/                              설계·운영 문서, PHASE 보고서, samples/
+├── scripts/                           check_mcp.py · run_phase2_llm.py · run_regression.py · final_inspection.py
+├── tests/                             unit/ · integration/ (llm/ 수동) · fixtures/ (builders, excel_builders)
+└── src/proposal_agent/
+    ├── app.py                         Streamlit 진입점 (st.navigation, 화면 8개)
+    ├── ui/                            state.py · components.py · app_pages/{home, project, extraction, requirements,
+    │                                  agents, deliverables, build_baseline, changes}.py
+    ├── config/                        settings.py(.env/환경변수) · paths.py(경로 제한 ensure_within) · errors.py · logging.py
+    ├── models/                        common · enums · project · requirement · extraction · verification · pipeline ·
+    │                                  research · planning · design · deliverable · audit · change · qa
+    ├── storage/                       db.py · migrations.py(0001~0006) · repositories.py · files.py(덮어쓰기 금지·버전명)
+    ├── services/                      context · project_service · document_service · pipeline_service ·
+    │                                  agent_step_service · audit · __init__(Services 조립)
+    ├── ingest/                        base · pdf_reader · docx_reader · txt_reader · ocr · chunker · service(Gate 0) ·
+    │                                  excel_reader(구축 기준 Excel 매핑·파싱)
+    ├── requirements/                  id_policy · service(추출·독립 검증·Gate 1)
+    ├── agents/                        roles(10) · runner(SDK 어댑터·FakeAgentRunner) · control · hooks · schemas ·
+    │                                  tools/project_tools(pwa MCP 10도구) · prompts/*.md(10)
+    ├── research/                      sources(신뢰도 규칙) · service(주제 식별·조사·구현 가능성)
+    ├── orchestrator/                  gates(GateService) · runner(StepRunner)
+    ├── planning/                      calendar · scheduler · effort · staffing · service
+    ├── generators/                    base · excel/{style, requirement_spec, trace_matrix, wbs_gantt, staffing_plan} ·
+    │                                  pptx/{builder, outline, decks} · diagrams/architecture · service
+    ├── validation/                    deliverables(파일 검사) · independent_qa(독립 검증 30항목·게이트 판정) · qa_service
+    └── changes/                       baseline_service(적재·Revision) · semantic(규칙 분류) · impact(영향 시뮬레이션) ·
+                                       service(변경 요청 생애주기·반영·문서 재생성)
 ```
+
+원안에 있었으나 구현하지 않은 파일: `orchestrator/jobs.py`(비동기 작업 — Streamlit 동기 실행으로 대체), `models/test.py`(→ `design.py`에 통합), `requirements/diff.py`·`trace.py`(→ `changes/semantic.py`, `generators/excel/trace_matrix.py`), `research/feasibility.py`(→ `research/service.py`), `changes/change_request.py`·`versioning.py`(→ `changes/service.py`, `storage/files.py`).
 
 ## 4. 산출물 폴더 규칙
 

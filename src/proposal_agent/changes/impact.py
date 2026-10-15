@@ -25,7 +25,6 @@ from proposal_agent.models.change import (
     TaskImpact,
 )
 from proposal_agent.planning.calendar import BusinessCalendar
-from proposal_agent.planning.effort import md_to_mm
 from proposal_agent.planning.scheduler import DepEdge, ScheduleResult, TaskNode, compute_schedule
 from proposal_agent.planning.staffing import RoleLoad, aggregate_roles
 
@@ -632,7 +631,3 @@ def _staffing(
         impact.warnings.append(
             "영향 역할 중 단가가 없는 역할이 있어 비용 영향은 계산하지 않습니다 (공수만 제시)."
         )
-
-
-def md_summary(md: Decimal) -> str:
-    return f"{q(md)} M/D ({md_to_mm(md)} MM)"

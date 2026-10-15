@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -37,6 +36,7 @@ from proposal_agent.models import (  # noqa: E402
 )
 from proposal_agent.orchestrator import StepRunner  # noqa: E402
 from proposal_agent.services import AppContext, Services  # noqa: E402
+from proposal_agent.storage.files import sha256_file  # noqa: E402
 from unit.test_agent_step_service import RESEARCH, RFP_ANALYSIS  # noqa: E402
 from unit.test_requirements_phase2 import extractor_from_text, verifier_all_ok  # noqa: E402
 
@@ -92,7 +92,7 @@ class Inspector:
 
 
 def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return sha256_file(path)
 
 
 def proposal_stage(ins: Inspector, s: Services, ctx: AppContext) -> Any:
