@@ -538,25 +538,25 @@ def diagram_proposal() -> Canvas:
         "3. 제안 단계 파이프라인 — 코드 단계·에이전트 단계·게이트",
         "주황=에이전트(LLM), 초록=코드, 노랑=게이트(코드 판정), 분홍=사람 승인",
     )
-    W, H = 300, 110
+    bw, bh = 300, 110
     # row 1
     y1 = 150
-    b_up = c.box(60, y1, W, H, "RFP 업로드\n01_RFP_Original 보존", fill=C_CODE, size=20)
+    b_up = c.box(60, y1, bw, bh, "RFP 업로드\n01_RFP_Original 보존", fill=C_CODE, size=20)
     b_ex = c.box(
         420,
         y1,
-        W,
-        H,
+        bw,
+        bh,
         "추출 (코드)\npdfplumber·docx·txt·OCR\n블록·위치·신뢰도",
         fill=C_CODE,
         size=20,
     )
-    c.diamond(930, y1 + H / 2, 220, 120, "Gate 0\n추출 품질", size=20)
+    c.diamond(930, y1 + bh / 2, 220, 120, "Gate 0\n추출 품질", size=20)
     b_ra = c.box(
         1120,
         y1,
-        W,
-        H,
+        bw,
+        bh,
         "rfp_analyst (에이전트)\npwa: search_source_text\nget_source_block",
         fill=C_AGENT,
         size=20,
@@ -564,8 +564,8 @@ def diagram_proposal() -> Canvas:
     b_re = c.box(
         1480,
         y1,
-        W,
-        H,
+        bw,
+        bh,
         "requirement_extractor\n(에이전트, 도구 없음)\n청크 프롬프트",
         fill=C_AGENT,
         size=20,
@@ -573,15 +573,15 @@ def diagram_proposal() -> Canvas:
     b_id = c.box(
         1840,
         y1,
-        W,
-        H,
+        bw,
+        bh,
         "ID 발급·출처 검증 (코드)\nFR-/NFR-/CON-/EVA-/SUB-\n인용이 원문에 없으면 제외",
         fill=C_CODE,
         size=19,
     )
     c.arrow(mid_right(b_up), mid_left(b_ex))
-    c.arrow(mid_right(b_ex), (820, y1 + H / 2))
-    c.arrow((1040, y1 + H / 2), mid_left(b_ra))
+    c.arrow(mid_right(b_ex), (820, y1 + bh / 2))
+    c.arrow((1040, y1 + bh / 2), mid_left(b_ra))
     c.arrow(
         mid_right(b_ra), mid_left(b_re), label="분석 결과 재사용", dashed=True, label_offset=(0, 80)
     )
@@ -591,21 +591,21 @@ def diagram_proposal() -> Canvas:
     b_rv = c.box(
         1840,
         y2,
-        W,
-        H,
+        bw,
+        bh,
         "requirement_verifier\n(에이전트, 별도 세션)\n누락·중복·왜곡·출처·범위",
         fill=C_AGENT,
         size=19,
     )
-    c.diamond(1620, y2 + H / 2, 240, 130, "Gate 1\n요구사항 기준선", size=20)
+    c.diamond(1620, y2 + bh / 2, 240, 130, "Gate 1\n요구사항 기준선", size=20)
     h1 = c.box(
-        1270, y2, 230, H, "사람 승인\n검토 의견 필수\nFAIL은 승인 불가", fill=C_HUMAN, size=19
+        1270, y2, 230, bh, "사람 승인\n검토 의견 필수\nFAIL은 승인 불가", fill=C_HUMAN, size=19
     )
     b_tr = c.box(
         820,
         y2,
-        W + 60,
-        H,
+        bw + 60,
+        bh,
         "tech_researcher (에이전트)\nWebSearch · WebFetch\npwa: get_requirement, list_research",
         fill=C_AGENT,
         size=19,
@@ -613,18 +613,18 @@ def diagram_proposal() -> Canvas:
     b_src = c.box(
         420,
         y2,
-        W,
-        H,
+        bw,
+        bh,
         "출처 신뢰도 재분류 (코드)\n공식 문서 우선 · 미확인 강등\nFeasibilityStudy 저장",
         fill=C_CODE,
         size=19,
     )
     b_ar = c.box(
-        60, y2, W, H, "architect (에이전트)\npwa 읽기 9종\n구성 요소·연결", fill=C_AGENT, size=20
+        60, y2, bw, bh, "architect (에이전트)\npwa 읽기 9종\n구성 요소·연결", fill=C_AGENT, size=20
     )
     c.arrow(mid_bottom(b_id), mid_top(b_rv))
-    c.arrow(mid_left(b_rv), (1740, y2 + H / 2))
-    c.arrow((1500, y2 + H / 2), mid_right(h1))
+    c.arrow(mid_left(b_rv), (1740, y2 + bh / 2))
+    c.arrow((1500, y2 + bh / 2), mid_right(h1))
     c.arrow(mid_left(h1), mid_right(b_tr))
     c.arrow(mid_left(b_tr), mid_right(b_src))
     c.arrow(
@@ -639,8 +639,8 @@ def diagram_proposal() -> Canvas:
     b_pl = c.box(
         60,
         y3,
-        W,
-        H,
+        bw,
+        bh,
         "planner (에이전트)\npwa 읽기 9종\n공수·근거·순서만 (날짜 금지)",
         fill=C_AGENT,
         size=19,
@@ -648,8 +648,8 @@ def diagram_proposal() -> Canvas:
     b_sch = c.box(
         420,
         y3,
-        W + 40,
-        H,
+        bw + 40,
+        bh,
         "일정·공수·인력 계산 (코드)\n영업일 FS/SS/FF/SF · 롤업\n월별 MM·인원 · 단가 시 비용",
         fill=C_CODE,
         size=19,
@@ -657,8 +657,8 @@ def diagram_proposal() -> Canvas:
     b_gen = c.box(
         820,
         y3,
-        W + 60,
-        H,
+        bw + 60,
+        bh,
         "산출물 생성 (코드)\n구성도 3·차트 2 PNG · Excel 4\n제출용·발표용 PPT (_vX.Y)",
         fill=C_CODE,
         size=19,
@@ -667,7 +667,7 @@ def diagram_proposal() -> Canvas:
         1250,
         y3,
         360,
-        H,
+        bh,
         "통합 QA (코드, independent_qa)\nRFP 적합성·기술·일관성·파일 30항목\n재생성 자동 수정 ≤ N회 → 재검증",
         fill=C_CODE,
         size=19,
@@ -676,7 +676,7 @@ def diagram_proposal() -> Canvas:
         1680,
         y3,
         300,
-        H,
+        bh,
         "qa_reviewer (에이전트, 선택)\npwa 읽기 + verify_deliverable_file\n결과는 사람 검토 항목으로만",
         fill=C_AGENT,
         size=18,
@@ -687,8 +687,8 @@ def diagram_proposal() -> Canvas:
     c.arrow(mid_right(b_gen), mid_left(b_iq))
     c.arrow(mid_right(b_iq), mid_left(b_qr), dashed=True)
     c.arrow(
-        (1830, y3 + H),
-        (1500, y3 + H + 70),
+        (1830, y3 + bh),
+        (1500, y3 + bh + 70),
         dashed=True,
         label="QA-AI-nn (사람 검토 항목)",
         label_offset=(130, 10),
@@ -740,13 +740,13 @@ def diagram_build() -> Canvas:
         "4. 구축 단계 변경관리 흐름 — 승인 전 기준 데이터 불변",
         "B1(구조 분석)·B3(영향 분석)·B4(문서 갱신)는 코드가 수행하고, 에이전트는 semantic_differ 1종만 선택적으로 덧붙는다",
     )
-    W, H = 330, 110
+    bw, bh = 330, 110
     y1 = 150
     b_up = c.box(
         60,
         y1,
-        W,
-        H,
+        bw,
+        bh,
         "기존 Excel 업로드\n정의서·추적표·WBS (필수)\n투입계획·기타 (선택)",
         fill=C_CODE,
         size=19,
@@ -754,8 +754,8 @@ def diagram_build() -> Canvas:
     b_mp = c.box(
         450,
         y1,
-        W,
-        H,
+        bw,
+        bh,
         "구조 분석·컬럼 매핑 제안 (코드)\nexcel_reader: 표준 시트·동의어·유사도\n품질 검사(중복 ID·날짜·수식)",
         fill=C_CODE,
         size=18,
@@ -764,7 +764,7 @@ def diagram_build() -> Canvas:
         840,
         y1,
         260,
-        H,
+        bh,
         "사용자 매핑 확정\n확인 필요 컬럼 열 번호 지정\n(user vs 규칙 구분 저장)",
         fill=C_HUMAN,
         size=18,
@@ -772,8 +772,8 @@ def diagram_build() -> Canvas:
     b_ld = c.box(
         1160,
         y1,
-        W,
-        H,
+        bw,
+        bh,
         "기준 적재 (코드)\n기존 ID 유지 · 추적·화면·테스트\nWBS·의존·역할 · Revision v1.0",
         fill=C_CODE,
         size=18,
@@ -781,8 +781,8 @@ def diagram_build() -> Canvas:
     b_cr = c.box(
         1550,
         y1,
-        W,
-        H,
+        bw,
+        bh,
         "변경 요청 등록\n자연어 · 추가/수정/삭제 버튼\n문서 업로드(발췌) · 요청자·사유",
         fill=C_UI,
         size=18,
@@ -791,7 +791,7 @@ def diagram_build() -> Canvas:
         1940,
         y1,
         400,
-        H,
+        bh,
         "규칙 의미 비교 (코드, semantic.py)\nADD / MODIFY / DELETE_REQUEST\nNO_CHANGE / AMBIGUOUS + 근거·신뢰도",
         fill=C_CODE,
         size=18,
@@ -803,7 +803,7 @@ def diagram_build() -> Canvas:
         1940,
         y2,
         400,
-        H,
+        bh,
         "semantic_differ (에이전트, 선택)\npwa: list_requirements, get_requirement\n규칙과 불일치 → AMBIGUOUS로 낮춤",
         fill=C_AGENT,
         size=18,
@@ -812,7 +812,7 @@ def diagram_build() -> Canvas:
         1440,
         y2,
         440,
-        H,
+        bh,
         "영향 분석 (코드, impact.py)\n전후 일정(여유 보존) · Task 재사용/수정/신규/제거\n공수 범위 · 인력 시나리오 1~6 · 단가 시 비용",
         fill=C_CODE,
         size=17,
@@ -821,23 +821,23 @@ def diagram_build() -> Canvas:
         1060,
         y2,
         320,
-        H,
+        bh,
         "후보별 수락/거절\n분류·대상 ID·내용·공수 입력\n(사용자 입력 별도 저장)",
         fill=C_HUMAN,
         size=18,
     )
-    c.diamond(800, y2 + H / 2, 300, 140, "승인 / 반려\n(Approval 기록)", fill=C_HUMAN, size=19)
+    c.diamond(800, y2 + bh / 2, 300, 140, "승인 / 반려\n(Approval 기록)", fill=C_HUMAN, size=19)
     b_keep = c.box(
-        300, y2, 300, H, "반려 · 철회\n기준 데이터 불변\n사유 필수 기록", fill=C_CODE, size=19
+        300, y2, 300, bh, "반려 · 철회\n기준 데이터 불변\n사유 필수 기록", fill=C_CODE, size=19
     )
     c.arrow(mid_bottom(b_sem), mid_top(b_sd), dashed=True)
     c.arrow(
         mid_left(b_sd), mid_right(b_imp), label="의견 덧붙임", dashed=True, label_offset=(0, 80)
     )
-    c.arrow((1990, y1 + H), (1700, y2), label="후보", width=2)
+    c.arrow((1990, y1 + bh), (1700, y2), label="후보", width=2)
     c.arrow(mid_left(b_imp), mid_right(h_dec))
-    c.arrow(mid_left(h_dec), (950, y2 + H / 2))
-    c.arrow((650, y2 + H / 2), mid_right(b_keep), label="반려", label_offset=(0, -30))
+    c.arrow(mid_left(h_dec), (950, y2 + bh / 2))
+    c.arrow((650, y2 + bh / 2), mid_right(b_keep), label="반려", label_offset=(0, -30))
     y3 = 680
     b_apply = c.box(
         60,
@@ -879,7 +879,7 @@ def diagram_build() -> Canvas:
         fill="#FDE9E9",
         size=18,
     )
-    c.arrow((800, y2 + H / 2 + 70), (340, y3), label="승인")
+    c.arrow((800, y2 + bh / 2 + 70), (340, y3), label="승인")
     c.arrow(mid_right(b_apply), mid_left(b_regen))
     c.arrow(mid_right(b_regen), mid_left(b_pqa))
     c.arrow(mid_right(b_pqa), (1720, y3 + 65))
