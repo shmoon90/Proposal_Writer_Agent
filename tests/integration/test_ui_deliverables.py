@@ -65,12 +65,12 @@ def test_deliverables_page_flow(services: Services) -> None:
 
     at.button(key="dl_qa").click().run()
     assert not at.exception
-    assert services.gates.state(project, "gate4").status.value == "NEEDS_HUMAN_REVIEW"
+    assert services.gates.state(project, "gate5").status.value == "NEEDS_HUMAN_REVIEW"
     assert at.button(key="dl_finalize").disabled
-    at.text_area(key="gate4_comments").set_value("검토 완료")
-    at.button(key="gate4_approve").click().run()
+    at.text_area(key="gate5_comments").set_value("검토 완료")
+    at.button(key="gate5_approve").click().run()
     assert not at.exception
-    assert services.gates.state(project, "gate4").passed
+    assert services.gates.state(project, "gate5").passed
     at.button(key="dl_finalize").click().run()
     assert not at.exception
     final = services.ctx.paths.project_output_dir(project.output_dir) / "13_Final_Deliverables"

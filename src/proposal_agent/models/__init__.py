@@ -67,6 +67,7 @@ from proposal_agent.models.planning import (
     WorkType,
 )
 from proposal_agent.models.project import Project, SourceDocument
+from proposal_agent.models.qa import QaCategory, QaCheck, QaResult, QaRun
 from proposal_agent.models.requirement import (
     HistoryEntry,
     ImpactAnalysis,
@@ -137,6 +138,10 @@ __all__ = [
     "PageStat",
     "Priority",
     "Project",
+    "QaCategory",
+    "QaCheck",
+    "QaResult",
+    "QaRun",
     "ProjectMode",
     "ProjectScoped",
     "ProjectStatus",

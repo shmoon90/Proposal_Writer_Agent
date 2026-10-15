@@ -17,7 +17,7 @@ from proposal_agent.ingest.service import GATE0_KEY
 from proposal_agent.models import GateStatus, Project, StepRun
 from proposal_agent.orchestrator.gates import GateBlockedError, GateState
 from proposal_agent.requirements.service import GATE1_KEY, ExtractionSummary, VerificationSummary
-from proposal_agent.validation.qa_service import GATE4_KEY
+from proposal_agent.validation.qa_service import GATE5_KEY
 
 if TYPE_CHECKING:
     from proposal_agent.services import Services
@@ -301,27 +301,32 @@ class StepRunner:
         run = pipeline.start_step(project, self.STEP_QA, actor=actor)
         try:
             result = self._s.qa.run(project, actor=actor, step_run_id=run.id)
+            c = result.qa_run.counts if result.qa_run else {}
             summary = (
-                f"QA 오류 {len(result.outcome.errors)}건, 경고 {len(result.outcome.warnings)}건, 사람 검토 {len(result.review_items)}건 "
-                f"→ {GATE4_KEY} {result.gate.status} (보고서 {result.report_path})"
+                f"통합 QA 통과 {c.get('pass', 0)}·실패 {c.get('fail', 0)}·검토 필요 {c.get('needs_human_review', 0)}·미실행 {c.get('not_run', 0)}, "
+                f"자동 수정 {result.qa_run.fix_rounds if result.qa_run else 0}회 → {GATE5_KEY} {result.gate.status} (보고서 {result.report_path})"
             )
             pipeline.complete_step(
                 project,
                 run,
                 summary=summary,
                 actor=actor,
-                output_refs={"report": result.report_path, "gate4": result.gate.id},
+                output_refs={
+                    "report": result.report_path,
+                    "gate5": result.gate.id,
+                    "gates": {k: v.id for k, v in result.gates.items()},
+                },
             )
             return StepOutcome(
-                run=run, gate=self._s.gates.state(project, GATE4_KEY), summary=summary
+                run=run, gate=self._s.gates.state(project, GATE5_KEY), summary=summary
             )
         except PWAError as exc:
             pipeline.fail_step(project, run, exc, actor=actor)
             raise
 
     def run_finalize(self, project: Project, *, approver: str, comments: str) -> StepOutcome:
-        """Gate 4가 PASS(사람 승인 포함)여야 최종본 폴더로 복사한다."""
-        self._s.gates.require(project, GATE4_KEY)
+        """Gate 5(최종 독립 QA)가 PASS(사람 승인 포함)여야 최종본 폴더로 복사한다. 필수 검증 실패가 있으면 통과할 수 없다."""
+        self._s.gates.require(project, GATE5_KEY)
         pipeline = self._s.pipeline
         run = pipeline.start_step(project, self.STEP_FINALIZE, actor=approver)
         try:

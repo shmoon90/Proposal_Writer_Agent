@@ -470,6 +470,29 @@ if cr.status == ChangeStatus.ERROR and st.button(
     else:
         st.rerun()
 
+# --- 4b. 변경 후 통합 QA ---------------------------------------------------------------------------
+if cr.status == ChangeStatus.APPLIED:
+    if st.button(
+        "변경 후 통합 QA 실행 (문서 간 정합성·파일 품질)", key="ch_qa", icon=":material/fact_check:"
+    ):
+        with st.status("통합 QA 실행 중…", expanded=True) as status:
+            try:
+                qa = services.qa.run(project, actor=actor_name())
+            except PWAError as exc:
+                status.update(label="QA 실패", state="error")
+                show_error(exc, context="통합 QA")
+            else:
+                status.update(
+                    label=f"통합 QA 판정 {qa.gate.status.value} — 보고서 {qa.report_path}",
+                    state="complete",
+                )
+    last_qa = services.qa.latest_run(project)
+    if last_qa is not None:
+        cc = last_qa.counts
+        st.caption(
+            f"최근 통합 QA: 판정 {last_qa.verdict} · 통과 {cc.get('pass', 0)} · 실패 {cc.get('fail', 0)} · 검토 필요 {cc.get('needs_human_review', 0)} · 미실행 {cc.get('not_run', 0)} · 보고서 {last_qa.report_path}"
+        )
+
 # --- 5. 변경관리대장 ----------------------------------------------------------------------------
 st.divider()
 st.subheader("5. 변경 이력 (변경관리대장)")

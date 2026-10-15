@@ -305,4 +305,17 @@ MIGRATIONS: tuple[Migration, ...] = (
         CREATE INDEX ix_change_requests_project ON change_requests(project_id, created_at);
         """,
     ),
+    Migration(
+        6,
+        "qa_runs",
+        f"""
+        CREATE TABLE qa_runs (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            verdict TEXT NOT NULL,
+            {_COMMON}
+        );
+        CREATE INDEX ix_qa_runs_project ON qa_runs(project_id, created_at);
+        """,
+    ),
 )

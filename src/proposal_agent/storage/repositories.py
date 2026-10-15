@@ -30,6 +30,7 @@ from proposal_agent.models import (
     IntegrationTest,
     Project,
     ProjectScoped,
+    QaRun,
     Requirement,
     RequirementChange,
     RequirementTrace,
@@ -462,6 +463,16 @@ class ChangeRequestRepository(BaseRepository[ChangeRequest]):
     columns = {"status": "status", "requester": "requester"}
 
 
+class QaRunRepository(BaseRepository[QaRun]):
+    table = "qa_runs"
+    model = QaRun
+    columns = {"verdict": "verdict"}
+
+    def latest(self, project_id: str) -> QaRun | None:
+        rows = self.find(project_id, order_by="created_at", descending=True, limit=1)
+        return rows[0] if rows else None
+
+
 class SequenceRepository:
     """프로젝트별 단조 증가 시퀀스 (요구사항 ID 발급 등). 값은 낮아지지 않는다."""
 
@@ -540,3 +551,4 @@ class Repositories:
         self.unit_tests = UnitTestRepository(db)
         self.integration_tests = IntegrationTestRepository(db)
         self.change_requests = ChangeRequestRepository(db)
+        self.qa_runs = QaRunRepository(db)

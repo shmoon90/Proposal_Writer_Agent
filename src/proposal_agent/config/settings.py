@@ -68,6 +68,12 @@ class Settings:
     holidays: str = ""  # 쉼표 구분 ISO 날짜 (PWA_HOLIDAYS=2026-12-25,2027-01-01)
     font_path: str = r"C:\Windows\Fonts\malgun.ttf"  # 다이어그램·차트 한글 폰트 (PWA_FONT_PATH)
     md_per_mm: int = 20  # 1 M/M 당 영업일 (보고서에 가정으로 명시)
+    qa_max_fix_rounds: int = (
+        2  # 통합 QA 자동 수정·재검증 최대 횟수 (PWA_QA_MAX_FIX_ROUNDS). 초과 시 사람 검토로 전환
+    )
+    qa_use_agent: bool = (
+        False  # 통합 QA에서 qa_reviewer 에이전트 검토를 덧붙일지 (API 키·크레딧 필요)
+    )
     env_file: Path | None = field(default=None, repr=False)
 
     @property

@@ -85,7 +85,17 @@ class Services:
             research=ResearchService(ctx.repos, steps),
             planning=planning,
             generation=generation,
-            qa=QaService(ctx.repos, ctx.paths, audit, ctx.files, generation),
+            qa=QaService(
+                ctx.repos,
+                ctx.paths,
+                audit,
+                ctx.files,
+                generation,
+                settings=ctx.settings,
+                extraction=extraction,
+                changes=changes,
+                steps=steps,
+            ),
             baseline=baseline,
             changes=changes,
         )

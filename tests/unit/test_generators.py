@@ -343,9 +343,9 @@ def test_qa_passes_then_consistency_check_detects_mismatch(
     report = (
         services.ctx.paths.project_output_dir(ready.output_dir)
         / "11_QA_Validation_Reports"
-        / "QA보고서_v1.0.md"
+        / "통합QA보고서_v1.0.md"
     )
-    assert report.exists() and "열림" in report.read_text(encoding="utf-8")
+    assert report.exists() and "최종 판정" in report.read_text(encoding="utf-8")
     # 인위적 불일치: PPT 텍스트에서 기간을 바꾸면 error
     ctx = services.generation.build_context(ready)
     outcome = QaOutcome()
@@ -367,7 +367,7 @@ def test_qa_passes_then_consistency_check_detects_mismatch(
     assert any(f.rule == "traceability.requirements" for f in outcome2.findings)
 
 
-def test_finalize_requires_gate4_approval_and_separates_final(
+def test_finalize_requires_gate5_approval_and_separates_final(
     services: Services, ready: Project
 ) -> None:
     r = StepRunner(services)
@@ -377,7 +377,7 @@ def test_finalize_requires_gate4_approval_and_separates_final(
     r.run_qa(ready)
     with pytest.raises(GateBlockedError):
         r.run_finalize(ready, approver="pm", comments="승인 전")
-    services.gates.approve_human_review(ready, "gate4", approver="pm", comments="검토 완료")
+    services.gates.approve_human_review(ready, "gate5", approver="pm", comments="검토 완료")
     outcome = r.run_finalize(ready, approver="pm", comments="확정")
     final = services.ctx.paths.project_output_dir(ready.output_dir) / "13_Final_Deliverables"
     assert outcome.run.status == StepStatus.APPROVED and len(list(final.iterdir())) == 9

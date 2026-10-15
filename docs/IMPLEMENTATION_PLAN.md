@@ -114,7 +114,9 @@
 - 승인 전 기준 데이터 불변, 삭제=상태변경, 새 버전 파일명, 변경 이력 보존을 테스트로 보장.
 - 구축 단계 E2E(모의 LLM) 통과.
 
-## Phase 7 — 안정화·운영
+## Phase 7 — 안정화·운영 (통합 QA·회귀 테스트는 2026-10-15 구현, `docs/PHASE7_REPORT.md`)
+
+- 구현: `validation/independent_qa.py`(독립 검증 30항목, Gate 2·3·4·5 코드 판정), `validation/qa_service.py`(자동 수정·재검증 한도, 보고서), `scripts/run_regression.py`(pytest + 제안·구축 E2E + 보고서 첨부). 실제 LLM E2E·사용자 매뉴얼·성능 점검은 미구현.
 
 - E2E(실제 LLM) 1회 전체 실행 및 비용 보고, 사용자 매뉴얼(`docs/USER_GUIDE.md`), 설정 가이드, 로그 로테이션, 예외 메시지 정리, 성능(대형 RFP 300p) 점검.
 

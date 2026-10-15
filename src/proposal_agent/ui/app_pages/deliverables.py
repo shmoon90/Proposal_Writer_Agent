@@ -13,7 +13,7 @@ from proposal_agent.orchestrator import StepRunner
 from proposal_agent.requirements.service import GATE1_KEY
 from proposal_agent.ui import components as ui
 from proposal_agent.ui.state import actor_name, current_project, get_services, show_error
-from proposal_agent.validation.qa_service import GATE4_KEY
+from proposal_agent.validation.qa_service import GATE4_KEY, GATE5_KEY
 
 services = get_services()
 project = current_project()
@@ -84,11 +84,12 @@ if b.button(
             status.update(label=outcome.summary, state="complete")
             st.rerun()
 gate4 = services.gates.state(project, GATE4_KEY)
+gate5 = services.gates.state(project, GATE5_KEY)
 if c.button(
     "최종본 확정 (13_Final_Deliverables)",
     key="dl_finalize",
     icon=":material/verified:",
-    disabled=not gate4.passed,
+    disabled=not gate5.passed,
 ):
     try:
         outcome = runner.run_finalize(project, approver=actor_name(), comments="UI 최종 확정")
@@ -172,32 +173,63 @@ if issues:
     )
 else:
     st.success("미해결 QA 지적 사항이 없습니다.", icon=":material/check:")
-ui.gate_panel(gate4)
+qa_run = services.qa.latest_run(project)
+if qa_run is not None:
+    st.markdown("#### 통합 QA (독립 검증) 결과")
+    cc = qa_run.counts
+    st.caption(
+        f"판정 {qa_run.verdict} · 통과 {cc.get('pass', 0)} · 실패 {cc.get('fail', 0)} · 검토 필요 {cc.get('needs_human_review', 0)} · 미실행 {cc.get('not_run', 0)} · 자동 수정 {qa_run.fix_rounds}/{qa_run.max_fix_rounds}회 · 보고서 {qa_run.report_path}"
+    )
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "검증 ID": ch.check_id,
+                    "대상": ch.target,
+                    "결과": ch.final_result.value
+                    if ch.executed
+                    else f"미실행 ({ch.not_run_reason})",
+                    "문제": "; ".join(ch.issues)[:160],
+                    "관련 ID": ", ".join(ch.requirement_ids[:4]),
+                    "수정": "-"
+                    if ch.fix_applied is None
+                    else ("반영" if ch.fix_applied else "보류"),
+                    "재검증": ch.reverified.value if ch.reverified else "-",
+                }
+                for ch in qa_run.checks
+            ]
+        ),
+        hide_index=True,
+        alt="통합 QA 검증 항목",
+    )
+    for key in ("gate2", "gate3", "gate4"):
+        ui.gate_panel(services.gates.state(project, key))
+ui.gate_panel(gate5)
 if (
-    gate4.status == GateStatus.NEEDS_HUMAN_REVIEW
-    and gate4.evaluation
-    and not gate4.evaluation.approval_id
+    gate5.status == GateStatus.NEEDS_HUMAN_REVIEW
+    and gate5.evaluation
+    and not gate5.evaluation.approval_id
 ):
-    comments = st.text_area("검토 의견 (필수)", key="gate4_comments")
+    comments = st.text_area("검토 의견 (필수)", key="gate5_comments")
     x, y = st.columns(2)
     if x.button(
         "검토 후 승인 (최종 확정 가능)",
-        key="gate4_approve",
+        key="gate5_approve",
         type="primary",
         icon=":material/check:",
     ):
         try:
             services.gates.approve_human_review(
-                project, GATE4_KEY, approver=actor_name(), comments=comments
+                project, GATE5_KEY, approver=actor_name(), comments=comments
             )
         except PWAError as exc:
-            show_error(exc, context="Gate 4 승인")
+            show_error(exc, context="Gate 5 승인")
         else:
             st.rerun()
-    if y.button("반려", key="gate4_reject", icon=":material/block:"):
+    if y.button("반려", key="gate5_reject", icon=":material/block:"):
         try:
             services.gates.reject_human_review(
-                project, GATE4_KEY, approver=actor_name(), comments=comments
+                project, GATE5_KEY, approver=actor_name(), comments=comments
             )
         except PWAError as exc:
             show_error(exc, context="Gate 4 반려")
