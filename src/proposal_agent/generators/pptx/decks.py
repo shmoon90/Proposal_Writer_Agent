@@ -687,12 +687,17 @@ def build_presentation_deck(
         footer,
     )
     for ch in plan:
-        b.begin_chapter(ch.numeral, ch.title, [sp.title for sp in ch.sections])
-        for sp in ch.sections:
+        filled = [
+            sp for sp in ch.sections if any(sub.key != "placeholder" for sub in sp.subsections)
+        ]
+        if not filled:
+            continue  # 발표용은 내용 없는 장은 CHAPTER 슬라이드도 만들지 않는다 (CONTENTS에는 남김)
+        b.begin_chapter(ch.numeral, ch.title, [sp.title for sp in filled])
+        for sp in filled:
             b.begin_section(sp.title, sp.number)
             for sub in sp.subsections:
                 if sub.key == "placeholder":
-                    continue  # 발표용은 데이터 없는 절을 장 목록에만 남기고 슬라이드는 만들지 않는다
+                    continue  # 발표용은 데이터 없는 절의 슬라이드는 만들지 않는다
                 _render_section(b, ctx, sub, "발표용", compact=True)
     agent_messages = list((ctx.proposal_content or {}).get("key_messages") or [])
     figure_line = f"{figs['headcount']}, {figs['total_mm']}, 기간 {figs['period']}"

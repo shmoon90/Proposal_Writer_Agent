@@ -273,6 +273,7 @@ SECTION_KEYWORDS: dict[str, tuple[str, ...]] = {
 }
 CHAPTER_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("purpose", "understanding", "current", "strategy", "evaluation"), ("개요", "배경", "이해")),
+    (("testing", "security"), ("품질", "성능", "보안")),
     (
         (
             "requirements",
@@ -383,14 +384,12 @@ def plan_chapters(
         for tc in template_chapters or []:
             if not (getattr(tc, "sections", None) or getattr(tc, "title", "")):
                 continue
+            # 템플릿 샘플에서는 장(로마숫자·제목)만 가져온다. 샘플의 절 목록은 그 고객 과제의 내용이므로
+            # 새 제안에 복사하지 않고, 절은 기준 데이터(outline)에서 장 제목 힌트로 만든다.
             chapters.append(
                 ChapterPlan(
                     numeral=str(getattr(tc, "numeral", "")),
                     title=str(getattr(tc, "title", "")),
-                    sections=[
-                        SectionPlan(number=i + 1, title=_strip_number(str(t)))
-                        for i, t in enumerate(getattr(tc, "sections", []))
-                    ],
                 )
             )
     if not chapters:
