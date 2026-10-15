@@ -95,18 +95,20 @@ Proposal_Writer_Agent/
 ├── docs/                             설계 문서
 ├── src/proposal_agent/
 │   ├── __init__.py
-│   ├── app.py                        Streamlit 진입점 (streamlit run)
-│   ├── ui/
-│   │   ├── mode_select.py            모드 선택 화면
-│   │   ├── proposal/                 제안 단계 페이지들
-│   │   ├── build/                    구축 단계 페이지들
-│   │   ├── components/               승인 패널, 진행 표시, 테이블 편집기
-│   │   └── state.py                  st.session_state 래퍼
-│   ├── orchestrator/
-│   │   ├── pipeline.py               Pipeline/Step 추상, 실행기
-│   │   ├── proposal_pipeline.py      제안 단계 단계 정의
-│   │   ├── build_pipeline.py         구축 단계 단계 정의
-│   │   ├── gates.py                  승인 게이트
+│   ├── app.py                        Streamlit 진입점 (st.navigation)        [Phase 1 구현]
+│   ├── ui/                                                                   [Phase 1 구현]
+│   │   ├── app_pages/home.py         모드 선택, 신규 생성, 기존 열기
+│   │   ├── app_pages/project.py      입력 문서·진행 상태·이슈·저장 위치·승인
+│   │   ├── components.py             단계 표, 이슈 패널, 승인 이력 (값 객체만 그림)
+│   │   └── state.py                  st.session_state 래퍼, 서비스 접근, 오류 표시
+│   ├── services/                     애플리케이션 서비스 (UI ↔ 도메인/저장소)   [Phase 1 구현]
+│   │   ├── context.py                AppContext: 설정·경로·DB·리포지토리 조립
+│   │   ├── project_service.py        프로젝트 생성·조회·열기·저장 위치
+│   │   ├── document_service.py       입력 문서 등록, 모드별 필수 문서 규칙
+│   │   ├── pipeline_service.py       모드별 단계 정의, StepRun 상태 전이, 게이트, 이슈
+│   │   └── audit.py                  감사 이벤트 기록 (비밀값 마스킹)
+│   ├── orchestrator/                 (Phase 2~) 단계 실행기, 에이전트 호출 연결
+│   │   ├── runner.py                 PipelineService.start/complete/fail 를 감싸는 실행기
 │   │   └── jobs.py                   비동기 작업 상태 (Streamlit ↔ asyncio 브리지)
 │   ├── agents/
 │   │   ├── runner.py                 Agent SDK 어댑터 (query/ClaudeSDKClient 래핑, 비용·턴 제한, 훅)
@@ -157,15 +159,16 @@ Proposal_Writer_Agent/
 │   │   ├── file_integrity.py         생성 파일 재오픈·필수 시트·컬럼 검사
 │   │   ├── consistency.py            문서 간 정합성 (요구사항 수, ID 일치 등)
 │   │   └── rules.py                  규칙 레지스트리
-│   ├── storage/
-│   │   ├── db.py                     SQLite 연결, 마이그레이션
-│   │   ├── repositories.py           엔티티별 Repository
-│   │   └── files.py                  Output 폴더 생성, 파일 저장, 중복 방지
-│   └── config/
-│       ├── settings.py               pydantic-settings 스타일 설정 (.env)
-│       ├── paths.py                  ProjectPaths, OUTPUT_SUBDIRS
-│       ├── logging.py
-│       └── errors.py                 예외 계층
+│   ├── storage/                                                              [Phase 1 구현]
+│   │   ├── db.py                     SQLite 연결(잠금, WAL), 마이그레이션 적용
+│   │   ├── migrations.py             버전별 SQL (추가 전용)
+│   │   ├── repositories.py           엔티티별 Repository (조회 컬럼 + data JSON)
+│   │   └── files.py                  덮어쓰기 금지 저장, 중복 파일명, 버전 파일명, 해시
+│   └── config/                                                               [Phase 1 구현]
+│       ├── settings.py               .env/환경변수 로드, dev/prod 구분, 키 마스킹
+│       ├── paths.py                  ProjectPaths, OUTPUT_SUBDIRS, ensure_within(경로 탈출 차단)
+│       ├── logging.py                파일(회전)+콘솔 로거
+│       └── errors.py                 예외 계층 (message/cause/resolution)
 ├── tests/
 │   ├── unit/
 │   ├── integration/

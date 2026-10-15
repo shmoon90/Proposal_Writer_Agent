@@ -33,15 +33,22 @@ AI(LLM)는 **의미 해석·조사·작성·영향 분석**을 담당하고, **I
 | `claude` CLI | PATH에 없음 | Agent SDK가 `claude.exe`를 번들(256 MB)하므로 **별도 설치 불필요** |
 | uv | 없음 | pip + venv 사용 |
 | Tesseract | 없음 | OCR 방식 미확정 (RISK R-07) |
-| `ANTHROPIC_API_KEY` | **미설정** | 런타임 에이전트 실행에 필수 (RISK R-01) |
+| `ANTHROPIC_API_KEY` | `.env`에 설정됨 (2026-10-15, 값은 기록하지 않음) | Git 제외 확인. 런타임 에이전트 실행에 필수 (RISK R-01) |
+| 가상환경 | `.venv` (Python 3.12.10), `pip install -e .[dev]` 완료 | 설치 버전은 `requirements.lock.txt` |
 
-### 설치되어 있는 관련 패키지 (전역 site-packages)
+### 설치된 패키지 (`.venv`, 2026-10-15)
 
-| 패키지 | 설치 버전 | PyPI 최신 (2026-10-15) |
+| 패키지 | 설치 버전 | 비고 |
 |---|---|---|
-| claude-agent-sdk | 0.2.165 | 0.2.167 |
-| mcp / mcp-types | 2.3.0 | 2.3.0 |
-| pydantic | 2.14.1 | 2.14.1 |
+| claude-agent-sdk | 0.2.167 | 전역에는 0.2.165 |
+| mcp / mcp-types | 2.3.0 | |
+| pydantic | 2.14.1 | |
+| streamlit | 1.66.0 | |
+| pandas | 2.3.3 | D-03: 2.x 고정 결정 (`pandas>=2.2,<3`) |
+| openpyxl / python-pptx / python-docx | 3.1.5 / 1.0.2 / 1.2.0 | |
+| pymupdf / matplotlib | 1.28.2 / 3.11.2 | |
+| pytest / pytest-asyncio / ruff / mypy | 9.1.1 / 1.4.0 / 0.17.0 / 2.4.0 | |
+| python-dotenv | 1.2.4 | .env 로드 |
 
 ### PyPI에서 확인한 설치 가능 버전 (미설치)
 

@@ -280,12 +280,22 @@ stateDiagram-v2
 
 `requested → analyzed → (approved → applied) | rejected | withdrawn`. `applied`는 Revision 생성과 동시에만 가능.
 
-## 6. SQLite 스키마 방침
+## 6. SQLite 스키마 방침 (Phase 1 구현 반영)
 
-- 테이블 = 엔티티 1:1. 복합 필드(`source_refs`, `sources`, `impact`, `payload`)는 JSON 텍스트 컬럼.
-- 모든 테이블에 `project_id` 인덱스. `requirements(project_id, id)` 고유.
-- 마이그레이션: `storage/db.py`에 버전 번호와 순차 SQL 스크립트(`storage/migrations/0001_init.sql` …). 외부 ORM 없이 `sqlite3` 표준 모듈 사용(의존성 최소화). 필요 시 Phase 5에서 SQLAlchemy 검토.
+- 테이블 = 엔티티 1:1. 각 테이블은 **조회·인덱스용 컬럼 + 엔티티 전체 JSON(`data`)** 구조다. 새 필드는 Pydantic 모델에 기본값과 함께 추가하면 되고, 조회 컬럼이 필요할 때만 마이그레이션을 추가한다.
+- 모든 테이블에 `project_id` 인덱스. `requirements`는 `(project_id, id)` 복합 PK(프로젝트 간 ID 격리). `source_documents(project_id, sha256)` 고유, `step_runs(project_id, step_key, attempt)` 고유, `revisions(project_id, number)` 고유.
+- 마이그레이션: `storage/migrations.py`의 `MIGRATIONS` 튜플(버전, 이름, SQL). `Database.migrate()`가 미적용 버전을 순서대로 적용하고 `schema_migrations`에 기록한다(멱등). 기존 마이그레이션은 수정하지 않고 새 버전으로 추가한다. 외부 ORM 없이 `sqlite3` 표준 모듈 사용.
+- Phase 1 테이블: projects, source_documents, requirements, requirement_changes, requirement_traces, step_runs, gate_results, deliverables, validation_results, approvals, revisions, audit_events(추가 전용), sequences. WBS·인력·조사·아키텍처·화면·테스트 테이블은 모델만 정의하고 Phase 3~에서 마이그레이션 0002 이후로 추가한다.
 - 리비전 스냅샷은 DB 외에 `12_Revision_History/revision_v1.0.json`으로도 보존(파일 기반 복구 가능).
+
+### 6.1 추가 엔티티: StepRun / GateResult (파이프라인 실행 기록)
+
+| 엔티티 | 주요 필드 | 설명 |
+|---|---|---|
+| `StepRun` | `step_key`, `attempt`, `status`(StepStatus), `started_at`, `finished_at`, `error`, `summary`, `cost_usd`, `output_refs` | 단계 실행 기록. 재실행은 `attempt`+1 새 레코드 |
+| `GateResult` | `step_key`, `step_run_id`, `decision`, `approval_id`, `comments` | 게이트 결정. `Approval`(target_type=`step`)과 1:1 |
+
+단계 **정의**(순서·게이트 여부·담당 에이전트)는 `services/pipeline_service.py`의 코드 상수이며 DB에 저장하지 않는다.
 
 ## 7. 데이터 흐름 요약
 
