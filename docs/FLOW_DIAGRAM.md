@@ -2,6 +2,8 @@
 
 작성일 2026-10-15 · 구현 기준(`main` a58cf82) · 관련: [AGENT_DESIGN.md](AGENT_DESIGN.md), [MCP_CONFIGURATION.md](MCP_CONFIGURATION.md), [WORKFLOW_DESIGN.md](WORKFLOW_DESIGN.md)
 
+> **그림 파일**: 이 문서의 Mermaid를 렌더링하지 못하는 뷰어를 위해 같은 내용을 `docs/diagrams/flow_01~05_*.png`와 `docs/FLOW_DIAGRAM.pptx`(슬라이드 6장)로 제공한다. 재생성: `python scriptsender_flow_diagrams.py`.
+>
 > **스킬에 대하여**: 이 프로그램은 Claude Code의 "스킬(Skill)"이나 서브에이전트(`Agent` 도구)를 사용하지 않는다. 에이전트가 쓸 수 있는 것은 (1) 인프로세스 MCP 서버 `pwa`의 읽기 전용 도구 10종, (2) 기술 조사 역할에만 허용된 내장 `WebSearch`/`WebFetch` 두 가지뿐이다. 파일 생성·ID 발급·일정 계산·QA·게이트 판정은 모두 Python 코드가 수행한다.
 
 ---
