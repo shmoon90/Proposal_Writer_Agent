@@ -63,6 +63,21 @@ class Settings:
     ocr_min_chars_per_page: int = 25  # 이보다 적으면 스캔 페이지로 보고 OCR 시도
     ocr_review_threshold: float = 0.80  # OCR 평균 신뢰도가 이보다 낮으면 검토 필요
     extraction_chunk_chars: int = 12000
+    verification_chunk_chars: int = (
+        24000  # 검증 창 크기 (출력이 작아 추출 청크보다 크게 묶어 호출 수 절감)
+    )
+    max_agent_calls_per_step: int = (
+        40  # 추출·검증 한 번에 허용하는 에이전트 호출 수 (초과 시 호출 전 중단)
+    )
+    max_budget_usd_per_project: float = (
+        50.0  # 프로젝트 누적 비용 상한 (0이면 상한 없음). 초과 예상 시 호출 전 중단
+    )
+    skip_low_signal_chunks: bool = (
+        True  # 요구사항 표현이 없는 청크(표지·머리글·짧은 안내)는 에이전트에 보내지 않음
+    )
+    chunk_cache: bool = (
+        True  # 같은 청크 입력의 구조화 출력을 워크스페이스에 캐시해 재실행 시 재사용
+    )
     # 외부 MCP 서버 설정 (PWA_MCP_EXTERNAL=JSON: {name: {type: http, url: ...}}). 기본은 없음.
     mcp_external: dict[str, Any] = field(default_factory=dict)
     holidays: str = ""  # 쉼표 구분 ISO 날짜 (PWA_HOLIDAYS=2026-12-25,2027-01-01)

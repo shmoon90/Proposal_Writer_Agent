@@ -78,7 +78,9 @@ class Services:
             documents=documents,
             pipeline=PipelineService(ctx.repos, audit),
             extraction=extraction,
-            requirements=RequirementService(ctx.repos, ctx.settings, audit, extraction, runner),
+            requirements=RequirementService(
+                ctx.repos, ctx.settings, audit, extraction, runner, paths=ctx.paths
+            ),
             gates=GateService(ctx.repos, audit),
             runner=runner,
             steps=steps,

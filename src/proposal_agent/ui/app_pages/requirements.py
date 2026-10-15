@@ -45,12 +45,29 @@ gate0 = services.gates.state(project, GATE0_KEY)
 gate1 = services.gates.state(project, GATE1_KEY)
 
 a, b, c = st.columns(3)
+extract_plan = verify_plan = None
+if gate0.passed:
+    try:
+        extract_plan = services.requirements.plan_extraction(project)
+        verify_plan = services.requirements.plan_verification(project)
+    except PWAError as exc:
+        st.caption(f"실행 계획 산정 실패: {exc}")
+    else:
+        st.caption(f"추출 계획 — {extract_plan.summary()}")
+        st.caption(f"검증 계획 — {verify_plan.summary()}")
+        if extract_plan.over_call_limit or extract_plan.over_budget:
+            st.error(
+                "추출이 호출 수 또는 누적 비용 상한을 넘습니다. 설정(PWA_MAX_AGENT_CALLS_PER_STEP, PWA_MAX_BUDGET_USD_PER_PROJECT)을 조정하거나 문서를 나누십시오.",
+                icon=":material/block:",
+            )
+extract_blocked = bool(extract_plan and (extract_plan.over_call_limit or extract_plan.over_budget))
+verify_blocked = bool(verify_plan and (verify_plan.over_call_limit or verify_plan.over_budget))
 if a.button(
     "요구사항 추출 (에이전트)",
     key="req_extract",
     type="primary",
     icon=":material/auto_awesome:",
-    disabled=not gate0.passed,
+    disabled=not gate0.passed or extract_blocked,
     help=None if gate0.passed else "Gate 0을 먼저 통과해야 합니다.",
 ):
     with st.status("요구사항을 추출하는 중… (청크별 에이전트 호출)", expanded=True) as status:
@@ -68,7 +85,7 @@ if b.button(
     "독립 검증 (에이전트)",
     key="req_verify",
     icon=":material/fact_check:",
-    disabled=not gate0.passed,
+    disabled=not gate0.passed or verify_blocked,
 ):
     with st.status("독립 검증 중…", expanded=True) as status:
         try:

@@ -71,6 +71,11 @@ notepad .env
 | `PWA_ID_PREFIXES` | 선택 | 요구사항 ID 접두사 JSON, 기본 `{"functional":"FR","non_functional":"NFR","constraint":"CON","evaluation":"EVA","submission":"SUB"}` |
 | `PWA_MCP_EXTERNAL` | 선택 | 외부 MCP 서버 JSON ([MCP_CONFIGURATION.md](MCP_CONFIGURATION.md)) |
 | `PWA_QA_MAX_FIX_ROUNDS` / `PWA_QA_USE_AGENT` | 선택 | 통합 QA 자동 수정 횟수(기본 2) / qa_reviewer 에이전트 검토 사용(기본 false) |
+| `PWA_MAX_AGENT_CALLS_PER_STEP` | 선택 | 추출·검증 한 번에 허용하는 에이전트 호출 수(기본 40). 넘으면 호출 전에 중단 |
+| `PWA_MAX_BUDGET_USD_PER_PROJECT` | 선택 | 프로젝트 누적 비용 상한(기본 50.0, 0=무제한). 예상 최대 비용이 상한을 넘으면 호출 전에 중단, 실행 중에도 매 호출 전 재검사 |
+| `PWA_VERIFICATION_CHUNK_CHARS` | 선택 | 독립 검증 창 크기(기본 24000). 추출 청크(12000)보다 크게 묶어 호출 수를 줄임 |
+| `PWA_SKIP_LOW_SIGNAL_CHUNKS` | 선택 | 요구사항 표현이 없는 청크(표지·머리글·짧은 안내)를 에이전트에 보내지 않음(기본 true) |
+| `PWA_CHUNK_CACHE` | 선택 | 같은 청크 입력의 구조화 출력을 `workspace\<project>\cache`에 캐시해 재실행 시 재사용(기본 true, 비용 0) |
 
 우선순위: OS 환경변수 > `.env` > 기본값. 운영 환경에서는 `.env` 대신 OS 환경변수(또는 Windows 자격 증명 관리)를 권장한다.
 

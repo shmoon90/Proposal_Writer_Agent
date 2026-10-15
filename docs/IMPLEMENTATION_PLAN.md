@@ -114,7 +114,11 @@
 - 승인 전 기준 데이터 불변, 삭제=상태변경, 새 버전 파일명, 변경 이력 보존을 테스트로 보장.
 - 구축 단계 E2E(모의 LLM) 통과.
 
-## Phase 7 — 안정화·운영 (통합 QA·회귀 테스트는 2026-10-15 구현, `docs/PHASE7_REPORT.md`)
+## Phase 7 — 안정화·운영
+
+- 2026-10-15 추출·검증 최적화: `requirements/optimizer.py` — 신호 없는 청크 건너뛰기, 청크 캐시, 검증 창 병합, 호출 수·프로젝트 누적 비용 상한, 실행 전 계획 표시(`plan_extraction`/`plan_verification`). 테스트 `tests/unit/test_extraction_optimizer.py`.
+
+## Phase 7 — 안정화·운영(원안) (통합 QA·회귀 테스트는 2026-10-15 구현, `docs/PHASE7_REPORT.md`)
 
 - 구현: `validation/independent_qa.py`(독립 검증 30항목, Gate 2·3·4·5 코드 판정), `validation/qa_service.py`(자동 수정·재검증 한도, 보고서), `scripts/run_regression.py`(pytest + 제안·구축 E2E + 보고서 첨부). 실제 LLM E2E·사용자 매뉴얼·성능 점검은 미구현.
 

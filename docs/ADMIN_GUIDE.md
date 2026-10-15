@@ -19,6 +19,7 @@
 ## 2. 설정 변경
 
 - 설정은 `.env`(개발) 또는 OS 환경변수(운영)로 바꾸고 앱을 재시작한다. 전체 목록은 [INSTALLATION.md 3절](INSTALLATION.md).
+- 비용 통제(2026-10-15 추가): 추출·검증은 실행 전에 **실행 계획**(청크 수, 건너뛸 청크, 캐시 재사용, 호출 수, 최대 비용)을 코드가 산정해 요구사항 화면에 표시하고, `PWA_MAX_AGENT_CALLS_PER_STEP`(호출 수)·`PWA_MAX_BUDGET_USD_PER_PROJECT`(프로젝트 누적 비용)를 넘으면 호출 전에 중단한다. 실행 중에도 매 호출 전에 누적 비용을 재검사하며, 처리한 청크 결과는 보존된다. 같은 청크 입력은 캐시(`workspace\<project>\cache`)에서 재사용되어 재실행 비용이 0이고, 요구사항 표현이 없는 청크는 호출하지 않는다.
 - 비용 통제: `PWA_MAX_BUDGET_USD_PER_STEP`(단계당, 역할 상한은 3배까지), 역할별 `max_turns`·`max_budget_usd`·`timeout_s`·`retries`는 `src/proposal_agent/agents/roles.py`. 단계가 예산을 넘으면 `AgentRunError(error_max_budget_usd)`로 실패하고 자동 재시도하지 않는다.
 - 모델: `PWA_MODEL_PRIMARY`(분석·검증·설계), `PWA_MODEL_WORKER`(보조). 변경 후 비용·품질은 실제 실행으로 다시 확인해야 한다.
 - 영업일 계산 공휴일: `PWA_HOLIDAYS`. 요구사항 ID 접두사: `PWA_ID_PREFIXES`(프로젝트 생성 후에는 바꾸지 말 것 — 기존 ID와 충돌).

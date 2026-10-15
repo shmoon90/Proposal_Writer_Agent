@@ -111,7 +111,7 @@ PyMuPDF·matplotlib은 이 PC의 앱 제어 정책이 DLL을 차단해 사용하
 
 ## 9. 비용 또는 외부 API 사용상 제약
 
-- 에이전트 단계는 Anthropic API 과금 대상. 단계별 `cost_usd`가 기록되며 역할별 상한(`max_budget_usd`)과 `PWA_MAX_BUDGET_USD_PER_STEP`로 통제한다. 설계 추정치(PHASE3)는 제안 1건당 약 $11~29이나 실측하지 못했다.
+- 에이전트 단계는 Anthropic API 과금 대상. 단계별 `cost_usd`가 기록되며 역할별 상한(`max_budget_usd`)과 `PWA_MAX_BUDGET_USD_PER_STEP`로 통제한다. 2026-10-15 추가: 프로젝트 누적 상한(`PWA_MAX_BUDGET_USD_PER_PROJECT`), 단계당 호출 수 상한(`PWA_MAX_AGENT_CALLS_PER_STEP`), 실행 전 예상 호출·최대 비용 표시, 청크 캐시(재실행 비용 0), 신호 없는 청크 건너뛰기, 검증 창 병합(추출 청크의 2배)으로 호출 수를 줄였다(`requirements/optimizer.py`). 설계 추정치(PHASE3)는 제안 1건당 약 $11~29이나 실측하지 못했다.
 - 현재 계정은 `Credit balance is too low` 상태로 모든 실제 호출이 실패한다.
 - API 키 방식만 지원(구독 로그인 불가). 기술 조사 역할만 외부 웹 접근 권한이 있다.
 - 프롬프트에 RFP 원문 블록·요구사항·조사 결과가 포함되어 외부로 전송된다. 전송 불가 문서는 입력하지 말 것.

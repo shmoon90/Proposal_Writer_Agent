@@ -6,14 +6,15 @@ ID 발급, 출처(block) 검증과 SourceRef 생성, 중복 병합, 상태 전�
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from proposal_agent.agents import AgentRequest, AgentRunner, load_prompt
+from proposal_agent.agents.roles import get_role
 from proposal_agent.agents.schemas import RequirementExtraction
 from proposal_agent.config.errors import AgentRunError, NotFoundError, ValidationError
 from proposal_agent.config.logging import get_logger
+from proposal_agent.config.paths import ProjectPaths
 from proposal_agent.config.settings import Settings
 from proposal_agent.ingest.chunker import Chunk, build_chunks
 from proposal_agent.ingest.service import ExtractionService
@@ -37,6 +38,16 @@ from proposal_agent.models import (
     VerificationStatus,
 )
 from proposal_agent.requirements.id_policy import RequirementIdPolicy, normalize_text
+from proposal_agent.requirements.optimizer import (
+    CROSS_CHECK_MAX_ITEMS,
+    ChunkCache,
+    RunPlan,
+    build_windows,
+    chunk_key,
+    compact_items,
+    dumps_compact,
+    has_signal,
+)
 from proposal_agent.storage.repositories import Repositories
 
 if TYPE_CHECKING:
@@ -77,6 +88,10 @@ class ExtractionSummary:
     chunks: int = 0
     cost_usd: float = 0.0
     turns: int = 0
+    calls: int = 0
+    skipped_chunks: int = 0
+    cached_chunks: int = 0
+    input_chars: int = 0
 
 
 @dataclass
@@ -87,6 +102,10 @@ class VerificationSummary:
     chunks: int = 0
     cost_usd: float = 0.0
     summaries: list[str] = field(default_factory=list)
+    calls: int = 0
+    skipped_chunks: int = 0
+    cached_chunks: int = 0
+    input_chars: int = 0
 
 
 class RequirementService:
@@ -97,12 +116,14 @@ class RequirementService:
         audit: AuditService,
         extraction: ExtractionService,
         runner: AgentRunner,
+        paths: ProjectPaths | None = None,
     ) -> None:
         self._repos = repos
         self._settings = settings
         self._audit = audit
         self._extraction = extraction
         self._runner = runner
+        self._paths = paths or ProjectPaths()
 
     # --- 조회 -------------------------------------------------------------------------
     def id_policy(self, project: Project) -> RequirementIdPolicy:
@@ -133,6 +154,156 @@ class RequirementService:
         ]
 
     # --- 추출 -------------------------------------------------------------------------
+    # --- 실행 계획·상한 -------------------------------------------------------------------
+    def project_cost(self, project: Project) -> float:
+        return round(sum(r.cost_usd for r in self._repos.step_runs.find(project.id)), 4)
+
+    def _cache(self, project: Project) -> ChunkCache:
+        ws = self._paths.ensure_workspace(project.workspace_dir or project.id)
+        return ChunkCache(ws / "cache", enabled=self._settings.chunk_cache)
+
+    def plan_extraction(self, project: Project) -> RunPlan:
+        blocks = self._extraction.current_blocks(project, required_only=True)
+        chunks = build_chunks(blocks, self._settings.extraction_chunk_chars)
+        return self._plan(
+            "extract",
+            project,
+            chunks,
+            blocks,
+            ROLE_EXTRACTOR,
+            load_prompt(ROLE_EXTRACTOR),
+            cross_check=False,
+        )
+
+    def plan_verification(self, project: Project) -> RunPlan:
+        blocks = self._extraction.current_blocks(project, required_only=True)
+        windows = build_windows(
+            build_chunks(blocks, self._settings.extraction_chunk_chars),
+            self._settings.verification_chunk_chars,
+        )
+        reqs = self.list_requirements(project)
+        plan = self._plan(
+            "verify",
+            project,
+            windows,
+            blocks,
+            ROLE_VERIFIER,
+            load_prompt(ROLE_VERIFIER),
+            cross_check=len(windows) > 1 and len(reqs) > 1,
+            reqs=reqs,
+        )
+        return plan
+
+    def _plan(
+        self,
+        kind: str,
+        project: Project,
+        chunks: list[Chunk],
+        blocks: list[ExtractedBlock],
+        role_key: str,
+        system_prompt: str,
+        *,
+        cross_check: bool,
+        reqs: list[Requirement] | None = None,
+    ) -> RunPlan:
+        by_id = {b.id: b for b in blocks}
+        cache = self._cache(project)
+        role = get_role(role_key)
+        plan = RunPlan(
+            kind=kind,
+            chunks_total=len(chunks),
+            cross_check=cross_check,
+            max_cost_per_call=min(role.max_budget_usd, self._settings.max_budget_usd_per_step * 3),
+            max_calls=self._settings.max_agent_calls_per_step,
+            project_cost_so_far=self.project_cost(project),
+            project_budget=self._settings.max_budget_usd_per_project,
+        )
+        for ch in chunks:
+            if kind == "verify":
+                ids = set(ch.block_ids)
+                in_scope = [
+                    r for r in (reqs or []) if any(ref.block_id in ids for ref in r.source_refs)
+                ]
+                if (
+                    self._settings.skip_low_signal_chunks
+                    and not in_scope
+                    and not has_signal(ch, by_id)
+                ):
+                    plan.skipped.append(ch.index)
+                    continue
+                prompt = self._verification_prompt(project, ch, in_scope)
+            else:
+                if self._settings.skip_low_signal_chunks and not has_signal(ch, by_id):
+                    plan.skipped.append(ch.index)
+                    continue
+                prompt = self._extraction_prompt(project, ch)
+            if (
+                cache.get(chunk_key(role_key, system_prompt, prompt, self._settings.model_primary))
+                is not None
+            ):
+                plan.cached.append(ch.index)
+                continue
+            plan.to_call.append(ch.index)
+            plan.input_chars += len(prompt)
+        return plan
+
+    def _call(
+        self,
+        project: Project,
+        role_key: str,
+        system_prompt: str,
+        prompt: str,
+        schema: type[Any],
+        cache: ChunkCache,
+        stats: Any,
+    ) -> tuple[Any, bool]:
+        """캐시 우선 호출. (출력, 캐시 적중) 반환. 호출 전 누적 예산을 다시 검사한다."""
+        key = chunk_key(role_key, system_prompt, prompt, self._settings.model_primary)
+        hit = cache.get(key)
+        if hit is not None:
+            stats.cached_chunks += 1
+            return schema.model_validate(hit["output"]), True
+        role = get_role(role_key)
+        budget = self._settings.max_budget_usd_per_project
+        if budget > 0 and self.project_cost(project) + stats.cost_usd > budget:
+            raise ValidationError(
+                "프로젝트 누적 비용 상한에 도달해 중단합니다.",
+                cause=f"누적 ${self.project_cost(project) + stats.cost_usd:.2f} ≥ 상한 ${budget:.2f}",
+                resolution="PWA_MAX_BUDGET_USD_PER_PROJECT를 올리거나 실행을 나누십시오. 지금까지 처리한 결과는 저장되어 있습니다.",
+            )
+        if (
+            self._settings.max_agent_calls_per_step
+            and stats.calls >= self._settings.max_agent_calls_per_step
+        ):
+            raise ValidationError(
+                f"에이전트 호출 상한({self._settings.max_agent_calls_per_step}회)에 도달해 중단합니다.",
+                resolution="PWA_MAX_AGENT_CALLS_PER_STEP을 올리거나 문서를 나누어 처리하십시오.",
+            )
+        response = self._runner.run_structured(
+            AgentRequest(
+                role=role_key,
+                system_prompt=system_prompt,
+                prompt=prompt,
+                max_turns=role.max_turns,
+                max_budget_usd=min(role.max_budget_usd, self._settings.max_budget_usd_per_step * 3),
+                model=self._settings.model_primary,
+                effort=role.effort,
+            ),
+            schema,
+        )
+        stats.calls += 1
+        stats.cost_usd += response.cost_usd
+        stats.turns = getattr(stats, "turns", 0) + response.num_turns
+        stats.input_chars += len(prompt)
+        cache.put(
+            key,
+            response.output.model_dump(mode="json"),
+            cost_usd=response.cost_usd,
+            turns=response.num_turns,
+        )
+        return response.output, False
+
+    # --- 추출 -------------------------------------------------------------------------------
     def extract(
         self, project: Project, *, actor: str = "agent:requirement_extractor"
     ) -> ExtractionSummary:
@@ -145,25 +316,37 @@ class RequirementService:
             )
         chunks = build_chunks(blocks, self._settings.extraction_chunk_chars)
         block_map = {b.id: b for b in blocks}
+        plan = self._plan(
+            "extract",
+            project,
+            chunks,
+            blocks,
+            ROLE_EXTRACTOR,
+            load_prompt(ROLE_EXTRACTOR),
+            cross_check=False,
+        )
+        plan.require_within_limits()
         policy = self.id_policy(project)
         existing = self.list_requirements(project, include_deleted=True)
-        summary = ExtractionSummary(chunks=len(chunks))
+        summary = ExtractionSummary(chunks=len(chunks), skipped_chunks=len(plan.skipped))
         system_prompt = load_prompt(ROLE_EXTRACTOR)
+        cache = self._cache(project)
         seen_in_batch: list[Requirement] = []
+        skipped = set(plan.skipped)
 
         for chunk in chunks:
+            if chunk.index in skipped:
+                continue
             prompt = self._extraction_prompt(project, chunk)
             try:
-                response = self._runner.run_structured(
-                    AgentRequest(
-                        role=ROLE_EXTRACTOR,
-                        system_prompt=system_prompt,
-                        prompt=prompt,
-                        max_turns=self._settings.max_turns_default,
-                        max_budget_usd=self._settings.max_budget_usd_per_step,
-                        effort="high",
-                    ),
+                output, _cached = self._call(
+                    project,
+                    ROLE_EXTRACTOR,
+                    system_prompt,
+                    prompt,
                     RequirementExtraction,
+                    cache,
+                    summary,
                 )
             except AgentRunError as exc:
                 self._audit.record_error(
@@ -174,9 +357,6 @@ class RequirementService:
                     payload={"chunk": chunk.index},
                 )
                 raise
-            summary.cost_usd += response.cost_usd
-            summary.turns += response.num_turns
-            output: RequirementExtraction = response.output  # type: ignore[assignment]
             summary.unresolved.extend(output.unresolved_items)
             chunk_ids = set(chunk.block_ids)
             for draft in output.requirements:
@@ -234,6 +414,10 @@ class RequirementService:
                 "created": len(summary.created),
                 "updated": len(summary.updated),
                 "chunks": summary.chunks,
+                "calls": summary.calls,
+                "skipped": summary.skipped_chunks,
+                "cached": summary.cached_chunks,
+                "input_chars": summary.input_chars,
                 "unresolved": len(summary.unresolved),
                 "dropped": len(summary.dropped_missing_source),
                 "cost_usd": round(summary.cost_usd, 4),
@@ -281,43 +465,53 @@ class RequirementService:
                 "검증할 요구사항이 없습니다.", resolution="요구사항 추출을 먼저 실행하십시오."
             )
         blocks = self._extraction.current_blocks(project, required_only=True)
-        chunks = build_chunks(blocks, self._settings.extraction_chunk_chars)
+        windows = build_windows(
+            build_chunks(blocks, self._settings.extraction_chunk_chars),
+            self._settings.verification_chunk_chars,
+        )
         system_prompt = load_prompt(ROLE_VERIFIER)
-        summary = VerificationSummary(chunks=len(chunks))
+        cross = len(windows) > 1 and len(reqs) > 1
+        plan = self._plan(
+            "verify",
+            project,
+            windows,
+            blocks,
+            ROLE_VERIFIER,
+            system_prompt,
+            cross_check=cross,
+            reqs=reqs,
+        )
+        plan.require_within_limits()
+        summary = VerificationSummary(chunks=len(windows), skipped_chunks=len(plan.skipped))
         req_by_id = {r.id: r for r in reqs}
         verdict_counts: dict[str, int] = {}
         coverages: list[float] = []
+        cache = self._cache(project)
+        skipped = set(plan.skipped)
 
         def run(prompt: str, label: str) -> VerificationReport:
-            response = self._runner.run_structured(
-                AgentRequest(
-                    role=ROLE_VERIFIER,
-                    system_prompt=system_prompt,
-                    prompt=prompt,
-                    max_turns=self._settings.max_turns_default,
-                    max_budget_usd=self._settings.max_budget_usd_per_step,
-                    effort="high",
-                ),
-                VerificationReport,
+            output, _cached = self._call(
+                project, ROLE_VERIFIER, system_prompt, prompt, VerificationReport, cache, summary
             )
-            summary.cost_usd += response.cost_usd
-            report: VerificationReport = response.output  # type: ignore[assignment]
+            report: VerificationReport = output
             if report.summary:
                 summary.summaries.append(f"[{label}] {report.summary}")
             return report
 
-        for chunk in chunks:
-            chunk_ids = set(chunk.block_ids)
-            in_scope = [r for r in reqs if any(ref.block_id in chunk_ids for ref in r.source_refs)]
+        for window in windows:
+            if window.index in skipped:
+                continue
+            window_ids = set(window.block_ids)
+            in_scope = [r for r in reqs if any(ref.block_id in window_ids for ref in r.source_refs)]
             report = run(
-                self._verification_prompt(project, chunk, in_scope), f"chunk {chunk.index + 1}"
+                self._verification_prompt(project, window, in_scope), f"window {window.index + 1}"
             )
             coverages.append(report.coverage_estimate)
             self._apply_report(
-                project, report, req_by_id, verdict_counts, summary, actor, chunk.index
+                project, report, req_by_id, verdict_counts, summary, actor, window.index
             )
 
-        if len(reqs) > 1:
+        if cross:
             report = run(self._cross_check_prompt(project, reqs), "cross_check")
             self._apply_report(project, report, req_by_id, verdict_counts, summary, actor, None)
 
@@ -334,6 +528,11 @@ class RequirementService:
                 "findings": len(summary.findings),
                 "verdicts": verdict_counts,
                 "coverage": summary.coverage,
+                "windows": summary.chunks,
+                "calls": summary.calls,
+                "skipped": summary.skipped_chunks,
+                "cached": summary.cached_chunks,
+                "input_chars": summary.input_chars,
                 "cost_usd": round(summary.cost_usd, 4),
             },
         )
@@ -410,42 +609,20 @@ class RequirementService:
             summary.findings.append(result)
 
     def _verification_prompt(self, project: Project, chunk: Chunk, reqs: list[Requirement]) -> str:
-        items = [
-            {
-                "id": r.id,
-                "name": r.name,
-                "description": r.description,
-                "type": str(r.type),
-                "scope_class": str(r.scope_class),
-                "is_mandatory": r.is_mandatory,
-                "rfp_quote": r.rfp_quote,
-                "source_block_ids": [ref.block_id for ref in r.source_refs],
-                "rationale": r.rationale,
-            }
-            for r in reqs
-        ]
+        items = compact_items(reqs, with_sources=True)
         return (
-            f"모드: chunk\n프로젝트: {project.name}\n청크 {chunk.index + 1}\n\n"
+            f"모드: chunk\n프로젝트: {project.name}\n창 {chunk.index + 1}\n\n"
             f"<document>\n{chunk.text}\n</document>\n\n"
-            f"<requirements>\n{json.dumps(items, ensure_ascii=False, indent=1)}\n</requirements>\n\n"
+            f"<requirements>\n{dumps_compact(items)}\n</requirements>\n\n"
             "원문과 요구사항 목록을 대조해 검증 보고를 JSON으로 반환하라."
         )
 
     def _cross_check_prompt(self, project: Project, reqs: list[Requirement]) -> str:
-        items = [
-            {
-                "id": r.id,
-                "name": r.name,
-                "description": r.description,
-                "type": str(r.type),
-                "scope_class": str(r.scope_class),
-                "is_mandatory": r.is_mandatory,
-            }
-            for r in reqs
-        ]
+        items = compact_items(reqs[:CROSS_CHECK_MAX_ITEMS], with_sources=False)
+        note = f" (상위 {CROSS_CHECK_MAX_ITEMS}건만)" if len(reqs) > CROSS_CHECK_MAX_ITEMS else ""
         return (
-            f"모드: cross_check\n프로젝트: {project.name}\n\n"
-            f"<requirements>\n{json.dumps(items, ensure_ascii=False, indent=1)}\n</requirements>\n\n"
+            f"모드: cross_check\n프로젝트: {project.name}{note}\n\n"
+            f"<requirements>\n{dumps_compact(items)}\n</requirements>\n\n"
             "전체 요구사항 목록에서 중복·모순·분류 불일치만 검사해 JSON으로 반환하라. verdicts는 비워도 된다."
         )
 
