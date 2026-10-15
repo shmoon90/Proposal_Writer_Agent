@@ -65,7 +65,7 @@ plugins = ["pydantic.mypy"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["pandas", "pandas.*", "pdfplumber", "pdfplumber.*", "pypdfium2", "rapidocr", "rapidocr.*", "docx", "docx.*", "reportlab", "reportlab.*"]
+module = ["pandas", "pandas.*", "openpyxl", "openpyxl.*", "pptx", "pptx.*", "pdfplumber", "pdfplumber.*", "pypdfium2", "rapidocr", "rapidocr.*", "docx", "docx.*", "reportlab", "reportlab.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
@@ -74,5 +74,6 @@ asyncio_mode = "auto"
 markers = [
     "llm: 실제 Claude API 호출이 필요한 테스트 (기본 제외, -m llm 로 실행)",
     "slow: 느린 통합 테스트",
+    "sdk: 번들 Claude Code 프로세스를 실제로 띄우는 테스트 (API 키 필요, 모델 호출 없음)",
 ]
 addopts = "-m 'not llm'"

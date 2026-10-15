@@ -9,8 +9,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from proposal_agent.agents.control import CancellationToken
 from proposal_agent.config.errors import PWAError
 from proposal_agent.config.logging import get_logger
+from proposal_agent.ingest.chunker import build_chunks
 from proposal_agent.ingest.service import GATE0_KEY
 from proposal_agent.models import GateStatus, Project, StepRun
 from proposal_agent.orchestrator.gates import GateBlockedError, GateState
@@ -135,4 +137,104 @@ class StepRunner:
         try:
             return self._s.gates.require(project, GATE1_KEY)
         except GateBlockedError:
+            raise
+
+    # --- 역할 에이전트 단계 (Phase 3) -----------------------------------------------------------
+    STEP_RFP_ANALYSIS = "rfp_analysis"
+    STEP_TECH_RESEARCH = "tech_research"
+    STEP_ARCHITECTURE = "architecture"
+    STEP_WBS = "wbs_schedule"
+
+    def run_rfp_analysis(
+        self, project: Project, *, actor: str = "user", cancel: CancellationToken | None = None
+    ) -> StepOutcome:
+        """RFP 분석 에이전트. Gate 0 통과가 필요하다. 첫 청크들을 프롬프트에 넣고 나머지는 MCP 검색 도구로 보게 한다."""
+        self._s.gates.require(project, GATE0_KEY)
+        pipeline = self._s.pipeline
+        run = pipeline.start_step(project, self.STEP_RFP_ANALYSIS, actor=actor)
+        try:
+            blocks = self._s.extraction.current_blocks(project, required_only=True)
+            chunks = build_chunks(blocks, self._s.ctx.settings.extraction_chunk_chars)
+            head = "\n\n".join(c.text for c in chunks[:2])
+            prompt = (
+                f"프로젝트: {project.name}\n청크 {min(2, len(chunks))}/{len(chunks)}개를 아래에 넣었다. 나머지는 "
+                "mcp__pwa__search_source_text 로 검색하라.\n\n<document>\n"
+                + head
+                + "\n</document>\n\nRFP 분석 결과를 JSON으로 반환하라."
+            )
+            result = self._s.steps.run_role(
+                project, "rfp_analyst", prompt, actor=actor, step_run_id=run.id, cancel=cancel
+            )
+            summary = f"RFP 분석 저장: {result.output_record.file_path} (비용 ${result.response.cost_usd:.3f})"
+            pipeline.complete_step(
+                project,
+                run,
+                summary=summary,
+                cost_usd=result.response.cost_usd,
+                actor=actor,
+                output_refs={"agent_output": result.output_record.id},
+            )
+            return StepOutcome(run=run, summary=summary)
+        except PWAError as exc:
+            pipeline.fail_step(project, run, exc, actor=actor)
+            raise
+
+    def run_tech_research(
+        self, project: Project, *, actor: str = "user", cancel: CancellationToken | None = None
+    ) -> StepOutcome:
+        """기술 조사 에이전트. Gate 1 통과(요구사항 기준선)가 필요하다. 결과는 사람 검토(게이트 2)로 넘어간다."""
+        self._s.gates.require(project, GATE1_KEY)
+        pipeline = self._s.pipeline
+        run = pipeline.start_step(project, self.STEP_TECH_RESEARCH, actor=actor)
+        try:
+            result = self._s.research.run(project, actor=actor, step_run_id=run.id, cancel=cancel)
+            summary = (
+                f"조사 {len(result.items)}건, 주제 {len(result.topics)}개, 미확인 {result.unverified_count}건, "
+                f"비교 {'있음' if result.study else '없음'}, 비용 ${result.cost_usd:.3f}"
+            )
+            pipeline.complete_step(
+                project,
+                run,
+                summary=summary,
+                cost_usd=result.cost_usd,
+                actor=actor,
+                output_refs={"research_ids": [r.id for r in result.items]},
+            )
+            return StepOutcome(run=run, summary=summary)
+        except PWAError as exc:
+            pipeline.fail_step(project, run, exc, actor=actor)
+            raise
+
+    def run_role_step(
+        self,
+        project: Project,
+        step_key: str,
+        role_key: str,
+        prompt: str,
+        *,
+        required_gate: str | None = GATE1_KEY,
+        actor: str = "user",
+        cancel: CancellationToken | None = None,
+    ) -> StepOutcome:
+        """일반 역할 단계 실행 (architect/planner/proposal_writer/document_generator/qa_reviewer)."""
+        if required_gate:
+            self._s.gates.require(project, required_gate)
+        pipeline = self._s.pipeline
+        run = pipeline.start_step(project, step_key, actor=actor)
+        try:
+            result = self._s.steps.run_role(
+                project, role_key, prompt, actor=actor, step_run_id=run.id, cancel=cancel
+            )
+            summary = f"{role_key} 결과 저장: {result.output_record.file_path} (비용 ${result.response.cost_usd:.3f})"
+            pipeline.complete_step(
+                project,
+                run,
+                summary=summary,
+                cost_usd=result.response.cost_usd,
+                actor=actor,
+                output_refs={"agent_output": result.output_record.id},
+            )
+            return StepOutcome(run=run, summary=summary)
+        except PWAError as exc:
+            pipeline.fail_step(project, run, exc, actor=actor)
             raise

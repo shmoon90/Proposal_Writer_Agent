@@ -191,4 +191,34 @@ MIGRATIONS: tuple[Migration, ...] = (
         CREATE INDEX ix_gate_evaluations_key ON gate_evaluations(project_id, gate_key, created_at);
         """,
     ),
+    Migration(
+        3,
+        "research_and_agent_outputs",
+        f"""
+        CREATE TABLE technology_research (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            topic TEXT NOT NULL,
+            feasibility TEXT NOT NULL,
+            {_COMMON}
+        );
+        CREATE INDEX ix_technology_research_project ON technology_research(project_id);
+
+        CREATE TABLE feasibility_studies (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            {_COMMON}
+        );
+
+        CREATE TABLE agent_outputs (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            role TEXT NOT NULL,
+            version TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            {_COMMON}
+        );
+        CREATE INDEX ix_agent_outputs_role ON agent_outputs(project_id, role, created_at);
+        """,
+    ),
 )

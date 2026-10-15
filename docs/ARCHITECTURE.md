@@ -106,6 +106,7 @@ Proposal_Writer_Agent/
 │   │   ├── project_service.py        프로젝트 생성·조회·열기·저장 위치
 │   │   ├── document_service.py       입력 문서 등록, 모드별 필수 문서 규칙
 │   │   ├── pipeline_service.py       모드별 단계 정의, StepRun 상태 전이, 게이트, 이슈
+│   │   ├── agent_step_service.py     역할 실행: 요청 조립(도구·MCP), 이전 출력 재사용, JSON 산출물 버전 저장, 감사   [Phase 3]
 │   │   └── audit.py                  감사 이벤트 기록 (비밀값 마스킹)
 │   │   ├── app_pages/extraction.py   문서별 추출 결과·OCR 페이지·경고·재처리, Gate 0        [Phase 2]
 │   │   └── app_pages/requirements.py 추출·검증 실행, 목록·원본 위치·검토·수정·승인, Gate 1  [Phase 2]
@@ -113,13 +114,18 @@ Proposal_Writer_Agent/
 │   │   ├── gates.py                  GateService: PASS/FAIL/NEEDS_HUMAN_REVIEW 유효 상태, 사람 승인·반려, require()
 │   │   ├── runner.py                 StepRunner: 추출→Gate0, 요구사항 추출(Gate0 필요), 검증→Gate1, 생성 진입 검사
 │   │   └── jobs.py                   (Phase 3~) 비동기 작업 상태 (Streamlit ↔ asyncio 브리지)
-│   ├── agents/                                                               [Phase 2 구현(일부)]
-│   │   ├── runner.py                 Agent SDK 어댑터: query() + output_format, tools=[] (도구 없음), dontAsk, 예산·턴 상한; FakeAgentRunner
-│   │   ├── prompts/                  requirement_extractor.md, requirement_verifier.md (독립 프롬프트)
-│   │   ├── schemas.py                RequirementExtraction (RequirementDraft[]), VerificationReport
-│   │   ├── definitions.py            (Phase 3~) AgentDefinition 모음 (서브에이전트)
-│   │   ├── tools/                    (Phase 3~) 인프로세스 SDK MCP 도구 (@tool)
-│   │   └── hooks.py                  (Phase 3~) PreToolUse/PostToolUse 훅
+│   ├── agents/                                                               [Phase 3 구현]
+│   │   ├── roles.py                  9개 역할 정의 (입력·출력 스키마·도구·MCP·턴·예산·시간·재시도·재사용)
+│   │   ├── runner.py                 ClaudeSDKClient 어댑터: 역할별 tools/allowed_tools/mcp_servers, 훅, can_use_tool,
+│   │   │                             시간 제한·취소(interrupt)·일시 오류 재시도·비용/도구 호출 기록, test_connection; FakeAgentRunner
+│   │   ├── control.py                CancellationToken, ToolPolicy(금지 도구·허용 폴더·웹 URL 규칙), 도구 호출 기록(비밀값 마스킹)
+│   │   ├── hooks.py                  PreToolUse(정책 deny/allow), PostToolUse(기록), can_use_tool 폴백
+│   │   ├── tools/project_tools.py    인프로세스 SDK MCP 서버 `pwa` (읽기 전용 조회 9종 + 산출물 파일 검증)
+│   │   ├── prompts/                  9개 역할 시스템 프롬프트 (.md)
+│   │   └── schemas.py                역할별 구조화 출력 스키마 (RfpAnalysis, ResearchReport, ArchitectureDraft, WBSDraft, ProposalContent, DocumentPlan, QaReport …)
+│   ├── research/                                                             [Phase 3 구현]
+│   │   ├── sources.py                출처 신뢰도 도메인 규칙 (official_doc/standard/vendor_guide/community/unknown)
+│   │   └── service.py                조사 주제 식별(결정적), 조사 실행, 출처 재분류·미확인 강등, 구현 가능성 비교 저장
 │   ├── models/
 │   │   ├── enums.py
 │   │   ├── project.py                Project, ProjectMode, SourceDocument

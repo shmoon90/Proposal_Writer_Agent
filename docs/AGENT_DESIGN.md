@@ -4,6 +4,26 @@
 
 ---
 
+## 0. Phase 3 구현 반영 (2026-10-15) — 실제 구현된 역할·도구·통제
+
+구현 코드: `agents/roles.py`(역할 정의), `agents/runner.py`(SDK 어댑터), `agents/control.py`·`hooks.py`(정책·훅), `agents/tools/project_tools.py`(인프로세스 MCP), `services/agent_step_service.py`(역할 실행·재사용·저장), `research/`(기술 조사).
+
+| # | 역할 key | 입력 | 출력 스키마 | 내장 도구 | MCP 도구 | 턴/예산/시간 | 재사용 |
+|---|---|---|---|---|---|---|---|
+| 1 | `rfp_analyst` | 추출 블록 청크 | `RfpAnalysis` | 없음 | `pwa.search_source_text`, `pwa.get_source_block` | 10 / $2 / 600s | — |
+| 2 | `requirement_extractor` | 청크 | `RequirementExtraction` | 없음 | 없음 | 8 / $2 / 600s | rfp_analyst |
+| 3 | `requirement_verifier` | 청크 + 요구사항 | `VerificationReport` | 없음 | 없음 | 8 / $2 / 600s | — |
+| 4 | `tech_researcher` | 요구사항·RFP 분석·주제 | `ResearchReport` | **WebSearch, WebFetch** | `pwa.get_requirement`, `pwa.list_research` | 30 / $6 / 1200s | rfp_analyst |
+| 5 | `architect` | 요구사항·조사 | `ArchitectureDraft` | 없음 | pwa 읽기 9종 | 12 / $3 / 600s | tech_researcher, rfp_analyst |
+| 6 | `planner` | 요구사항·아키텍처·기간 | `WBSDraft` (날짜 없음) | 없음 | pwa 읽기 9종 | 12 / $3 / 600s | architect, rfp_analyst |
+| 7 | `proposal_writer` | 기준 데이터 | `ProposalContent` | 없음 | pwa 읽기 9종 | 15 / $4 / 600s | 1·4·5·6 |
+| 8 | `document_generator` | 기준 데이터 | `DocumentPlan` (파일은 코드 생성) | 없음 | pwa 읽기 9종 | 10 / $2 / 600s | 7·6·5 |
+| 9 | `qa_reviewer` | 산출물 텍스트·기준·변경 요청 | `QaReport` | 없음 | pwa 읽기 9종 + `verify_deliverable_file` | 12 / $3 / 600s | 8·7 |
+
+공통 실패 처리: `AgentRunError(subtype, cause, resolution, detail.category)` → StepRun `failed` + 감사 이벤트. 일시 오류(rate_limit/overloaded/connection/process)만 `retries` 횟수 재시도, 크레딧·인증·예산·스키마 오류는 즉시 실패. 시간 초과·취소는 `ClaudeSDKClient.interrupt()`로 중단.
+
+**실제 연결 확인된 MCP 서버·도구 (2026-10-15, `scripts/check_mcp.py`)**: 인프로세스 `pwa`(도구 10종: get_project, list_requirements, get_requirement, search_source_text, get_source_block, list_research, list_findings, list_gates, get_prior_output, verify_deliverable_file) `connected`; 외부 HTTP `claude-code-docs`(https://code.claude.com/docs/mcp, 도구 3종) `connected`; 깨진 stdio 서버 `failed` 정상 보고. 내장 `WebSearch`/`WebFetch`는 세션 도구 목록에 노출됨을 확인(실제 검색 실행은 크레딧 부족으로 미검증). 웹 검색·문서 열람은 별도 MCP 서버 없이 내장 서버 도구를 쓰며, Brave/Tavily 등 검색 MCP는 연결하지 않았다.
+
 ## 1. 실행 모델
 
 - 런타임: **Claude Agent SDK for Python 0.2.165** (번들 `claude.exe`). 개발 도구인 Claude Code와 별개.

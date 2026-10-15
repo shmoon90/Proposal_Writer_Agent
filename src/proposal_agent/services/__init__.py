@@ -9,6 +9,8 @@ from proposal_agent.ingest.ocr import OcrEngine
 from proposal_agent.ingest.service import ExtractionService
 from proposal_agent.orchestrator.gates import GateService
 from proposal_agent.requirements.service import RequirementService
+from proposal_agent.research.service import ResearchService
+from proposal_agent.services.agent_step_service import AgentStepService
 from proposal_agent.services.audit import AuditService
 from proposal_agent.services.context import AppContext
 from proposal_agent.services.document_service import DocumentService
@@ -27,6 +29,8 @@ class Services:
     requirements: RequirementService
     gates: GateService
     runner: AgentRunner
+    steps: AgentStepService
+    research: ResearchService
 
     @classmethod
     def from_context(
@@ -39,6 +43,7 @@ class Services:
         audit = AuditService(ctx.repos.audit)
         runner = runner or build_runner(ctx.settings)
         extraction = ExtractionService(ctx.repos, ctx.paths, ctx.settings, audit, ocr=ocr)
+        steps = AgentStepService(ctx.repos, ctx.paths, ctx.settings, audit, runner, ctx.files)
         return cls(
             ctx=ctx,
             audit=audit,
@@ -49,10 +54,13 @@ class Services:
             requirements=RequirementService(ctx.repos, ctx.settings, audit, extraction, runner),
             gates=GateService(ctx.repos, audit),
             runner=runner,
+            steps=steps,
+            research=ResearchService(ctx.repos, steps),
         )
 
 
 __all__ = [
+    "AgentStepService",
     "AppContext",
     "AuditService",
     "DocumentService",
@@ -61,5 +69,6 @@ __all__ = [
     "PipelineService",
     "ProjectService",
     "RequirementService",
+    "ResearchService",
     "Services",
 ]

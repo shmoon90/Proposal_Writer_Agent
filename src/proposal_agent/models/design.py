@@ -1,16 +1,14 @@
-"""Screen, UnitTest, IntegrationTest, TechnologyResearch, ArchitectureComponent
-(DATA_MODEL.md 4.6, 4.9, 4.10). Phase 1에서는 모델 정의만 제공한다.
+"""Screen, UnitTest, IntegrationTest, ArchitectureComponent (DATA_MODEL.md 4.6, 4.10).
+TechnologyResearch는 models/research.py 로 이동했다.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from proposal_agent.models.common import ProjectScoped, utcnow
-from proposal_agent.models.enums import FeasibilityVerdict, SourceTrust
+from proposal_agent.models.common import ProjectScoped
 
 
 class Screen(ProjectScoped):
@@ -38,29 +36,6 @@ class IntegrationTest(ProjectScoped):
     scenario: str = ""
     description: str = ""
     status: str = "draft"
-
-
-class ResearchSource(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    url: str
-    title: str = ""
-    trust: SourceTrust = SourceTrust.UNKNOWN
-    accessed_at: datetime = Field(default_factory=utcnow)
-    excerpt: str = ""
-
-
-class TechnologyResearch(ProjectScoped):
-    id_prefix: ClassVar[str] = "TR"
-
-    topic: str
-    related_requirement_ids: list[str] = Field(default_factory=list)
-    summary: str = ""
-    feasibility: FeasibilityVerdict = FeasibilityVerdict.UNKNOWN
-    risks: list[str] = Field(default_factory=list)
-    recommended_stack: list[str] = Field(default_factory=list)
-    sources: list[ResearchSource] = Field(default_factory=list)
-    verified_by_human: bool = False
 
 
 class ComponentConnection(BaseModel):

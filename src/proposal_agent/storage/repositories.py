@@ -14,12 +14,14 @@ from typing import Any, ClassVar, cast
 
 from proposal_agent.config.errors import NotFoundError, StorageError
 from proposal_agent.models import (
+    AgentOutput,
     Approval,
     AuditEvent,
     Deliverable,
     Entity,
     ExtractedBlock,
     ExtractionRun,
+    FeasibilityStudy,
     GateEvaluation,
     GateResult,
     Project,
@@ -30,6 +32,7 @@ from proposal_agent.models import (
     Revision,
     SourceDocument,
     StepRun,
+    TechnologyResearch,
     ValidationResult,
 )
 from proposal_agent.storage.db import Database
@@ -361,6 +364,28 @@ class GateEvaluationRepository(BaseRepository[GateEvaluation]):
         return rows[0] if rows else None
 
 
+class TechnologyResearchRepository(BaseRepository[TechnologyResearch]):
+    table = "technology_research"
+    model = TechnologyResearch
+    columns = {"topic": "topic", "feasibility": "feasibility"}
+
+
+class FeasibilityStudyRepository(BaseRepository[FeasibilityStudy]):
+    table = "feasibility_studies"
+    model = FeasibilityStudy
+    columns = {}
+
+
+class AgentOutputRepository(BaseRepository[AgentOutput]):
+    table = "agent_outputs"
+    model = AgentOutput
+    columns = {"role": "role", "version": "version", "file_path": "file_path"}
+
+    def latest(self, project_id: str, role: str) -> AgentOutput | None:
+        rows = self.find(project_id, role=role, order_by="created_at", descending=True, limit=1)
+        return rows[0] if rows else None
+
+
 class SequenceRepository:
     """프로젝트별 단조 증가 시퀀스 (요구사항 ID 발급 등). 값은 낮아지지 않는다."""
 
@@ -427,3 +452,6 @@ class Repositories:
         self.extraction_runs = ExtractionRunRepository(db)
         self.blocks = ExtractedBlockRepository(db)
         self.gate_evaluations = GateEvaluationRepository(db)
+        self.research = TechnologyResearchRepository(db)
+        self.feasibility = FeasibilityStudyRepository(db)
+        self.agent_outputs = AgentOutputRepository(db)

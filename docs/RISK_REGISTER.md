@@ -28,6 +28,10 @@
 | R-18 | API 데이터 보존 정책·보안: RFP가 외부 API로 전송됨 | 고객 보안 요건 위반 가능 | 중 | 프로젝트 생성 시 외부 전송 고지, 민감 문서는 사용자 책임으로 마스킹, 필요 시 Bedrock/Vertex 경로(R-04 연계) | 열림 |
 | R-19 | **PyMuPDF DLL이 개발 PC의 애플리케이션 제어 정책(WDAC/AppLocker)에 차단됨** (`_mupdf.pyd` 로드 실패, 2026-10-15 확인) | PDF 처리 불가 | 확실(현재) | PDF 스택을 순수 Python 조합으로 교체: 텍스트·표 `pdfplumber`, 암호화·손상 판별 `pypdf`, 스캔 페이지 렌더링 `pypdfium2`(DLL 로드 확인됨), 실패 시 `pypdf` 내장 이미지 추출로 대체. 다른 PC에서도 같은 정책이면 onnxruntime·pypdfium2도 차단될 수 있으므로 설치 후 `python -c "import pypdfium2, onnxruntime"`로 확인 | 완화됨 |
 | R-20 | OCR 결과의 띄어쓰기 누락·오탈자 (rapidocr 한국어 모델) | 요구사항 수치·용어 오류 | 중 | OCR 블록은 신뢰도와 `ocr="1"` 태그를 달아 에이전트에 전달, 저신뢰 페이지는 검토 필요로 표시, OCR 비율이 높으면 Gate 0 NEEDS_HUMAN_REVIEW | 열림 |
+| R-21 | Anthropic 계정 크레딧 부족으로 에이전트 응답·웹 검색 실행 품질을 검증하지 못함 (2026-10-15, `Credit balance is too low`) | LLM 의존 기능 전부 미검증 | 확실(현재) | 러너가 오류를 분류해 충전 조치를 표시. 크레딧 충전 후 `scripts/run_phase2_llm.py`, `pytest -m llm` 실행 | 열림 |
+| R-22 | Agent SDK 세션 중단(interrupt)이 스트리밍 모드에서만 동작, 시간 제한은 SDK 옵션이 없어 워치독 태스크로 구현 | 긴 작업이 제때 멈추지 않을 수 있음 | 중 | `ClaudeSDKClient` 스트리밍 사용, 0.5초 워치독이 취소 토큰·시간 제한을 감시해 `interrupt()`; 실제 장시간 세션에서는 미검증 | 열림 |
+| R-23 | 외부 MCP 서버(HTTP)는 네트워크·인증 상태에 따라 `failed`/`needs-auth` | 역할 실행 실패 | 중 | init 메시지 상태를 러너가 기록하고 실패 서버를 오류 원인에 포함. 연결 점검 UI/스크립트 제공 | 완화됨 |
+| R-24 | 웹 검색 결과의 환각(존재하지 않는 문서·버전 인용) | 잘못된 기술 조사 | 중 | 프롬프트에 "열람한 URL만 인용" 지시, 코드가 출처 없는 사실을 미확인으로 강등하고 도메인 규칙으로 신뢰도 재분류, 사람 확인 플래그 | 열림 |
 
 ## 2. 외부 의존성
 

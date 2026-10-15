@@ -10,6 +10,7 @@ import json
 import os
 from dataclasses import dataclass, field, fields
 from pathlib import Path
+from typing import Any
 
 from dotenv import dotenv_values
 
@@ -62,6 +63,8 @@ class Settings:
     ocr_min_chars_per_page: int = 25  # 이보다 적으면 스캔 페이지로 보고 OCR 시도
     ocr_review_threshold: float = 0.80  # OCR 평균 신뢰도가 이보다 낮으면 검토 필요
     extraction_chunk_chars: int = 12000
+    # 외부 MCP 서버 설정 (PWA_MCP_EXTERNAL=JSON: {name: {type: http, url: ...}}). 기본은 없음.
+    mcp_external: dict[str, Any] = field(default_factory=dict)
     env_file: Path | None = field(default=None, repr=False)
 
     @property
@@ -106,7 +109,7 @@ def _coerce(name: str, raw: str, current: object) -> object:
             parsed = json.loads(raw)
             if not isinstance(parsed, dict):
                 raise ValueError("JSON 객체가 아님")
-            return {str(k): str(v) for k, v in parsed.items()}
+            return {str(k): (v if isinstance(v, dict) else str(v)) for k, v in parsed.items()}
         if isinstance(current, bool):
             return raw.strip().lower() in {"1", "true", "yes", "on"}
         if isinstance(current, int):

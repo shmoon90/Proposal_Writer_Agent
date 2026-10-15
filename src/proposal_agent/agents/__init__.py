@@ -5,13 +5,16 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from proposal_agent.agents.control import CancellationToken, ToolCallRecord, ToolPolicy
 from proposal_agent.agents.runner import (
     AgentRequest,
     AgentResponse,
     AgentRunner,
     ClaudeAgentRunner,
+    ConnectionReport,
     FakeAgentRunner,
     build_runner,
+    classify_failure,
 )
 from proposal_agent.agents.schemas import RequirementExtraction
 
@@ -31,9 +34,14 @@ __all__ = [
     "AgentRequest",
     "AgentResponse",
     "AgentRunner",
+    "CancellationToken",
     "ClaudeAgentRunner",
+    "ConnectionReport",
     "FakeAgentRunner",
     "RequirementExtraction",
+    "ToolCallRecord",
+    "ToolPolicy",
     "build_runner",
+    "classify_failure",
     "load_prompt",
 ]
