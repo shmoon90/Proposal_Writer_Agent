@@ -20,13 +20,13 @@
 | 폴더 | 내용 | 파일명 |
 |---|---|---|
 | `00_Project_Summary` | (예약) 프로젝트 요약 | — |
-| `01_RFP_Original` | 업로드 원본(제안: RFP·첨부, 구축: 정의서·추적표·WBS·투입계획·기타, 변경 요청 첨부). **수정하지 않음** | 원본 파일명, 충돌 시 `name_1.ext` |
+| `01_RFP_Original` | 업로드 원본(제안: RFP·첨부·**제안서 템플릿 PPTX**, 구축: 정의서·추적표·WBS·투입계획·기타, 변경 요청 첨부). **수정하지 않음** | 원본 파일명, 충돌 시 `name_1.ext` |
 | `02_RFP_Analysis` | RFP 분석 에이전트 결과 | `rfp_analysis_vX.Y.json` |
 | `03_Requirements` | 요구사항 추출·검증 에이전트 결과 | `requirement_extraction_vX.Y.json`, `verification_vX.Y.json` |
 | `04_Technology_Research` | 기술 조사 결과 | `research_vX.Y.json` |
 | `05_Architecture_Design` | 아키텍처 에이전트 결과 | `architecture_vX.Y.json` |
 | `06_WBS_Effort_Schedule` | WBS·간트, 인력 투입계획 Excel | 제안: `WBS_간트_vX.Y.xlsx`, `인력투입계획_vX.Y.xlsx` · 구축: `WBS_Gantt_YYYYMMDDHHMM.xlsx`, `Staffing_Plan_YYYYMMDDHHMM.xlsx` |
-| `07_Submission_Proposal_PPT` | 제출용 PPT, 목차 결정 기록 | `제안서_제출용_vX.Y.pptx`, `목차결정_vX.Y.json` |
+| `07_Submission_Proposal_PPT` | 제출용 PPT(템플릿이 있으면 그 용지·마스터), 목차 결정 기록(`sections`·`chapters`(장/절/소절 계획)·`templates`(사용 템플릿 파일명)) | `제안서_제출용_vX.Y.pptx`, `목차결정_vX.Y.json` |
 | `08_Presentation_PPT` | 발표용 PPT | `제안서_발표용_vX.Y.pptx` |
 | `09_Excel_Deliverables` | 요구사항 정의서·추적표 | 제안: `요구사항정의서_vX.Y.xlsx`, `요구사항추적표_vX.Y.xlsx` · 구축: `Requirements_Definition_YYYYMMDDHHMM.xlsx`, `Traceability_Matrix_YYYYMMDDHHMM.xlsx` |
 | `10_Diagrams_Charts_Images` | 구성도 3종·차트 PNG | `시스템구성도_vX.Y.png`, `SW구성도_vX.Y.png`, `서비스구성도_vX.Y.png`, `일정차트_vX.Y.png`, `공수차트_vX.Y.png` |

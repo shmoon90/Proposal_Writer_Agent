@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from proposal_agent.config.errors import IngestError
 from proposal_agent.config.logging import get_logger
@@ -227,6 +227,8 @@ class ExtractionService:
         outcomes: list[ExtractionOutcome] = []
         latest = self._repos.extraction_runs.latest_by_document(project.id)
         for doc in self._repos.documents.find(project.id):
+            if doc.kind == DocumentKind.PROPOSAL_TEMPLATE:
+                continue  # 제안서 템플릿은 서식 입력이지 추출 대상 문서가 아니다
             if only_missing and doc.id in latest and latest[doc.id].ok:
                 continue
             outcomes.append(self.extract_document(project, doc, actor=actor))
@@ -293,6 +295,11 @@ class ExtractionService:
             if run is not None and run.rfp_profile:
                 return RfpProfile.model_validate(run.rfp_profile)
         return None
+
+    def rfp_proposal_toc_tree(self, project: Project) -> list[dict[str, Any]]:
+        """RFP 지정 제안서 목차 트리 [{numeral, title, sections:[{number,title,guide}]}] (없으면 [])."""
+        prof = self.rfp_profile(project)
+        return list(prof.proposal_toc_tree) if prof else []
 
     def rfp_proposal_toc(self, project: Project) -> list[str]:
         """제안서 목차: 구조 프로파일의 작성요령 절에서 찾은 목차 우선, 없으면 블록 휴리스틱."""

@@ -31,6 +31,17 @@ with tab_input:
     kind_labels = {f"{k.label} ({'필수' if req else '선택'})": k for k, req in kinds}
     chosen = st.selectbox("문서 종류", options=list(kind_labels), key="upload_kind")
     kind: DocumentKind = kind_labels[chosen]
+    template_purpose: str | None = None
+    if kind == DocumentKind.PROPOSAL_TEMPLATE:
+        purpose_label = st.selectbox(
+            "템플릿 용도",
+            options=["자동 (세로=제출용, 가로=발표용)", "제출용 제안서", "발표용 제안서"],
+            key="upload_template_purpose",
+            help="고객사 양식 PPTX를 올리면 코드가 용지·머리글·글꼴·장 구성을 읽어 제안서 생성에 씁니다.",
+        )
+        template_purpose = {"제출용 제안서": "submission", "발표용 제안서": "presentation"}.get(
+            purpose_label
+        )
     uploaded = st.file_uploader("파일 선택", key="upload_file")
     if (
         st.button(
@@ -49,6 +60,7 @@ with tab_input:
                 file_name=uploaded.name,
                 data=uploaded.getvalue(),
                 actor=actor_name(),
+                template_purpose=template_purpose,
             )
         except PWAError as exc:
             show_error(exc, context="문서 등록")

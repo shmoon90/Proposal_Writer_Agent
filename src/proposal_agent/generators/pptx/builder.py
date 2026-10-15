@@ -104,6 +104,19 @@ class DeckBuilder:
         p2.alignment = PP_ALIGN.CENTER
         self._footer(slide, footer)
 
+    def begin_chapter(self, numeral: str, title: str, sections: Sequence[str]) -> None:
+        """장 표지 (기본 양식: 제목 슬라이드 + 절 목록)."""
+        label = f"{numeral}. {title}" if numeral else title
+        self.section_slide(label, "")
+        if sections:
+            self.bullet_slides(
+                f"{label} — 구성", [f"{i + 1}. {s}" for i, s in enumerate(sections)], ""
+            )
+
+    def begin_section(self, title: str, number: int | None = None) -> None:
+        """기본 양식은 절 번호를 머리글에 쓰지 않는다 (템플릿 빌더만 사용)."""
+        return None
+
     def section_slide(self, title: str, footer: str) -> None:
         slide = self._new_slide()
         box = slide.shapes.add_textbox(MARGIN, Inches(3.0), BODY_W, Inches(1.2))
@@ -116,10 +129,18 @@ class DeckBuilder:
         self._footer(slide, footer)
 
     def bullet_slides(
-        self, title: str, bullets: Sequence[str], footer: str, *, notes: str = "", lead: str = ""
+        self,
+        title: str,
+        bullets: Sequence[str],
+        footer: str,
+        *,
+        notes: str = "",
+        lead: str = "",
+        footnotes: Sequence[str] = (),
     ) -> int:
         """글머리가 많으면 여러 슬라이드로 나눈다. 만든 슬라이드 수를 돌려준다."""
         items = [b.strip()[: self.max_chars] for b in bullets if b and b.strip()]
+        items += [n if n.startswith("※") else f"※ {n}" for n in footnotes if n]
         if not items:
             items = ["(해당 데이터 없음 — 검토 필요)"]
         pages = [items[i : i + self.max_bullets] for i in range(0, len(items), self.max_bullets)]
@@ -158,7 +179,11 @@ class DeckBuilder:
         rows_per_slide: int = 12,
         col_widths: Sequence[float] | None = None,
         notes: str = "",
+        lead: str = "",
+        footnotes: Sequence[str] = (),
     ) -> int:
+        if lead or footnotes:
+            notes = "\n".join(x for x in (lead, notes, *footnotes) if x)
         pages = [
             rows[i : i + rows_per_slide] for i in range(0, max(len(rows), 1), rows_per_slide)
         ] or [[]]
@@ -195,8 +220,17 @@ class DeckBuilder:
         return len(pages)
 
     def image_slide(
-        self, title: str, image_path: str | Path, footer: str, *, caption: str = "", notes: str = ""
+        self,
+        title: str,
+        image_path: str | Path,
+        footer: str,
+        *,
+        caption: str = "",
+        notes: str = "",
+        lead: str = "",
     ) -> None:
+        if lead:
+            caption = f"{lead} · {caption}" if caption else lead
         slide = self._new_slide()
         self._title(slide, title)
         from PIL import Image

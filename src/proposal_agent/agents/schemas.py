@@ -196,6 +196,21 @@ class ProposalSection(_Strict):
     body: str = ""
     speaker_notes: str = ""
     data_refs: list[str] = Field(default_factory=list, description="참조한 요구사항·조사·WBS ID")
+    # Phase 12: 템플릿·RFP 지정 목차 구조 (모두 선택)
+    chapter: str = Field(default="", description="장 (예: 'Ⅲ. 사업수행 부문') — RFP 지정 목차의 장")
+    section: str = Field(default="", description="절 (예: '2. 제안 시스템 주요 기능')")
+    number: str = Field(default="", description="소절 번호 (예: '2.1')")
+    lead_message: str = Field(default="", description="소절 첫 슬라이드 상단 리드 메시지 1~2문장")
+    table_headers: list[str] = Field(default_factory=list, description="표가 필요하면 머리글")
+    table_rows: list[list[str]] = Field(
+        default_factory=list, description="표 행 (머리글 수와 같은 길이)"
+    )
+    requirement_ids: list[str] = Field(
+        default_factory=list, description="이 소절이 대응하는 요구사항 ID (RFP ID 포함 가능)"
+    )
+    footnotes: list[str] = Field(
+        default_factory=list, description="슬라이드 하단 ※ 주석 (전제·협의 사항)"
+    )
 
 
 class ProposalContent(_Strict):

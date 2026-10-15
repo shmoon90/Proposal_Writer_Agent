@@ -32,7 +32,7 @@ from proposal_agent.generators.pptx import (
     build_submission_deck,
     decide_outline,
 )
-from proposal_agent.generators.pptx.outline import OutlineSection
+from proposal_agent.generators.pptx.outline import ChapterPlan, OutlineSection, plan_chapters
 from proposal_agent.models import (
     ActorKind,
     ArchitectureComponent,
@@ -52,6 +52,7 @@ if TYPE_CHECKING:
     from proposal_agent.ingest.service import ExtractionService
     from proposal_agent.services.agent_step_service import AgentStepService
     from proposal_agent.services.audit import AuditService
+    from proposal_agent.services.template_service import TemplateHit, TemplateService
 
 log = get_logger("generators.service")
 
@@ -71,6 +72,8 @@ KIND_TARGETS: dict[DeliverableKind, tuple[str, str, str]] = {
 
 @dataclass
 class GenerationResult:
+    chapters: list[ChapterPlan] = field(default_factory=list)
+    template_names: dict[str, str] = field(default_factory=dict)
     deliverables: list[Deliverable] = field(default_factory=list)
     outline: list[OutlineSection] = field(default_factory=list)
     review_items: list[str] = field(default_factory=list)
@@ -89,6 +92,7 @@ class GenerationService:
         planning: PlanningService,
         steps: AgentStepService,
         extraction: ExtractionService,
+        templates: TemplateService | None = None,
     ) -> None:
         self._repos = repos
         self._paths = paths
@@ -98,6 +102,7 @@ class GenerationService:
         self._planning = planning
         self._steps = steps
         self._extraction = extraction
+        self._templates = templates
 
     # --- 데이터 조립 --------------------------------------------------------------------------
     def build_context(self, project: Project, *, actor: str = "user") -> GenerationContext:
@@ -275,20 +280,60 @@ class GenerationService:
             except Exception as exc:  # noqa: BLE001
                 log.exception("생성 실패 %s", dk)
                 result.errors.append(f"{dk.value} 생성 실패: {type(exc).__name__}: {exc}")
-        # PPT
+        # PPT (템플릿이 등록되어 있으면 그 양식, 없으면 기본 양식)
         rfp_toc = self._extraction.rfp_proposal_toc(project)
-        outline = decide_outline(ctx, rfp_toc)
+        toc_tree = self._extraction.rfp_proposal_toc_tree(project)
+        # 목차 트리(장/절)가 있으면 평면 목차를 섹션 키에 다시 매핑하지 않는다 — 트리가 뼈대, 섹션은 데이터 기준
+        outline = decide_outline(ctx, [] if toc_tree else rfp_toc)
         result.outline = outline
+        sub_hit = self._template_for(project, "submission")
+        pres_hit = self._template_for(project, "presentation")
+        chapters = plan_chapters(outline, toc_tree, sub_hit.profile.chapters if sub_hit else None)
+        result.chapters = chapters
+        result.template_names = {
+            k: h.document.file_name
+            for k, h in (("submission", sub_hit), ("presentation", pres_hit))
+            if h
+        }
+        if sub_hit is None:
+            result.review_items.append(
+                "제출용 제안서 템플릿이 등록되지 않아 코드 기본 양식(16:9)으로 생성했습니다. "
+                "고객 양식이 있으면 프로젝트 화면에서 '제안서 템플릿(PPT)'로 등록 후 재생성하십시오."
+            )
+            ctx.review_notes.append(
+                "제출용 제안서 템플릿이 등록되지 않아 코드 기본 양식(16:9)으로 생성했습니다. "
+                "고객 양식이 있으면 프로젝트 화면에서 '제안서 템플릿(PPT)'로 등록 후 재생성하십시오."
+            )
         for dk, fn in (
-            (DeliverableKind.SUBMISSION_PPTX, lambda: build_submission_deck(ctx, outline)),
-            (DeliverableKind.PRESENTATION_PPTX, lambda: build_presentation_deck(ctx, outline)),
+            (
+                DeliverableKind.SUBMISSION_PPTX,
+                lambda: build_submission_deck(
+                    ctx,
+                    outline,
+                    template_profile=sub_hit.profile if sub_hit else None,
+                    template_data=sub_hit.data if sub_hit else None,
+                    toc_tree=toc_tree,
+                    chapters=chapters,
+                ),
+            ),
+            (
+                DeliverableKind.PRESENTATION_PPTX,
+                lambda: build_presentation_deck(
+                    ctx,
+                    outline,
+                    template_profile=pres_hit.profile if pres_hit else None,
+                    template_data=pres_hit.data if pres_hit else None,
+                ),
+            ),
         ):
             try:
                 result.deliverables.append(self._store(project, dk, fn(), ctx))
             except Exception as exc:  # noqa: BLE001
                 log.exception("생성 실패 %s", dk)
                 result.errors.append(f"{dk.value} 생성 실패: {type(exc).__name__}: {exc}")
-        self._write_outline(project, outline, ctx)
+        self._write_outline(
+            project, outline, ctx, chapters=chapters, templates=result.template_names
+        )
         self._audit.record(
             project.id,
             "deliverables.generated",
@@ -323,12 +368,121 @@ class GenerationService:
         self._repos.deliverables.insert(d)
         return d
 
+    def _template_for(self, project: Project, purpose: str) -> TemplateHit | None:
+        if self._templates is None:
+            return None
+        return self._templates.for_purpose(project, purpose)
+
+    def proposal_brief(self, project: Project) -> str:
+        """제안서 작성 에이전트 프롬프트: 템플릿 관행 + RFP 지정 목차 + 기준 데이터 요약."""
+        ctx = self.build_context(project)
+        parts: list[str] = []
+        hit = self._template_for(project, "submission")
+        if hit is not None:
+            parts.append(
+                "<proposal_template>\n"
+                + f"파일: {hit.document.file_name}\n"
+                + hit.profile.summary_text()
+                + "\n</proposal_template>"
+            )
+        else:
+            parts.append(
+                "<proposal_template>\n등록된 템플릿 없음 — 코드 기본 양식(16:9, 소절당 글머리 8개 이하)\n</proposal_template>"
+            )
+        tree = self._extraction.rfp_proposal_toc_tree(project)
+        if tree:
+            lines = []
+            for ch in tree:
+                lines.append(f"{ch.get('numeral', '')}. {ch.get('title', '')}".strip(". "))
+                for i, sec in enumerate(ch.get("sections", []), start=1):
+                    guide = "; ".join(sec.get("guide", [])[:3])
+                    lines.append(
+                        f"  {i}. {sec.get('title', '')}"
+                        + (f" — 작성방법: {guide}" if guide else "")
+                    )
+            parts.append("<rfp_toc>\n" + "\n".join(lines) + "\n</rfp_toc>")
+        else:
+            parts.append("<rfp_toc>\nRFP에 지정 목차 없음 — 기본 목차 사용\n</rfp_toc>")
+        figs = {
+            "period": f"{ctx.period_start} ~ {ctx.period_end}"
+            if ctx.period_start and ctx.period_end
+            else "기간 미정",
+            "total_md": str(ctx.total_effort_md),
+            "roles": [
+                {"role": r.role_name, "headcount": r.headcount_planned, "grade": r.grade or ""}
+                for r in ctx.roles[:20]
+            ],
+        }
+        data = {
+            "project": {"name": project.name, "client": project.client_name or ""},
+            "figures": figs,
+            "requirements": [
+                {
+                    "id": r.id,
+                    "rfp_id": r.rfp_requirement_id or "",
+                    "name": r.name[:60],
+                    "type": r.type.value,
+                    "scope": r.scope_class.value,
+                    "acceptance": r.acceptance_status.value,
+                    "approach": (r.implementation_approach or "")[:120],
+                }
+                for r in ctx.requirements[:150]
+            ],
+            "components": [
+                {
+                    "code": c.id,
+                    "layer": c.layer,
+                    "name": c.name,
+                    "technology": c.technology or "미정",
+                }
+                for c in ctx.components[:40]
+            ],
+            "research": [
+                {
+                    "topic": t.topic[:60],
+                    "feasibility": t.feasibility.value,
+                    "summary": (t.summary or "")[:160],
+                }
+                for t in ctx.research[:20]
+            ],
+            "analysis": {
+                k: (ctx.analysis or {}).get(k)
+                for k in (
+                    "overview",
+                    "client_goals",
+                    "scope_summary",
+                    "constraints",
+                    "evaluation_criteria",
+                )
+                if (ctx.analysis or {}).get(k)
+            },
+            "wbs_top": [
+                {"code": w.code, "name": w.name, "effort_md": str(w.effort_md)}
+                for w in ctx.wbs
+                if w.parent_id is None
+            ][:30],
+        }
+        parts.append("<data>\n" + json.dumps(data, ensure_ascii=False)[:24000] + "\n</data>")
+        parts.append(
+            "위 템플릿 관행과 RFP 지정 목차를 따르는 제출용 제안 문안(profile=submission)을 JSON으로 반환하라. "
+            "sections[]마다 chapter·section·number·lead_message를 채우고, 표가 적합한 절은 table_headers/table_rows를 쓴다."
+        )
+        return "\n\n".join(parts)
+
     def _write_outline(
-        self, project: Project, outline: list[OutlineSection], ctx: GenerationContext
+        self,
+        project: Project,
+        outline: list[OutlineSection],
+        ctx: GenerationContext,
+        *,
+        chapters: list[ChapterPlan] | None = None,
+        templates: dict[str, str] | None = None,
     ) -> None:
         payload = {
             "source": outline[0].source if outline else None,
             "sections": [o.__dict__ for o in outline],
+            "chapters": [c.as_dict() for c in chapters or []],
+            "templates": templates or {},
             "review_items": ctx.review_notes,
         }
         name = self._files.next_version_name(

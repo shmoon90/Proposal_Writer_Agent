@@ -136,8 +136,27 @@ def pptx_texts(path: Path) -> list[str]:
     return out
 
 
-def check_pptx(path: Path, outcome: QaOutcome, label: str) -> list[str]:
+def _first_font_pt(shape: Any) -> float | None:
+    """텍스트 상자의 첫 run(없으면 문단) 글꼴 크기(pt)."""
+    for p in shape.text_frame.paragraphs:
+        for r in p.runs:
+            if r.text.strip() and r.font.size:
+                return float(r.font.size.pt)
+        if p.font.size:
+            return float(p.font.size.pt)
+    return None
+
+
+def check_pptx(
+    path: Path,
+    outcome: QaOutcome,
+    label: str,
+    *,
+    expected_size_cm: tuple[float, float] | None = None,
+) -> list[str]:
+    """PPT 열기·규격·경계·넘침·겹침 검사. ``expected_size_cm``(템플릿 용지)가 있으면 16:9 대신 그 크기와 대조한다."""
     from pptx import Presentation
+    from pptx.util import Emu
 
     try:
         prs = Presentation(str(path))
@@ -152,21 +171,32 @@ def check_pptx(path: Path, outcome: QaOutcome, label: str) -> list[str]:
         return []
     outcome.opened[label] = True
     w, h = int(prs.slide_width or 0), int(prs.slide_height or 0)
-    if w <= h:
-        outcome.add(
-            ValidationLevel.ERROR,
-            "pptx.orientation",
-            f"{label}: 슬라이드가 가로 방향이 아님",
-            path.name,
-        )
-    ratio = w / h
-    if abs(ratio - 16 / 9) > 0.05:
-        outcome.add(
-            ValidationLevel.WARNING,
-            "pptx.size",
-            f"{label}: 슬라이드 비율 {ratio:.2f} (16:9 아님)",
-            path.name,
-        )
+    if expected_size_cm is not None:
+        ew, eh = expected_size_cm
+        aw, ah = Emu(w).cm, Emu(h).cm
+        if abs(aw - ew) > 0.2 or abs(ah - eh) > 0.2:
+            outcome.add(
+                ValidationLevel.ERROR,
+                "pptx.size",
+                f"{label}: 슬라이드 {aw:.1f}×{ah:.1f} cm — 템플릿 {ew:.1f}×{eh:.1f} cm 와 다름",
+                path.name,
+            )
+    else:
+        if w <= h:
+            outcome.add(
+                ValidationLevel.ERROR,
+                "pptx.orientation",
+                f"{label}: 슬라이드가 가로 방향이 아님",
+                path.name,
+            )
+        ratio = w / h
+        if abs(ratio - 16 / 9) > 0.05:
+            outcome.add(
+                ValidationLevel.WARNING,
+                "pptx.size",
+                f"{label}: 슬라이드 비율 {ratio:.2f} (16:9 아님)",
+                path.name,
+            )
     if len(prs.slides) < 3:
         outcome.add(
             ValidationLevel.ERROR,
@@ -200,11 +230,12 @@ def check_pptx(path: Path, outcome: QaOutcome, label: str) -> list[str]:
                 text = shape.text_frame.text
                 width_in = max(width / 914400, 0.1)
                 height_in = max(height / 914400, 0.1)
-                lines = sum(
-                    max(1, len(line) // max(int(width_in * 11), 1) + 1)
-                    for line in text.splitlines()
-                )
-                if lines * 0.33 > height_in * 1.6 and height_in < 5:
+                # 글꼴 크기 기반 추정: 줄 높이 ≈ 1.3em, 한 줄 글자 수 ≈ 폭 / 0.75em (한글·영문 혼용 평균)
+                size_pt = _first_font_pt(shape) or 18.0
+                line_h_in = size_pt * 1.3 / 72
+                cpl = max(1, int(width_in * 72 / (size_pt * 0.75)))
+                lines = sum(max(1, -(-len(line) // cpl)) for line in text.splitlines())
+                if lines * line_h_in > height_in * 1.25 and height_in < 5:
                     outcome.add(
                         ValidationLevel.WARNING,
                         "pptx.overflow",
@@ -487,3 +518,80 @@ def render_report(
         lines += ["", "## 핵심 수치 (공통 데이터)"]
         lines += [f"- {k}: {v}" for k, v in outcome.figures["expected"].items()]
     return "\n".join(lines) + "\n"
+
+
+# --- 제안서 템플릿 준수 (Phase 12) ----------------------------------------------------------------
+
+
+def check_template_compliance(
+    path: Path, profile: Any, toc_tree: list[dict[str, Any]] | None, label: str
+) -> tuple[list[str], list[str]]:
+    """생성 PPT가 템플릿 프로파일과 맞는지 (실패 목록, 검토 목록).
+
+    - 용지 크기 (±0.2 cm)                                → 실패
+    - 본문 슬라이드에 템플릿 머리글 위치(±0.6 cm)의 텍스트 상자 2단이 있는가 → 실패 (빠진 슬라이드 수)
+    - 장 표지의 로마숫자 순서가 RFP 지정 목차와 같은가     → 실패
+    - 글꼴이 템플릿 글꼴(제목·본문)인 run 비율 80% 미만      → 검토
+    """
+    from pptx import Presentation
+    from pptx.util import Emu
+
+    fails: list[str] = []
+    reviews: list[str] = []
+    prs = Presentation(str(path))
+    w, h = Emu(int(prs.slide_width or 0)).cm, Emu(int(prs.slide_height or 0)).cm
+    if abs(w - profile.slide_width_cm) > 0.2 or abs(h - profile.slide_height_cm) > 0.2:
+        fails.append(
+            f"{label}: 용지 {w:.1f}×{h:.1f} cm ≠ 템플릿 {profile.slide_width_cm}×{profile.slide_height_cm} cm"
+        )
+    headers = list(profile.headers)
+    numerals: list[str] = []
+    missing_header: list[int] = []
+    font_total = font_ok = 0
+    fonts = {profile.fonts.get("title"), profile.fonts.get("body")} - {None}
+    roman = set("ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ")
+    for idx, slide in enumerate(prs.slides, start=1):
+        texts = [s for s in slide.shapes if s.has_text_frame and s.text_frame.text.strip()]
+        is_chapter = slide.slide_layout.name == profile.chapter_layout or any(
+            (r.font.size.pt if r.font.size else 0) >= 24
+            for s in texts
+            for p in s.text_frame.paragraphs
+            for r in p.runs
+        )
+        for s in texts:
+            t = s.text_frame.text.strip()
+            if is_chapter and t and all(ch in roman for ch in t):
+                numerals.append(t)
+            for p in s.text_frame.paragraphs:
+                for r in p.runs:
+                    name = r.font.name or p.font.name  # run에 없으면 문단 기본 글꼴
+                    if r.text.strip() and name:
+                        font_total += 1
+                        if name in fonts:
+                            font_ok += 1
+        if is_chapter or idx <= 2 or not headers:
+            continue
+        found = 0
+        for hb in headers:
+            if any(
+                abs(Emu(int(s.top or 0)).cm - hb.top) <= 0.6
+                and abs(Emu(int(s.left or 0)).cm - hb.left) <= 1.0
+                for s in texts
+            ):
+                found += 1
+        if found < len(headers):
+            missing_header.append(idx)
+    if missing_header:
+        fails.append(
+            f"{label}: 머리글 {len(headers)}단이 없는 본문 슬라이드 {len(missing_header)}장 "
+            f"(예: {', '.join(str(i) for i in missing_header[:8])})"
+        )
+    if toc_tree:
+        want = [str(c.get("numeral", "")) for c in toc_tree if c.get("numeral")]
+        if want and numerals != want:
+            fails.append(f"{label}: 장 순서 {numerals} ≠ RFP 지정 목차 {want}")
+    if font_total and fonts and font_ok / font_total < 0.8:
+        reviews.append(
+            f"{label}: 템플릿 글꼴({', '.join(sorted(fonts))}) 사용 비율 {font_ok / font_total:.0%} — 육안 확인"
+        )
+    return fails, reviews

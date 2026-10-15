@@ -33,6 +33,7 @@ class DocumentKind(StrEnum):
     TRACE_MATRIX = "trace_matrix"
     WBS = "wbs"
     STAFFING_PLAN = "staffing_plan"
+    PROPOSAL_TEMPLATE = "proposal_template"
     OTHER = "other"
 
     @property
@@ -44,6 +45,7 @@ class DocumentKind(StrEnum):
             "trace_matrix": "요구사항 추적표",
             "wbs": "WBS",
             "staffing_plan": "인력 투입계획서",
+            "proposal_template": "제안서 템플릿(PPT)",
             "other": "기타",
         }[self.value]
 

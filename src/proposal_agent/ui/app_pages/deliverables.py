@@ -51,6 +51,66 @@ with st.expander(
             st.success("저장했습니다.", icon=":material/check:")
             st.rerun()
 
+with st.expander("제안서 템플릿 (프로젝트 화면에서 '제안서 템플릿(PPT)'로 등록)", expanded=False):
+    hits = services.templates.profiles(project)
+    if not hits:
+        st.info(
+            "등록된 템플릿이 없습니다. 코드 기본 양식(16:9)으로 생성됩니다. 고객 양식 PPTX를 등록하면 "
+            "그 용지·머리글·글꼴·장 구성에 맞춰 제출용 제안서를 만듭니다."
+        )
+    for hit in hits:
+        prof = hit.profile
+        st.markdown(
+            f"**{hit.document.file_name}** — 용도 `{prof.purpose}` · 용지 {prof.slide_width_cm}×{prof.slide_height_cm} cm · "
+            f"머리글 {len(prof.headers)}단 · 장 {len(prof.chapters)}개 · 글꼴 {prof.fonts.get('title')}/{prof.fonts.get('body')}"
+        )
+        st.code(prof.summary_text(), language=None)
+        if prof.warnings:
+            st.warning("; ".join(prof.warnings), icon=":material/warning:")
+    tree = services.extraction.rfp_proposal_toc_tree(project)
+    if tree:
+        st.caption("RFP 지정 제안서 목차 (장/절) — 제출용 PPT의 장·절 뼈대로 사용")
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "장": f"{ch.get('numeral', '')} {ch.get('title', '')}".strip(),
+                        "절": "; ".join(
+                            f"{i + 1}. {s.get('title', '')}"
+                            for i, s in enumerate(ch.get("sections", []))
+                        ),
+                    }
+                    for ch in tree
+                ]
+            ),
+            hide_index=True,
+            alt="RFP 지정 목차",
+        )
+
+w1, w2 = st.columns([1, 2])
+if w1.button(
+    "제안 문안 작성 (에이전트)",
+    key="dl_write",
+    icon=":material/edit_note:",
+    disabled=not gate1.passed,
+    help="템플릿 관행·RFP 지정 목차·기준 데이터를 넣어 proposal_writer 에이전트가 장·절·소절 문안을 작성합니다. 이후 '산출물 생성'이 이 문안을 씁니다.",
+):
+    with st.status("제안 문안을 작성하는 중…", expanded=True) as status:
+        try:
+            outcome = runner.run_proposal_writing(project, actor=actor_name())
+        except PWAError as exc:
+            status.update(label="문안 작성 실패", state="error")
+            show_error(exc, context="제안 문안 작성")
+        else:
+            status.update(label=outcome.summary, state="complete")
+            st.rerun()
+prior = services.steps.prior_output(project, "proposal_writer")
+w2.caption(
+    f"저장된 제안 문안: 섹션 {len(prior.get('sections', []))}개"
+    if prior
+    else "저장된 제안 문안 없음 (코드 기본 문안으로 생성)"
+)
+
 a, b, c = st.columns(3)
 if a.button(
     "산출물 생성 (계획·구성도·Excel·PPT)",

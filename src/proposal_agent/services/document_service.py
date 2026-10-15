@@ -40,6 +40,7 @@ ALLOWED_SUFFIXES: dict[DocumentKind, tuple[str, ...]] = {
     DocumentKind.TRACE_MATRIX: (".xlsx",),
     DocumentKind.WBS: (".xlsx",),
     DocumentKind.STAFFING_PLAN: (".xlsx",),
+    DocumentKind.PROPOSAL_TEMPLATE: (".pptx",),
     DocumentKind.OTHER: (".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".md", ".hwp", ".zip"),
 }
 
@@ -48,7 +49,11 @@ REQUIRED_KINDS: dict[ProjectMode, tuple[DocumentKind, ...]] = {
     ProjectMode.BUILD: (DocumentKind.REQUIREMENT_SPEC, DocumentKind.TRACE_MATRIX, DocumentKind.WBS),
 }
 OPTIONAL_KINDS: dict[ProjectMode, tuple[DocumentKind, ...]] = {
-    ProjectMode.PROPOSAL: (DocumentKind.RFP_ATTACHMENT, DocumentKind.OTHER),
+    ProjectMode.PROPOSAL: (
+        DocumentKind.RFP_ATTACHMENT,
+        DocumentKind.PROPOSAL_TEMPLATE,
+        DocumentKind.OTHER,
+    ),
     ProjectMode.BUILD: (DocumentKind.STAFFING_PLAN, DocumentKind.OTHER),
 }
 
@@ -87,8 +92,16 @@ class DocumentService:
         file_name: str,
         data: bytes,
         actor: str = "user",
+        template_purpose: str | None = None,
     ) -> SourceDocument:
         self._validate_upload(project, kind, file_name, data)
+        if kind != DocumentKind.PROPOSAL_TEMPLATE:
+            template_purpose = None
+        elif template_purpose not in (None, "submission", "presentation"):
+            raise ValidationError(
+                "템플릿 용도는 submission 또는 presentation 이어야 합니다.",
+                cause=f"template_purpose={template_purpose}",
+            )
         digest = sha256_bytes(data)
         duplicates = self._repos.documents.find(project.id, sha256=digest)
         if duplicates:
@@ -112,6 +125,7 @@ class DocumentService:
             sha256=stored.sha256,
             size_bytes=stored.size_bytes,
             is_required_input=kind in REQUIRED_KINDS[project.mode],
+            template_purpose=template_purpose,
             created_by=actor,
         )
         self._repos.documents.insert(doc)

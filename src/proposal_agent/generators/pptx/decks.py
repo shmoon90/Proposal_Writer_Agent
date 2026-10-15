@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any
 
 from proposal_agent.generators.base import GenerationContext, acceptance_label
 from proposal_agent.generators.pptx.builder import DeckBuilder
-from proposal_agent.generators.pptx.outline import OutlineSection, canonical_key
+from proposal_agent.generators.pptx.outline import (
+    ChapterPlan,
+    OutlineSection,
+    canonical_key,
+    plan_chapters,
+)
+from proposal_agent.generators.pptx.template import TemplateDeckBuilder, TemplateProfile
 from proposal_agent.models import RequirementType
 from proposal_agent.planning.effort import md_to_mm
 
@@ -46,11 +53,51 @@ def key_figures(ctx: GenerationContext) -> dict[str, str]:
     }
 
 
-def _agent_section(ctx: GenerationContext, key: str) -> dict | None:
-    for s in (ctx.proposal_content or {}).get("sections", []) or []:
+def _agent_section(ctx: GenerationContext, key: str, index: int | None = None) -> dict | None:
+    sections = (ctx.proposal_content or {}).get("sections", []) or []
+    if index is not None and 0 <= index < len(sections):
+        return sections[index]
+    for s in sections:
         if canonical_key(str(s.get("slide_group", ""))) == key:
             return s
     return None
+
+
+Builder = DeckBuilder | TemplateDeckBuilder
+
+
+def _make_builder(
+    template_profile: TemplateProfile | None,
+    template_data: bytes | None,
+    *,
+    max_bullets: int,
+    max_chars: int,
+    body_font_pt: int,
+) -> Builder:
+    if template_profile is not None and template_data:
+        return TemplateDeckBuilder(template_data, template_profile)
+    return DeckBuilder(max_bullets=max_bullets, max_chars=max_chars, body_font_pt=body_font_pt)
+
+
+def _render_agent_extras(
+    b: Builder, sec: OutlineSection, agent: dict[str, Any], footer: str
+) -> bool:
+    """에이전트가 준 표·요구사항 카드 등 템플릿형 요소. 렌더링했으면 True."""
+    done = False
+    headers = agent.get("table_headers") or []
+    rows = agent.get("table_rows") or []
+    if headers and rows:
+        b.table_slides(
+            sec.title,
+            [str(h) for h in headers],
+            [[str(c) for c in r] for r in rows],
+            footer,
+            lead=str(agent.get("lead_message", "") or ""),
+            footnotes=[str(x) for x in agent.get("footnotes", []) or []],
+            notes=str(agent.get("speaker_notes", "") or ""),
+        )
+        done = True
+    return done
 
 
 def _figure_lines(figs: dict[str, str]) -> list[str]:
@@ -116,14 +163,68 @@ def _risk_bullets(ctx: GenerationContext) -> list[str]:
     return out
 
 
+_DATA_KEYS = {
+    "purpose",
+    "understanding",
+    "current",
+    "requirements",
+    "strategy",
+    "system_diagram",
+    "sw_diagram",
+    "service_diagram",
+    "architecture",
+    "security",
+    "testing",
+    "operations",
+    "schedule",
+    "organization",
+    "risk",
+    "evaluation",
+}
+
+
 def _render_section(
-    b: DeckBuilder, ctx: GenerationContext, sec: OutlineSection, profile: str, *, compact: bool
+    b: Builder, ctx: GenerationContext, sec: OutlineSection, profile: str, *, compact: bool
 ) -> None:
     footer = _footer(ctx, profile)
     figs = key_figures(ctx)
-    agent = _agent_section(ctx, sec.key)
+    agent = _agent_section(ctx, sec.key, sec.agent_index)
     notes = (agent or {}).get("speaker_notes", "")
+    lead = sec.lead or str((agent or {}).get("lead_message", "") or "")
+    footnotes = [str(x) for x in (agent or {}).get("footnotes", []) or []]
+    req_ids = [str(x) for x in (agent or {}).get("requirement_ids", []) or []]
     key = sec.key
+    if key == "placeholder":
+        b.bullet_slides(
+            sec.title,
+            [f"RFP 작성방법: {g}" for g in sec.guide[:4]]
+            + ["(RFP 지정 목차 항목 — 내용은 사람 작성 필요)"],
+            footer,
+            footnotes=["RFP가 요구한 절이며 기준 데이터에서 채울 내용이 없음"],
+        )
+        return
+    if agent and req_ids and agent.get("bullets"):
+        # 템플릿 관행: 소절 상단에 대응 요구사항 ID 카드 → 글머리 첫 줄로
+        agent = {
+            **agent,
+            "bullets": ["대응 요구사항: " + ", ".join(req_ids[:12]), *agent["bullets"]],
+        }
+    if (
+        agent
+        and _render_agent_extras(b, sec, agent, footer)
+        and not (agent.get("bullets") or agent.get("body"))
+    ):
+        return
+    if agent and (
+        key.startswith(("generic", "agent")) or sec.source == "agent" and key not in _DATA_KEYS
+    ):
+        bullets = list(agent.get("bullets") or [])
+        if agent.get("body") and not bullets:
+            bullets = [str(agent["body"])[:300]]
+        if req_ids and not any(x.startswith("대응 요구사항:") for x in bullets):
+            bullets.insert(0, "대응 요구사항: " + ", ".join(req_ids[:12]))
+        b.bullet_slides(sec.title, bullets, footer, notes=notes, lead=lead, footnotes=footnotes)
+        return
     if key in ("purpose", "understanding"):
         a = ctx.analysis or {}
         bullets = (
@@ -137,6 +238,8 @@ def _render_section(
             bullets or [f"{ctx.project.name} 사업의 목적 (RFP 분석 결과 없음 — 검토 필요)"],
             footer,
             notes=notes,
+            lead=lead,
+            footnotes=footnotes,
         )
     elif key == "current":
         a = ctx.analysis or {}
@@ -169,6 +272,8 @@ def _render_section(
                 footer,
                 col_widths=(1, 3, 1, 1, 1, 3),
                 notes=notes or lead,
+                lead=lead or f"{figs['requirements']} ({figs['mandatory']}) 전수 대응",
+                footnotes=footnotes,
             )
     elif key == "strategy":
         bullets = (agent or {}).get("bullets") or [
@@ -177,13 +282,18 @@ def _render_section(
             "3단계 WBS와 영업일 기준 일정으로 투명한 공정 관리",
             "독립 검증과 사람 승인 게이트를 통한 품질 관리",
         ]
-        b.bullet_slides(sec.title, bullets, footer, notes=notes)
+        b.bullet_slides(sec.title, bullets, footer, notes=notes, lead=lead, footnotes=footnotes)
     elif key in ("system_diagram", "sw_diagram", "service_diagram"):
         kind = key.split("_")[0]
         path = ctx.diagram_paths.get(kind)
         if path:
             b.image_slide(
-                sec.title, path, footer, caption="자체 작성 도형 (코드 생성)", notes=notes
+                sec.title,
+                path,
+                footer,
+                caption="자체 작성 도형 (코드 생성)",
+                notes=notes,
+                lead=lead,
             )
         else:
             b.bullet_slides(sec.title, ["구성도 생성 실패 — 검토 필요"], footer)
@@ -279,7 +389,12 @@ def _render_section(
             b.image_slide("역할별 공수", ctx.diagram_paths["staffing"], footer, caption=lead)
     elif key == "risk":
         b.bullet_slides(
-            sec.title, (agent or {}).get("bullets") or _risk_bullets(ctx), footer, notes=notes
+            sec.title,
+            (agent or {}).get("bullets") or _risk_bullets(ctx),
+            footer,
+            notes=notes,
+            lead=lead,
+            footnotes=footnotes,
         )
     elif key == "evaluation":
         a = ctx.analysis or {}
@@ -297,32 +412,72 @@ def _render_section(
         bullets = (agent or {}).get("bullets") or [
             f"RFP 목차 항목 '{sec.title}' — 내용은 사람 작성 필요"
         ]
-        b.bullet_slides(sec.title, bullets, footer, notes=notes)
+        b.bullet_slides(sec.title, bullets, footer, notes=notes, lead=lead, footnotes=footnotes)
 
 
-def build_submission_deck(ctx: GenerationContext, outline: list[OutlineSection]) -> bytes:
-    b = DeckBuilder(max_bullets=8, max_chars=110, body_font_pt=16)
+def build_submission_deck(
+    ctx: GenerationContext,
+    outline: list[OutlineSection],
+    *,
+    template_profile: TemplateProfile | None = None,
+    template_data: bytes | None = None,
+    toc_tree: list[dict[str, Any]] | None = None,
+    chapters: list[ChapterPlan] | None = None,
+) -> bytes:
+    """제출용 PPT. 템플릿이 있으면 그 마스터·레이아웃 위에 장/절/소절 구조로, 없으면 기본 16:9 양식으로."""
+    b = _make_builder(
+        template_profile, template_data, max_bullets=8, max_chars=110, body_font_pt=16
+    )
     footer = _footer(ctx, "제출용")
+    plan = (
+        chapters
+        if chapters is not None
+        else plan_chapters(
+            outline, toc_tree, template_profile.chapters if template_profile else None
+        )
+    )
     b.title_slide(
         f"{ctx.project.name} 제안서",
         f"{ctx.project.client_name or ''} · {ctx.generated_on}".strip(" ·"),
         footer,
     )
-    b.bullet_slides("목차", [f"{i + 1}. {s.title}" for i, s in enumerate(outline)], footer)
-    for sec in outline:
-        _render_section(b, ctx, sec, "제출용", compact=False)
+    toc_lines: list[str] = []
+    for ch in plan:
+        head = f"{ch.numeral}. {ch.title}" if ch.numeral else ch.title
+        toc_lines.append(head)
+        toc_lines.extend(f"   {s.number}. {s.title}" for s in ch.sections)
+    b.begin_section("목차", 0)
+    b.bullet_slides("목차", toc_lines, footer)
+    for ch in plan:
+        b.begin_chapter(ch.numeral, ch.title, [s.title for s in ch.sections])
+        for sp in ch.sections:
+            b.begin_section(sp.title, sp.number)
+            for sub in sp.subsections:
+                _render_section(b, ctx, sub, "제출용", compact=False)
     figs = key_figures(ctx)
-    keys = {sec.key for sec in outline}
+    keys = {sub.key for ch in plan for sp in ch.sections for sub in sp.subsections}
+    tail_items: list[tuple[str, list[str]]] = []
     if not {"schedule", "organization"} <= keys:
-        b.bullet_slides("사업 기간·공수·투입 인력 요약", _figure_lines(figs), footer)
+        tail_items.append(("사업 기간·공수·투입 인력 요약", _figure_lines(figs)))
     claims = (ctx.proposal_content or {}).get("unverified_claims") or []
     if claims:
-        b.bullet_slides("사람 확인 필요 문구", claims, footer)
+        tail_items.append(("사람 확인 필요 문구", list(claims)))
+    if tail_items:
+        b.begin_section("부록", len(plan[-1].sections) + 1 if plan else 1)
+        for title, items in tail_items:
+            b.bullet_slides(title, items, footer)
     return b.to_bytes()
 
 
-def build_presentation_deck(ctx: GenerationContext, outline: list[OutlineSection]) -> bytes:
-    b = DeckBuilder(max_bullets=5, max_chars=70, body_font_pt=20)
+def build_presentation_deck(
+    ctx: GenerationContext,
+    outline: list[OutlineSection],
+    *,
+    template_profile: TemplateProfile | None = None,
+    template_data: bytes | None = None,
+) -> bytes:
+    b = _make_builder(template_profile, template_data, max_bullets=5, max_chars=70, body_font_pt=20)
+    b.begin_section("제안 발표", 0)
     footer = _footer(ctx, "발표용")
     figs = key_figures(ctx)
     b.title_slide(f"{ctx.project.name}", f"제안 발표 · {ctx.generated_on}", footer)

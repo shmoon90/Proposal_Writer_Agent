@@ -318,4 +318,26 @@ MIGRATIONS: tuple[Migration, ...] = (
         CREATE INDEX ix_qa_runs_project ON qa_runs(project_id, created_at);
         """,
     ),
+    Migration(
+        7,
+        "architecture_components_composite_key",
+        # 구성 요소 코드(CLI01 등)는 에이전트가 프로젝트 안에서 부여하므로 프로젝트마다 겹친다.
+        # 전역 PRIMARY KEY(id)로는 두 번째 프로젝트의 구성도 생성이 UNIQUE 위반으로 실패했다 (2026-10-15 실측).
+        f"""
+        CREATE TABLE architecture_components_new (
+            id TEXT NOT NULL,
+            {_FK_PROJECT},
+            layer TEXT NOT NULL,
+            name TEXT NOT NULL,
+            {_COMMON},
+            PRIMARY KEY (project_id, id)
+        );
+        INSERT INTO architecture_components_new (id, project_id, layer, name, data, created_at, updated_at)
+            SELECT id, project_id, layer, name, data, created_at, updated_at FROM architecture_components;
+        DROP INDEX IF EXISTS ix_architecture_components_project;
+        DROP TABLE architecture_components;
+        ALTER TABLE architecture_components_new RENAME TO architecture_components;
+        CREATE INDEX ix_architecture_components_project ON architecture_components(project_id);
+        """,
+    ),
 )

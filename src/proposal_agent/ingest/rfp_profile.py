@@ -118,6 +118,10 @@ class RfpProfile(BaseModel):
     id_width: int | None = None
     requirement_index: list[RfpRequirementEntry] = Field(default_factory=list)
     proposal_toc: list[str] = Field(default_factory=list)
+    proposal_toc_tree: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="장(로마숫자)별 절·작성방법: [{numeral, title, sections: [{number, title, guide}]}]",
+    )
     evaluation_items: list[dict[str, Any]] = Field(
         default_factory=list, description="[{name, points}]"
     )
@@ -326,6 +330,7 @@ def profile_blocks(blocks: list[ExtractedBlock], *, apply: bool = True) -> RfpPr
         )
     # 3) 제안서 목차 / 평가 / 제출
     prof.proposal_toc = _proposal_toc(ordered, prof.block_kinds)
+    prof.proposal_toc_tree = _proposal_toc_tree(ordered, prof.block_kinds)
     prof.evaluation_items = _evaluation_items(ordered, prof.block_kinds)
     prof.submission_items = _submission_items(ordered, prof.block_kinds)
     if apply:
@@ -380,6 +385,79 @@ def _proposal_toc(ordered: list[ExtractedBlock], kinds: dict[str, str]) -> list[
                 if title and title not in items:
                     items.append(title[:60])
     return items[:40]
+
+
+GUIDE_LINE_RE = re.compile(r"^\s*[○◦\-–•·※]\s*(?P<text>.{2,200})$")
+
+
+def _proposal_toc_tree(
+    ordered: list[ExtractedBlock], kinds: dict[str, str]
+) -> list[dict[str, Any]]:
+    """제안서 작성요령 절에서 장(Ⅰ, Ⅱ…)과 절(1., 2.…)·작성방법(○ …)을 트리로 만든다.
+
+    표가 행 단위로 쪼개져 장 행이 절 줄보다 뒤에 오는 PDF도 있으므로, 장 목록과 절 목록을 따로 모은 뒤
+    절 번호가 1로 되돌아가는 지점에서 묶음을 나누어 장에 순서대로 붙인다.
+    """
+    chapters: list[dict[str, Any]] = []
+    groups: list[list[dict[str, Any]]] = []
+    last_no = 0
+    for b in ordered:
+        if kinds.get(b.id) != "proposal_guide":
+            continue
+        lines: list[str] = []
+        if b.table_cells:
+            for row in b.table_cells:
+                for c in row:
+                    lines.extend(ln.strip() for ln in (c or "").splitlines() if ln.strip())
+        else:
+            lines = [ln.strip() for ln in b.text.splitlines() if ln.strip()]
+        # 한 셀/줄에 "1. 제안배경 ○ … 2. 제안전략 ○ …"처럼 항목이 이어지면 번호 앞에서 나눈다
+        lines = [
+            part.strip()
+            for ln in lines
+            for part in re.split(r"\s+(?=\d{1,2}\s*[.．]\s)", ln)
+            if part.strip()
+        ]
+        for raw in lines:
+            line = raw.split(" | ")[0].strip() if " | " in raw else raw
+            mr = TOC_ROMAN_RE.match(line)
+            if mr and b.block_type == BlockType.HEADING:
+                continue  # RFP 자체 장 제목(예: 'Ⅴ. 제안서 작성요령')은 제안서 목차가 아니다
+            if mr:
+                title = re.split(r"\s[○※]", mr.group("title"))[0].strip(" |")
+                if title and not any(c["title"] == title for c in chapters):
+                    chapters.append({"numeral": mr.group(1), "title": title[:60], "sections": []})
+                continue
+            mn = TOC_NUM_RE.match(line)
+            if mn:
+                no = int(mn.group(1))
+                head, _sep, inline_guide = mn.group("title").partition(" ○")
+                guide: list[str] = []
+                if inline_guide.strip():
+                    guide.append(inline_guide.strip()[:200])
+                sec: dict[str, Any] = {
+                    "number": str(no),
+                    "title": head.strip(" |")[:60],
+                    "guide": guide,
+                }
+                if no <= last_no or not groups:
+                    groups.append([])
+                groups[-1].append(sec)
+                last_no = no
+                continue
+            mg = GUIDE_LINE_RE.match(line)
+            if mg and re.fullmatch(r"\d+\s*-?", mg.group("text").strip()):
+                continue  # 쪽번호 '- 29 -'
+            if mg and groups and groups[-1]:
+                groups[-1][-1]["guide"].append(mg.group("text").strip()[:200])
+    if not chapters and not groups:
+        return []
+    if not chapters:
+        chapters = [{"numeral": "", "title": "", "sections": []}]
+    for i, group in enumerate(groups):
+        target = chapters[i] if i < len(chapters) else chapters[-1]
+        target["sections"].extend(group)
+    return chapters[:12]
 
 
 def _evaluation_items(ordered: list[ExtractedBlock], kinds: dict[str, str]) -> list[dict[str, Any]]:

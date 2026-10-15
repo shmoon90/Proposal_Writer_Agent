@@ -435,6 +435,7 @@ class StaffingAllocationRepository(_ClearableRepository[StaffingAllocation]):
 class ArchitectureComponentRepository(_ClearableRepository[ArchitectureComponent]):
     table = "architecture_components"
     model = ArchitectureComponent
+    composite_key = True  # 구성 요소 코드(CLI01)는 프로젝트 안에서만 유일 (마이그레이션 7)
     columns = {"layer": "layer", "name": "name"}
 
 

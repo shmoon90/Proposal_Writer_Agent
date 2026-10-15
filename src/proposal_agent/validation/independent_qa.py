@@ -15,6 +15,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 
 from proposal_agent.config.errors import PathSecurityError
@@ -52,6 +53,7 @@ from proposal_agent.validation.deliverables import (
     QaOutcome,
     check_consistency,
     check_pptx,
+    check_template_compliance,
     check_xlsx,
 )
 
@@ -127,6 +129,8 @@ class QaInputs:
     rfp_analysis: dict[str, Any] | None = None
     id_prefixes: dict[str, str] = field(default_factory=dict)
     rfp_profile: Any | None = None  # ingest.rfp_profile.RfpProfile
+    template_profiles: dict[str, Any] = field(default_factory=dict)  # purpose → TemplateProfile
+    rfp_toc_tree: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def mode(self) -> ProjectMode:
@@ -152,6 +156,8 @@ class QaInputs:
 
 @dataclass
 class CheckArtifacts:
+    template_fails: list[str] = field(default_factory=list)
+    template_reviews: list[str] = field(default_factory=list)
     outcome: QaOutcome = field(default_factory=QaOutcome)
     excel: dict[DeliverableKind, dict[str, list[list[Any]]]] = field(default_factory=dict)
     ppt_texts: dict[str, list[str]] = field(default_factory=dict)
@@ -874,6 +880,29 @@ def _kind_files(inp: QaInputs, *kinds: DeliverableKind) -> list[str]:
 # --- 파일 품질 ---------------------------------------------------------------------------------
 
 
+def _template_size(inp: QaInputs, purpose: str) -> tuple[float, float] | None:
+    prof = inp.template_profiles.get(purpose)
+    if prof is None:
+        return None
+    return (float(prof.slide_width_cm), float(prof.slide_height_cm))
+
+
+def _template_check(
+    inp: QaInputs, art: CheckArtifacts, path: Path, purpose: str, label: str
+) -> None:
+    prof = inp.template_profiles.get(purpose)
+    if prof is None:
+        return
+    try:
+        fails, reviews = check_template_compliance(
+            path, prof, inp.rfp_toc_tree if purpose == "submission" else None, label
+        )
+    except Exception as exc:  # noqa: BLE001
+        fails, reviews = [f"{label}: 템플릿 준수 검사 실패 ({type(exc).__name__}: {exc})"], []
+    art.template_fails.extend(fails)
+    art.template_reviews.extend(reviews)
+
+
 def run_file_checks(inp: QaInputs) -> tuple[list[QaCheck], CheckArtifacts]:
     cat = QaCategory.FILE_QUALITY
     gate = "gate4"
@@ -968,6 +997,15 @@ def run_file_checks(inp: QaInputs) -> tuple[list[QaCheck], CheckArtifacts]:
             fixable=FIX_REGENERATE,
             fix_suggestion="산출물 재생성",
         ),
+        _check(
+            "QA-FILE-11",
+            cat,
+            "제안서 템플릿 준수",
+            "등록된 제안서 템플릿과 용지 크기·머리글 2단 위치·장 순서(RFP 지정 목차)·글꼴이 맞는가",
+            gate=gate,
+            fixable=FIX_REGENERATE,
+            fix_suggestion="템플릿을 다시 확인하고 산출물 재생성",
+        ),
     ]
     out = art.outcome
     project_dir = inp.paths.project_output_dir(inp.project.output_dir)
@@ -986,9 +1024,15 @@ def run_file_checks(inp: QaInputs) -> tuple[list[QaCheck], CheckArtifacts]:
         if kind.value.endswith("xlsx"):
             art.excel[kind] = check_xlsx(path, kind, out, inp.ctx)
         elif kind == DeliverableKind.SUBMISSION_PPTX:
-            art.ppt_texts["submission"] = check_pptx(path, out, "제출용")
+            art.ppt_texts["submission"] = check_pptx(
+                path, out, "제출용", expected_size_cm=_template_size(inp, "submission")
+            )
+            _template_check(inp, art, path, "submission", "제출용")
         elif kind == DeliverableKind.PRESENTATION_PPTX:
-            art.ppt_texts["presentation"] = check_pptx(path, out, "발표용")
+            art.ppt_texts["presentation"] = check_pptx(
+                path, out, "발표용", expected_size_cm=_template_size(inp, "presentation")
+            )
+            _template_check(inp, art, path, "presentation", "발표용")
         elif kind.value.endswith("png"):
             from proposal_agent.agents.tools import verify_file
 
@@ -1021,6 +1065,19 @@ def run_file_checks(inp: QaInputs) -> tuple[list[QaCheck], CheckArtifacts]:
         return fails, revs
 
     all_files = [d.file_path for d in inp.deliverables.values()]
+    if inp.mode != ProjectMode.PROPOSAL:
+        _not_run(checks[10], "구축 단계는 PPT를 생성하지 않음")
+    elif not inp.template_profiles:
+        _not_run(checks[10], "제안서 템플릿(PPT) 미등록 — 코드 기본 양식으로 생성됨")
+    else:
+        _finish(
+            checks[10],
+            fail=list(art.template_fails),
+            review=list(art.template_reviews),
+            files=_kind_files(
+                inp, DeliverableKind.SUBMISSION_PPTX, DeliverableKind.PRESENTATION_PPTX
+            ),
+        )
     f, r = split(("pptx.open", "xlsx.open", "png.open"))
     f += [m for m in path_fail if "파일 없음" in m]
     _finish(checks[0], fail=f, review=r, files=all_files)

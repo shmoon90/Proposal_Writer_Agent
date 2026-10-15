@@ -252,6 +252,21 @@ class StepRunner:
     STEP_QA = "qa"
     STEP_FINALIZE = "finalize"
 
+    def run_proposal_writing(
+        self, project: Project, *, actor: str = "user", cancel: CancellationToken | None = None
+    ) -> StepOutcome:
+        """제안서 작성 에이전트(proposal_writer). Gate 1 통과 필요. 템플릿 관행·RFP 지정 목차·기준 데이터를 넣는다."""
+        prompt = self._s.generation.proposal_brief(project)
+        return self.run_role_step(
+            project,
+            self.STEP_PPT,
+            "proposal_writer",
+            prompt,
+            required_gate=GATE1_KEY,
+            actor=actor,
+            cancel=cancel,
+        )
+
     def run_generation(self, project: Project, *, actor: str = "user") -> StepOutcome:
         """Gate 1 통과 프로젝트만. 계획(없으면 기본값)·구성도·Excel 4종·PPT 2종을 생성한다."""
         self._s.gates.require(project, GATE1_KEY)

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 from proposal_agent.generators.base import GenerationContext
 from proposal_agent.models import BlockType, ExtractedBlock, RequirementType
@@ -23,6 +24,43 @@ class OutlineSection:
     source: str  # agent | rfp_toc | default
     reason: str = ""
     data_refs: list[str] = field(default_factory=list)
+    chapter: str = ""  # 에이전트가 지정한 장 (예: "Ⅲ. 사업수행 부문")
+    section: str = ""  # 에이전트가 지정한 절 (예: "2. 제안 시스템 주요 기능")
+    number: str = ""  # 에이전트가 지정한 소절 번호 (예: "2.1")
+    lead: str = ""  # 리드 메시지
+    agent_index: int | None = None  # proposal_content.sections 의 인덱스
+    guide: list[str] = field(default_factory=list)  # RFP 작성방법 (빈 절 자리표시용)
+
+
+@dataclass
+class SectionPlan:
+    number: int
+    title: str
+    guide: list[str] = field(default_factory=list)
+    subsections: list[OutlineSection] = field(default_factory=list)
+
+
+@dataclass
+class ChapterPlan:
+    numeral: str
+    title: str
+    sections: list[SectionPlan] = field(default_factory=list)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "numeral": self.numeral,
+            "title": self.title,
+            "sections": [
+                {
+                    "number": s.number,
+                    "title": s.title,
+                    "subsections": [
+                        {"key": o.key, "title": o.title, "source": o.source} for o in s.subsections
+                    ],
+                }
+                for s in self.sections
+            ],
+        }
 
 
 def rfp_toc_from_blocks(blocks: list[ExtractedBlock]) -> list[str]:
@@ -184,9 +222,185 @@ def decide_outline(ctx: GenerationContext, rfp_toc: list[str]) -> list[OutlineSe
                 source="agent",
                 reason="제안서 작성 에이전트 문안",
                 data_refs=list(s.get("data_refs", [])),
+                chapter=str(s.get("chapter", "") or ""),
+                section=str(s.get("section", "") or ""),
+                number=str(s.get("number", "") or ""),
+                lead=str(s.get("lead_message", "") or ""),
+                agent_index=i,
             )
             for i, s in enumerate(sections)
         ]
     if len(rfp_toc) >= 3:
         return map_rfp_toc(rfp_toc, ctx)
     return default_outline(ctx)
+
+
+# --- 장 계획 (Phase 12): RFP 지정 목차 → 템플릿 샘플 목차 → 단일 장 ----------------------------------
+
+SECTION_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "purpose": ("배경", "목적", "이해", "개요"),
+    "understanding": ("배경", "목적", "이해", "개요"),
+    "current": ("현황", "문제"),
+    "requirements": ("요구사항", "요구 사항", "범위"),
+    "strategy": ("전략", "특장점", "특징", "장점"),
+    "system_diagram": ("시스템 구성", "장비", "하드웨어", "HW", "H/W"),
+    "sw_diagram": ("소프트웨어", "SW", "S/W"),
+    "service_diagram": ("서비스 구성", "서비스"),
+    "architecture": ("아키텍처", "기술", "구현", "주요 기능", "기능"),
+    "security": ("보안",),
+    "testing": ("품질", "테스트", "시험"),
+    "operations": ("유지보수", "교육", "운영", "안정화", "지원", "인수"),
+    "schedule": ("일정", "공정"),
+    "organization": ("조직", "인력"),
+    "risk": ("위험", "리스크"),
+    "evaluation": ("평가",),
+}
+CHAPTER_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
+    (("purpose", "understanding", "current", "strategy", "evaluation"), ("개요", "배경", "이해")),
+    (
+        (
+            "requirements",
+            "system_diagram",
+            "sw_diagram",
+            "service_diagram",
+            "architecture",
+            "security",
+            "testing",
+        ),
+        ("수행", "기술", "시스템", "구현"),
+    ),
+    (("schedule", "organization", "risk"), ("관리", "조직", "일정")),
+    (("operations",), ("지원", "운영", "유지보수", "교육")),
+)
+
+
+def _norm(text: str) -> str:
+    return re.sub(r"[\s.．·,()\[\]/]", "", text).lower()
+
+
+def _strip_number(title: str) -> str:
+    return re.sub(r"^\s*(\d+(\.\d+)*\.?|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\.?|[IVX]+\.)\s*", "", title).strip()
+
+
+def _chapter_matches(sec: OutlineSection, ch: ChapterPlan) -> bool:
+    if not sec.chapter:
+        return False
+    want = sec.chapter.strip()
+    numeral = re.match(r"^\s*([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+)", want)
+    if numeral and ch.numeral and numeral.group(1) == ch.numeral:
+        return True
+    a, b = _norm(_strip_number(want)), _norm(ch.title)
+    return bool(a and b and (a in b or b in a))
+
+
+def _locate(
+    sec: OutlineSection, chapters: list[ChapterPlan]
+) -> tuple[ChapterPlan, SectionPlan] | None:
+    # 1) 에이전트가 장·절 번호를 지정한 경우
+    ch = next((c for c in chapters if _chapter_matches(sec, c)), None)
+    if ch is not None:
+        no = sec.number.split(".")[0] if sec.number else ""
+        target = next((s for s in ch.sections if no and str(s.number) == no), None)
+        if target is None and sec.section:
+            want = _norm(_strip_number(sec.section))
+            target = next((s for s in ch.sections if want and want in _norm(s.title)), None)
+        if target is None:
+            title = _strip_number(sec.section) if sec.section else sec.title
+            target = SectionPlan(number=len(ch.sections) + 1, title=title)
+            ch.sections.append(target)
+        return ch, target
+    # 2) 절 제목 키워드
+    kws = SECTION_KEYWORDS.get(sec.key, ())
+    title_words = (
+        ()
+        if not sec.key.startswith(("generic", "agent"))
+        else tuple(w for w in re.split(r"\s+", _strip_number(sec.title)) if len(w) >= 2)
+    )
+    best: tuple[int, ChapterPlan, SectionPlan] | None = None
+    for c in chapters:
+        for sp in c.sections:
+            score = sum(1 for k in kws if k.lower() in sp.title.lower()) * 2 + sum(
+                1 for w in title_words if w in sp.title
+            )
+            if score and (best is None or score > best[0]):
+                best = (score, c, sp)
+    if best:
+        return best[1], best[2]
+    # 3) 장 제목 힌트 → 그 장에 새 절
+    for keys, hints in CHAPTER_HINTS:
+        if sec.key in keys:
+            cand = next((x for x in chapters if any(h in x.title for h in hints)), None)
+            if cand is not None:
+                new_sp = SectionPlan(number=len(cand.sections) + 1, title=sec.title)
+                cand.sections.append(new_sp)
+                return cand, new_sp
+    return None
+
+
+def plan_chapters(
+    outline: list[OutlineSection],
+    toc_tree: list[dict[str, Any]] | None,
+    template_chapters: list[Any] | None = None,
+) -> list[ChapterPlan]:
+    """목차 항목(outline)을 장/절 아래 소절로 배치한다.
+
+    장·절의 뼈대는 ① RFP 지정 목차 트리 ② 템플릿 샘플의 장·절 ③ 단일 장 순으로 정한다. 내용이 없는
+    RFP 지정 절은 비우지 않고 "사람 작성 필요" 자리표시 소절을 넣어 목차가 RFP와 같게 유지된다.
+    """
+    chapters: list[ChapterPlan] = []
+    for ch in toc_tree or []:
+        chapters.append(
+            ChapterPlan(
+                numeral=str(ch.get("numeral", "")),
+                title=str(ch.get("title", "")),
+                sections=[
+                    SectionPlan(
+                        number=i + 1,
+                        title=_strip_number(str(sec.get("title", ""))),
+                        guide=list(sec.get("guide", [])),
+                    )
+                    for i, sec in enumerate(ch.get("sections", []))
+                ],
+            )
+        )
+    if not chapters:
+        for tc in template_chapters or []:
+            if not (getattr(tc, "sections", None) or getattr(tc, "title", "")):
+                continue
+            chapters.append(
+                ChapterPlan(
+                    numeral=str(getattr(tc, "numeral", "")),
+                    title=str(getattr(tc, "title", "")),
+                    sections=[
+                        SectionPlan(number=i + 1, title=_strip_number(str(t)))
+                        for i, t in enumerate(getattr(tc, "sections", []))
+                    ],
+                )
+            )
+    if not chapters:
+        single = ChapterPlan(numeral="", title="제안서")
+        for i, sec in enumerate(outline):
+            single.sections.append(SectionPlan(number=i + 1, title=sec.title, subsections=[sec]))
+        return [single]
+    for sec in outline:
+        hit = _locate(sec, chapters)
+        if hit is None:
+            # 맞는 장이 없으면 마지막 장에 새 절
+            last = chapters[-1]
+            sp = SectionPlan(number=len(last.sections) + 1, title=sec.title)
+            last.sections.append(sp)
+            hit = (last, sp)
+        hit[1].subsections.append(sec)
+    for cp in chapters:
+        for sp in cp.sections:
+            if not sp.subsections:
+                sp.subsections.append(
+                    OutlineSection(
+                        key="placeholder",
+                        title=sp.title,
+                        source="rfp_toc",
+                        reason="RFP 지정 목차 항목 — 내용은 사람 작성 필요",
+                        guide=list(sp.guide),
+                    )
+                )
+    return chapters

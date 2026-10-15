@@ -269,14 +269,16 @@ def verifier(request: AgentRequest) -> dict[str, Any]:
     }
 
 
-SRC = lambda url, title, product, version, excerpt: {
-    "url": url,
-    "title": title,
-    "product": product,
-    "version": version,
-    "trust": "official_doc",
-    "excerpt": excerpt + " (세션에서 열람하지 않음 — 미확인)",
-}  # noqa: E731
+def SRC(url: str, title: str, product: str, version: str, excerpt: str) -> dict[str, Any]:  # noqa: N802
+    return {
+        "url": url,
+        "title": title,
+        "product": product,
+        "version": version,
+        "trust": "official_doc",
+        "excerpt": excerpt + " (세션에서 열람하지 않음 — 미확인)",
+    }
+
 
 RESEARCH: dict[str, Any] = {
     "items": [
@@ -856,9 +858,24 @@ def approve_if_needed(s: Services, project, gate: str) -> str:  # type: ignore[n
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("사용: run_manual_agents.py <RFP .docx 경로>")
+        print(
+            "사용: run_manual_agents.py <RFP .docx 경로> [--template <제안서 템플릿 .pptx>]... [--name <프로젝트명>]"
+        )
         return 2
     rfp = Path(sys.argv[1])
+    templates: list[Path] = []
+    name = "공학용 계산기 웹 개발"
+    args = sys.argv[2:]
+    while args:
+        if args[0] == "--template" and len(args) >= 2:
+            templates.append(Path(args[1]))
+            args = args[2:]
+        elif args[0] == "--name" and len(args) >= 2:
+            name = args[1]  # 다른 이름이면 기존 프로젝트(승인·최종본)를 지우지 않는다
+            args = args[2:]
+        else:
+            print(f"알 수 없는 인자: {args[0]}")
+            return 2
     ctx = AppContext.create(Settings(), paths=ProjectPaths(), configure_logging=True)
     runner = FakeAgentRunner(
         {
@@ -873,9 +890,9 @@ def main() -> int:
         cost_per_call=0.0,
     )
     s = Services.from_context(ctx, runner=runner)
-    purge_previous(ctx, "공학용 계산기 웹 개발")
+    purge_previous(ctx, name)
     p = s.projects.create(
-        name="공학용 계산기 웹 개발",
+        name=name,
         mode=ProjectMode.PROPOSAL,
         start_date=date(2026, 11, 2),
         end_date=date(2027, 1, 29),
@@ -886,6 +903,15 @@ def main() -> int:
     s.documents.register_upload(
         p, kind=DocumentKind.RFP, file_name=rfp.name, data=rfp.read_bytes(), actor=ACTOR
     )
+    for tpl in templates:  # 제안서 템플릿(고객 양식): 추출 대상이 아니라 서식 입력
+        doc = s.documents.register_upload(
+            p,
+            kind=DocumentKind.PROPOSAL_TEMPLATE,
+            file_name=tpl.name,
+            data=tpl.read_bytes(),
+            actor=ACTOR,
+        )
+        log.append(f"템플릿 등록: {doc.file_name} → {doc.stored_path}")
     r = StepRunner(s)
     r.run_extraction(p, actor=ACTOR)
     log.append(approve_if_needed(s, p, "gate0"))

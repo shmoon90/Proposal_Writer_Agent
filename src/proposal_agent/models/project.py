@@ -59,3 +59,7 @@ class SourceDocument(ProjectScoped):
     extracted_text_path: str | None = None
     column_mapping: dict[str, Any] | None = None
     is_required_input: bool = False
+    template_purpose: str | None = Field(
+        default=None,
+        description="제안서 템플릿 용도: submission | presentation (None이면 용지 방향으로 추정)",
+    )

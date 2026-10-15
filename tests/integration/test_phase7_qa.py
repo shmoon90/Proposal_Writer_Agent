@@ -94,11 +94,13 @@ def test_proposal_full_flow_independent_qa_gates_and_finalize(services: Services
     assert (
         run is not None
         and run.counts["executed"] == 30
-        and run.counts["not_run"] == 1  # QA-RFP-07: 픽스처 RFP에 자체 ID 체계가 없어 해당 없음
+        and run.counts["not_run"] == 2  # QA-RFP-07(ID 체계 없음), QA-FILE-11(템플릿 미등록)
         and run.counts["fail"] == 0
     )
     rfp07 = next(c for c in run.checks if c.check_id == "QA-RFP-07")
     assert rfp07.applicable is False and "ID 체계" in (rfp07.not_run_reason or "")
+    file11 = next(c for c in run.checks if c.check_id == "QA-FILE-11")
+    assert file11.applicable is False and "템플릿" in (file11.not_run_reason or "")
     assert {c.check_id for c in run.checks} >= {
         "QA-RFP-01",
         "QA-TECH-01",

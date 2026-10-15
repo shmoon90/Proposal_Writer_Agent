@@ -298,6 +298,12 @@ def build_corrupted_docx() -> bytes:
 STRUCTURED_RFP_TITLE = "가상 민원 사건관리 시스템 구축 제안요청서"
 STRUCTURED_RFP_IDS = ["PER-001", "SER-001", "SFR-001", "SFR-002"]
 STRUCTURED_RFP_TOC = ["제안 개요", "사업 수행 방안", "사업 관리 방안", "지원 방안"]
+STRUCTURED_RFP_TOC_SECTIONS: dict[str, list[str]] = {
+    "제안 개요": ["사업 이해도", "추진 전략"],
+    "사업 수행 방안": ["시스템 구성 방안", "요구사항 대응 방안"],
+    "사업 관리 방안": ["조직 및 인력", "추진 일정"],
+    "지원 방안": ["교육 훈련", "유지보수"],
+}
 
 _STRUCTURED_DETAILS: list[tuple[str, str, str, list[str]]] = [
     (
@@ -340,7 +346,7 @@ def build_structured_rfp_docx() -> bytes:
     doc.add_paragraph("2. 사업 기간 : 계약일로부터 8개월")
     doc.add_paragraph("3. 사업 예산 : 금 500,000,000원 (부가세 포함)")
     doc.add_heading("Ⅱ. 사업 범위", level=1)
-    doc.add_paragraph("민원 사건 접수·배정·종결 관리 시스템 신규 구축", style="List Bullet")
+    doc.add_paragraph("민원 민원 사건 접수·배정·종결 관리 시스템 신규 구축", style="List Bullet")
     doc.add_paragraph("통계 조회 및 접근 통제 기능 구축", style="List Bullet")
     doc.add_heading("Ⅲ. 요구사항", level=1)
     doc.add_paragraph("1. 요구사항 요약")
@@ -371,7 +377,13 @@ def build_structured_rfp_docx() -> bytes:
         doc,
         [["목차", "작성 내용"]]
         + [
-            [f"{r}. {t}", f"{t}에 대한 세부 내용"]
+            [
+                f"{r}. {t}",
+                "\n".join(
+                    f"{i + 1}. {sec} ○ {sec}에 대해 기술"
+                    for i, sec in enumerate(STRUCTURED_RFP_TOC_SECTIONS[t])
+                ),
+            ]
             for r, t in zip("ⅠⅡⅢⅣ", STRUCTURED_RFP_TOC, strict=True)
         ],
     )
@@ -394,3 +406,95 @@ def _add_table(doc: Any, rows: list[list[str]]) -> None:
     for r, row in enumerate(rows):
         for c, val in enumerate(row):
             table.cell(r, c).text = val
+
+
+# --- 제안서 템플릿 PPTX (가상 고객 양식) ------------------------------------------------------
+# A4 세로, 장 표지(로마숫자·장 제목·절 목록) + 본문 슬라이드(머리글 2단·리드·본문·표·※ 주석).
+TEMPLATE_FONT = "맑은 고딕"
+TEMPLATE_HEADER_TOPS = (3.8, 4.5)
+
+
+def build_template_pptx(*, portrait: bool = True) -> bytes:
+    from pptx import Presentation
+    from pptx.dml.color import RGBColor
+    from pptx.util import Cm, Pt
+
+    prs = Presentation()
+    if portrait:
+        prs.slide_width, prs.slide_height = Cm(21.0), Cm(29.7)
+    else:
+        prs.slide_width, prs.slide_height = Cm(33.867), Cm(19.05)
+    chapter_layout, content_layout = prs.slide_layouts[0], prs.slide_layouts[6]
+
+    def clear(slide: Any) -> None:
+        for ph in list(slide.placeholders):
+            ph._element.getparent().remove(ph._element)  # noqa: SLF001
+
+    def text(
+        slide: Any,
+        left: float,
+        top: float,
+        w: float,
+        h: float,
+        value: str,
+        size: float,
+        *,
+        bold: bool = False,
+        color: str | None = None,
+    ) -> Any:
+        box = slide.shapes.add_textbox(Cm(left), Cm(top), Cm(w), Cm(h))
+        tf = box.text_frame
+        tf.word_wrap = True
+        for i, line in enumerate(value.split("\n")):
+            para = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+            run = para.add_run()
+            run.text = line
+            run.font.name = TEMPLATE_FONT
+            run.font.size = Pt(size)
+            run.font.bold = bold
+            if color:
+                run.font.color.rgb = RGBColor.from_string(color)
+        return box
+
+    s = prs.slides.add_slide(chapter_layout)
+    clear(s)
+    text(s, 2.5, 6.5, 1.6, 1.8, "Ⅰ", 36, bold=True, color="FFFFFF")
+    text(s, 6.0, 6.5, 10.0, 1.5, "제안 개요", 34, bold=True, color="313D83")
+    text(s, 4.8, 10.5, 8.0, 4.0, "1. 사업 이해도\n2. 추진 전략", 13, bold=True)
+    pages = [
+        ("1. 사업 이해도", "1.1 사업의 개요", False),
+        ("1. 사업 이해도", "1.1 사업의 개요", True),
+        ("1. 사업 이해도", "1.2 사업의 범위", False),
+        ("2. 추진 전략", "2.1 추진 전략", False),
+        ("2. 추진 전략", "2.2 핵심 성공 요소", False),
+        ("2. 추진 전략", "2.2 핵심 성공 요소", True),
+    ]
+    h1, h2 = TEMPLATE_HEADER_TOPS
+    body_top = 7.5 if portrait else 5.5
+    for i, (sec, sub, cont) in enumerate(pages):
+        s = prs.slides.add_slide(content_layout)
+        text(s, 2.0, h1, 17.5, 0.4, sec, 10, bold=True)
+        text(s, 2.0, h2, 17.5, 0.6, sub + (" (계속)" if cont else ""), 13, bold=True)
+        text(
+            s, 2.0, 5.5, 17.5, 1.6, f"리드 메시지 {i + 1}: 요약 문장", 11, bold=True, color="0070C0"
+        )
+        text(s, 2.0, body_top, 17.5, 12.0, "\n".join(f"- 본문 글머리 {k}" for k in range(1, 7)), 9)
+        if i == 2:
+            shape = s.shapes.add_table(3, 3, Cm(2.0), Cm(20.0), Cm(17.5), Cm(2.4))
+            for ci, hd in enumerate(("구분", "위험요소", "대처 방안")):
+                cell = shape.table.cell(0, ci)
+                cell.text = hd
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = RGBColor.from_string("1F4E78")
+                cell.text_frame.paragraphs[0].runs[0].font.size = Pt(9)
+                cell.text_frame.paragraphs[0].runs[0].font.name = TEMPLATE_FONT
+            for ri in (1, 2):
+                for ci in range(3):
+                    cell = shape.table.cell(ri, ci)
+                    cell.text = f"r{ri}c{ci}"
+                    cell.text_frame.paragraphs[0].runs[0].font.size = Pt(9)
+        if portrait:
+            text(s, 2.0, 27.3, 17.5, 0.8, "※ 발주처와 협의하여 조정", 8)
+    buf = io.BytesIO()
+    prs.save(buf)
+    return buf.getvalue()

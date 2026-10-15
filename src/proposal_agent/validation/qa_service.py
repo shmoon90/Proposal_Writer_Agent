@@ -54,6 +54,7 @@ if TYPE_CHECKING:
     from proposal_agent.ingest.service import ExtractionService
     from proposal_agent.services.agent_step_service import AgentStepService
     from proposal_agent.services.audit import AuditService
+    from proposal_agent.services.template_service import TemplateService
 
 log = get_logger("validation.qa")
 
@@ -94,6 +95,7 @@ class QaService:
         extraction: ExtractionService | None = None,
         changes: ChangeService | None = None,
         steps: AgentStepService | None = None,
+        templates: TemplateService | None = None,
     ) -> None:
         self._repos = repos
         self._paths = paths
@@ -104,6 +106,7 @@ class QaService:
         self._extraction = extraction
         self._changes = changes
         self._steps = steps
+        self._templates = templates
 
     # --- 입력 수집 ----------------------------------------------------------------------------
     def _context(self, project: Project, actor: str) -> GenerationContext:
@@ -143,6 +146,16 @@ class QaService:
                 self._extraction.rfp_profile(project)
                 if self._extraction and project.mode == ProjectMode.PROPOSAL
                 else None
+            ),
+            template_profiles=(
+                {h.profile.purpose: h.profile for h in self._templates.profiles(project)}
+                if self._templates and project.mode == ProjectMode.PROPOSAL
+                else {}
+            ),
+            rfp_toc_tree=(
+                self._extraction.rfp_proposal_toc_tree(project)
+                if self._extraction and project.mode == ProjectMode.PROPOSAL
+                else []
             ),
         )
 
@@ -391,6 +404,10 @@ class QaService:
                 {"id": c.check_id, "result": c.final_result.value, "issues": c.issues[:3]}
                 for c in checks
             ],
+            "proposal_template": {
+                k: v.summary_text()[:1500] for k, v in inputs.template_profiles.items()
+            },
+            "rfp_toc_tree": inputs.rfp_toc_tree[:12],
         }
         prompt = (
             "<deliverables>\n"

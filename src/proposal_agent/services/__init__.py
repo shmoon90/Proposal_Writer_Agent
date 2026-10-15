@@ -20,6 +20,7 @@ from proposal_agent.services.context import AppContext
 from proposal_agent.services.document_service import DocumentService
 from proposal_agent.services.pipeline_service import PipelineService
 from proposal_agent.services.project_service import ProjectService
+from proposal_agent.services.template_service import TemplateService
 from proposal_agent.validation.qa_service import QaService
 
 
@@ -41,6 +42,7 @@ class Services:
     qa: QaService
     baseline: BaselineService
     changes: ChangeService
+    templates: TemplateService
 
     @classmethod
     def from_context(
@@ -55,8 +57,17 @@ class Services:
         extraction = ExtractionService(ctx.repos, ctx.paths, ctx.settings, audit, ocr=ocr)
         steps = AgentStepService(ctx.repos, ctx.paths, ctx.settings, audit, runner, ctx.files)
         planning = PlanningService(ctx.repos, ctx.settings, audit)
+        templates = TemplateService(ctx.repos, ctx.paths)
         generation = GenerationService(
-            ctx.repos, ctx.paths, ctx.settings, audit, ctx.files, planning, steps, extraction
+            ctx.repos,
+            ctx.paths,
+            ctx.settings,
+            audit,
+            ctx.files,
+            planning,
+            steps,
+            extraction,
+            templates=templates,
         )
         documents = DocumentService(ctx.repos, ctx.files, audit)
         baseline = BaselineService(ctx.repos, ctx.paths, ctx.settings, audit, ctx.files)
@@ -97,14 +108,17 @@ class Services:
                 extraction=extraction,
                 changes=changes,
                 steps=steps,
+                templates=templates,
             ),
             baseline=baseline,
             changes=changes,
+            templates=templates,
         )
 
 
 __all__ = [
     "AgentStepService",
+    "TemplateService",
     "AppContext",
     "AuditService",
     "BaselineService",
