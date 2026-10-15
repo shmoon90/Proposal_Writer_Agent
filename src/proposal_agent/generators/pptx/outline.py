@@ -160,13 +160,26 @@ def map_rfp_toc(items: list[str], ctx: GenerationContext) -> list[OutlineSection
     return out
 
 
+# 에이전트 스키마(ProposalSection.slide_group)의 이름을 생성기 슬라이드 키로 맞춘다.
+SLIDE_GROUP_ALIAS: dict[str, str] = {
+    "staffing": "organization",
+    "quality": "testing",
+    "cover": "purpose",
+    "toc": "purpose",
+}
+
+
+def canonical_key(slide_group: str) -> str:
+    return SLIDE_GROUP_ALIAS.get(slide_group, slide_group)
+
+
 def decide_outline(ctx: GenerationContext, rfp_toc: list[str]) -> list[OutlineSection]:
     content = ctx.proposal_content or {}
     sections = content.get("sections") or []
     if sections:
         return [
             OutlineSection(
-                key=str(s.get("slide_group", f"agent_{i}")),
+                key=canonical_key(str(s.get("slide_group", f"agent_{i}"))),
                 title=str(s.get("title", ""))[:60],
                 source="agent",
                 reason="제안서 작성 에이전트 문안",

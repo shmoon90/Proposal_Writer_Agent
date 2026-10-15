@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from proposal_agent.generators.base import GenerationContext, acceptance_label
 from proposal_agent.generators.pptx.builder import DeckBuilder
-from proposal_agent.generators.pptx.outline import OutlineSection
+from proposal_agent.generators.pptx.outline import OutlineSection, canonical_key
 from proposal_agent.models import RequirementType
 from proposal_agent.planning.effort import md_to_mm
 
@@ -48,9 +48,18 @@ def key_figures(ctx: GenerationContext) -> dict[str, str]:
 
 def _agent_section(ctx: GenerationContext, key: str) -> dict | None:
     for s in (ctx.proposal_content or {}).get("sections", []) or []:
-        if s.get("slide_group") == key:
+        if canonical_key(str(s.get("slide_group", ""))) == key:
             return s
     return None
+
+
+def _figure_lines(figs: dict[str, str]) -> list[str]:
+    """제출용·발표용 모두에 반드시 들어가는 핵심 수치 (QA가 Excel과 대조)."""
+    return [
+        f"기간 {figs['period']}",
+        f"총 공수 {figs['total_md']} ({figs['total_mm']})",
+        figs["headcount"],
+    ]
 
 
 def _requirement_rows(ctx: GenerationContext) -> list[list[object]]:
@@ -302,6 +311,10 @@ def build_submission_deck(ctx: GenerationContext, outline: list[OutlineSection])
     b.bullet_slides("목차", [f"{i + 1}. {s.title}" for i, s in enumerate(outline)], footer)
     for sec in outline:
         _render_section(b, ctx, sec, "제출용", compact=False)
+    figs = key_figures(ctx)
+    keys = {sec.key for sec in outline}
+    if not {"schedule", "organization"} <= keys:
+        b.bullet_slides("사업 기간·공수·투입 인력 요약", _figure_lines(figs), footer)
     claims = (ctx.proposal_content or {}).get("unverified_claims") or []
     if claims:
         b.bullet_slides("사람 확인 필요 문구", claims, footer)
@@ -313,13 +326,19 @@ def build_presentation_deck(ctx: GenerationContext, outline: list[OutlineSection
     footer = _footer(ctx, "발표용")
     figs = key_figures(ctx)
     b.title_slide(f"{ctx.project.name}", f"제안 발표 · {ctx.generated_on}", footer)
-    messages = (ctx.proposal_content or {}).get("key_messages") or [
-        f"{figs['requirements']} 전수 대응",
-        f"기간 {figs['period']}",
-        f"{figs['headcount']}, {figs['total_mm']}",
-        "출처 기반 기술 선정과 독립 검증",
-    ]
-    b.key_message_slide("핵심 메시지", messages, footer)
+    agent_messages = list((ctx.proposal_content or {}).get("key_messages") or [])
+    figure_line = f"{figs['headcount']}, {figs['total_mm']}, 기간 {figs['period']}"
+    messages = (
+        (agent_messages[:3] + [figure_line])
+        if agent_messages
+        else [
+            f"{figs['requirements']} 전수 대응",
+            f"기간 {figs['period']}",
+            f"{figs['headcount']}, {figs['total_mm']}",
+            "출처 기반 기술 선정과 독립 검증",
+        ]
+    )
+    b.key_message_slide("핵심 메시지", messages[:5], footer)
     keep = {
         "purpose",
         "understanding",

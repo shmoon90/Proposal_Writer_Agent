@@ -404,3 +404,41 @@ def test_review_items_surface_unverified_and_defaults(services: Services, ready:
     items = services.generation.review_items(ctx)
     assert any("기본값" in i for i in items) and any("미정" in i for i in items)
     assert isinstance(ctx, GenerationContext) and ctx.period_start == date(2026, 11, 2)
+
+
+def test_agent_outline_keeps_key_figures_and_aliases(services: Services, ready: Project) -> None:
+    """에이전트 문안(slide_group=staffing·quality, key_messages)이 있어도 PPT에 기간·공수·인원이 들어가야 QA 일관성 검사를 통과한다."""
+    services.runner.responders["proposal_writer"] = {  # type: ignore[attr-defined]
+        "profile": "submission",
+        "sections": [
+            {"slide_group": "understanding", "title": "사업 이해", "bullets": ["이해 1"]},
+            {"slide_group": "staffing", "title": "인력 투입", "bullets": ["역할별 투입"]},
+            {"slide_group": "quality", "title": "품질", "bullets": ["시험 계획"]},
+        ],
+        "key_messages": ["메시지 A", "메시지 B"],
+        "unverified_claims": [],
+    }
+    services.steps.run_role(ready, "proposal_writer", "문안")
+    r = StepRunner(services)
+    r.run_generation(ready)
+    latest = services.generation.latest_deliverables(ready)
+    texts = {
+        "submission": "\n".join(
+            pptx_texts(_path(services, latest[DeliverableKind.SUBMISSION_PPTX]))
+        ),
+        "presentation": "\n".join(
+            pptx_texts(_path(services, latest[DeliverableKind.PRESENTATION_PPTX]))
+        ),
+    }
+    ctx = services.generation.build_context(ready)
+    from proposal_agent.generators.pptx.decks import key_figures
+
+    figs = key_figures(ctx)
+    for label, text in texts.items():
+        assert figs["headcount"] in text and figs["period"] in text and figs["total_mm"] in text, (
+            label
+        )
+    assert "인력 투입" in texts["submission"]  # staffing → organization 별칭으로 렌더링
+    outcome = QaOutcome()
+    check_consistency(ctx, {}, {k: [v] for k, v in texts.items()}, outcome)
+    assert not [f for f in outcome.findings if f.rule == "consistency.ppt_figures"]
