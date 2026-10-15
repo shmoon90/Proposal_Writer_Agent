@@ -22,8 +22,20 @@ log = get_logger("services.document")
 ORIGINAL_SUBDIR = "01_RFP_Original"
 
 ALLOWED_SUFFIXES: dict[DocumentKind, tuple[str, ...]] = {
-    DocumentKind.RFP: (".pdf", ".docx"),
-    DocumentKind.RFP_ATTACHMENT: (".pdf", ".docx", ".xlsx", ".pptx", ".zip", ".hwp"),
+    # .doc/.hwp/.hwpx는 업로드는 받되 추출 단계에서 "지원하지 않음 + 변환 방법"으로 안내한다.
+    DocumentKind.RFP: (".pdf", ".docx", ".txt", ".md", ".doc", ".hwp", ".hwpx"),
+    DocumentKind.RFP_ATTACHMENT: (
+        ".pdf",
+        ".docx",
+        ".txt",
+        ".md",
+        ".doc",
+        ".hwp",
+        ".hwpx",
+        ".xlsx",
+        ".pptx",
+        ".zip",
+    ),
     DocumentKind.REQUIREMENT_SPEC: (".xlsx",),
     DocumentKind.TRACE_MATRIX: (".xlsx",),
     DocumentKind.WBS: (".xlsx",),
@@ -165,5 +177,9 @@ class DocumentService:
                 f"{kind.label}에 허용되지 않는 형식입니다: {suffix or '(확장자 없음)'}",
                 cause=file_name,
                 resolution=f"허용 형식: {', '.join(ALLOWED_SUFFIXES[kind])}"
-                + (" (HWP는 PDF로 변환 후 업로드)" if kind == DocumentKind.RFP else ""),
+                + (
+                    " (HWP/DOC는 PDF 또는 DOCX로 변환 후 업로드)"
+                    if kind == DocumentKind.RFP
+                    else ""
+                ),
             )

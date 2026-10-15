@@ -34,7 +34,9 @@
 - `streamlit run src/proposal_agent/app.py`로 모드 선택과 프로젝트 생성이 동작하고 Output 폴더 14종이 생성됨.
 - API 키가 있으면 `smoke_agent.py`가 구조화 출력 1건을 반환(수동 확인, 결과를 보고서에 기록).
 
-## Phase 2 — 문서 입력 + 요구사항 추출·검증
+## Phase 2 — 문서 입력 + 요구사항 추출·검증 (2026-10-15 구현, 세부 보고는 `docs/PHASE2_REPORT.md`)
+
+구현 범위 조정: 2.3(SDK MCP 도구)·2.4(훅)는 추출·검증 에이전트가 도구 없이(`tools=[]`) 프롬프트 내 데이터 블록만으로 동작하도록 설계해 Phase 3(기술 조사)로 이월. 2.5(RFP 분석 P1)는 요구사항 추출에 포함되지 않아 Phase 3 초입으로 이월. PDF 라이브러리는 PyMuPDF 대신 pdfplumber/pypdf/pypdfium2(R-19).
 
 | 작업 | 세부 |
 |---|---|

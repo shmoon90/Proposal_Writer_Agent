@@ -88,9 +88,14 @@ def test_mode_specific_kind_rejected(
 def test_bad_format_and_empty_file(services: Services, proposal_project: Project) -> None:
     with pytest.raises(IngestError) as info:
         services.documents.register_upload(
-            proposal_project, kind=DocumentKind.RFP, file_name="rfp.hwp", data=b"x"
+            proposal_project, kind=DocumentKind.RFP, file_name="rfp.xyz", data=b"x"
         )
-    assert "PDF로 변환" in info.value.resolution
+    assert "변환 후 업로드" in info.value.resolution
+    # .hwp/.doc는 업로드는 받고 추출 단계에서 '지원하지 않음 + 변환 방법'을 안내한다
+    doc = services.documents.register_upload(
+        proposal_project, kind=DocumentKind.RFP, file_name="rfp.hwp", data=b"x"
+    )
+    assert doc.file_name == "rfp.hwp"
     with pytest.raises(IngestError):
         services.documents.register_upload(
             proposal_project, kind=DocumentKind.RFP, file_name="rfp.pdf", data=b""

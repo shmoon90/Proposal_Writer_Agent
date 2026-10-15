@@ -15,23 +15,27 @@ dependencies = [
     "openpyxl>=3.1.5,<4",
     "python-pptx>=1.0.2,<2",
     "python-docx>=1.2,<2",
-    "pymupdf>=1.26,<2",
+    # PDF: PyMuPDF는 이 개발 PC의 앱 제어 정책이 DLL을 차단해 순수 Python 조합으로 대체 (RISK R-19)
+    "pdfplumber>=0.11,<1",
+    "pypdf>=6,<7",
+    "pypdfium2>=5,<6",
+    "rapidocr>=3.10,<4",
+    "onnxruntime>=1.20,<2",
+    "numpy>=1.25,<3",
+    "pillow>=10,<13",
     "matplotlib>=3.10,<4",
     "streamlit>=1.60,<2",
     "python-dotenv>=1.0,<2",
 ]
 
 [project.optional-dependencies]
-ocr = [
-    # 후보 1 (순수 pip, 한국어 모델 별도 확인 필요): rapidocr-onnxruntime
-    # 후보 2 (Tesseract 바이너리 필요): pytesseract
-    # docs/RISK_REGISTER.md R-07 참고. 확정 전까지 설치하지 않음.
-]
+# OCR은 기본 의존성(rapidocr + onnxruntime)에 포함. 한국어 인식 모델은 첫 실행 시 다운로드된다 (D-02 확정).
 dev = [
     "pytest>=9,<10",
     "pytest-asyncio>=1.0",
     "ruff>=0.14",
     "mypy>=1.17",
+    "reportlab>=4,<6",  # 테스트 픽스처(텍스트 PDF) 생성
 ]
 
 [build-system]
@@ -40,6 +44,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+proposal_agent = ["agents/prompts/*.md"]
 
 [tool.ruff]
 line-length = 100
@@ -58,7 +65,7 @@ plugins = ["pydantic.mypy"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["pandas", "pandas.*"]
+module = ["pandas", "pandas.*", "pdfplumber", "pdfplumber.*", "pypdfium2", "rapidocr", "rapidocr.*", "docx", "docx.*", "reportlab", "reportlab.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

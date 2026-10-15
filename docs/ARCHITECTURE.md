@@ -107,16 +107,19 @@ Proposal_Writer_Agent/
 │   │   ├── document_service.py       입력 문서 등록, 모드별 필수 문서 규칙
 │   │   ├── pipeline_service.py       모드별 단계 정의, StepRun 상태 전이, 게이트, 이슈
 │   │   └── audit.py                  감사 이벤트 기록 (비밀값 마스킹)
-│   ├── orchestrator/                 (Phase 2~) 단계 실행기, 에이전트 호출 연결
-│   │   ├── runner.py                 PipelineService.start/complete/fail 를 감싸는 실행기
-│   │   └── jobs.py                   비동기 작업 상태 (Streamlit ↔ asyncio 브리지)
-│   ├── agents/
-│   │   ├── runner.py                 Agent SDK 어댑터 (query/ClaudeSDKClient 래핑, 비용·턴 제한, 훅)
-│   │   ├── definitions.py            AgentDefinition 모음 (서브에이전트)
-│   │   ├── prompts/                  역할별 시스템 프롬프트 (.md)
-│   │   ├── schemas.py                구조화 출력 Pydantic 스키마
-│   │   ├── tools/                    인프로세스 SDK MCP 도구 (@tool)
-│   │   └── hooks.py                  PreToolUse/PostToolUse 훅 (쓰기 경로 제한, 감사 로그)
+│   │   ├── app_pages/extraction.py   문서별 추출 결과·OCR 페이지·경고·재처리, Gate 0        [Phase 2]
+│   │   └── app_pages/requirements.py 추출·검증 실행, 목록·원본 위치·검토·수정·승인, Gate 1  [Phase 2]
+│   ├── orchestrator/                                                         [Phase 2 구현]
+│   │   ├── gates.py                  GateService: PASS/FAIL/NEEDS_HUMAN_REVIEW 유효 상태, 사람 승인·반려, require()
+│   │   ├── runner.py                 StepRunner: 추출→Gate0, 요구사항 추출(Gate0 필요), 검증→Gate1, 생성 진입 검사
+│   │   └── jobs.py                   (Phase 3~) 비동기 작업 상태 (Streamlit ↔ asyncio 브리지)
+│   ├── agents/                                                               [Phase 2 구현(일부)]
+│   │   ├── runner.py                 Agent SDK 어댑터: query() + output_format, tools=[] (도구 없음), dontAsk, 예산·턴 상한; FakeAgentRunner
+│   │   ├── prompts/                  requirement_extractor.md, requirement_verifier.md (독립 프롬프트)
+│   │   ├── schemas.py                RequirementExtraction (RequirementDraft[]), VerificationReport
+│   │   ├── definitions.py            (Phase 3~) AgentDefinition 모음 (서브에이전트)
+│   │   ├── tools/                    (Phase 3~) 인프로세스 SDK MCP 도구 (@tool)
+│   │   └── hooks.py                  (Phase 3~) PreToolUse/PostToolUse 훅
 │   ├── models/
 │   │   ├── enums.py
 │   │   ├── project.py                Project, ProjectMode, SourceDocument
@@ -126,17 +129,20 @@ Proposal_Writer_Agent/
 │   │   ├── planning.py               WBSItem, Dependency, StaffRole, StaffingAllocation
 │   │   ├── deliverable.py            Deliverable, ValidationResult, Approval, Revision
 │   │   └── audit.py                  AuditEvent
-│   ├── ingest/
-│   │   ├── pdf.py                    PyMuPDF 텍스트·페이지 추출
-│   │   ├── ocr.py                    스캔 PDF OCR (엔진 플러그인)
-│   │   ├── docx_reader.py
-│   │   ├── excel_reader.py           구축 단계 기존 산출물 파싱 (컬럼 매핑 프로파일)
-│   │   └── chunker.py                섹션·페이지 단위 청크 + 출처 좌표
-│   ├── requirements/
-│   │   ├── id_policy.py              REQ-F-001 형식 ID 발급 (결정적)
-│   │   ├── registry.py               요구사항 CRUD, 상태 전이, 삭제=상태변경
-│   │   ├── diff.py                   기존 vs 신규 요구사항 구조적 비교
-│   │   └── trace.py                  추적표 매트릭스 구성
+│   ├── ingest/                                                               [Phase 2 구현]
+│   │   ├── base.py                   ReaderResult, BlockBuilder, 제목/목록/목차 휴리스틱, 섹션 추적
+│   │   ├── pdf_reader.py             pdfplumber(텍스트·표) + pypdf(암호화·손상) + pypdfium2(스캔 렌더링→OCR)
+│   │   ├── docx_reader.py            python-docx 본문 순서(문단·표), 페이지 번호는 기록하지 않음
+│   │   ├── txt_reader.py             인코딩 자동 판별, 줄 번호 위치
+│   │   ├── ocr.py                    OCR 플러그인 (rapidocr 한국어, Null 엔진)
+│   │   ├── chunker.py                블록 → LLM 청크 (<block id> 태그, 표 분할 금지, 목차 제외)
+│   │   ├── service.py                ExtractionService: 형식 판별·추출·블록 저장·Gate 0 (코드 판정)
+│   │   └── excel_reader.py           (Phase 6) 구축 단계 기존 산출물 파싱
+│   ├── requirements/                                                         [Phase 2 구현]
+│   │   ├── id_policy.py              설정 가능한 접두사(FR/NFR/CON/EVA/SUB) ID 발급, 재발급 금지, 재추출 매칭
+│   │   ├── service.py                RequirementService: 청크별 추출·독립 검증, 출처 검증, 사람 검토·수정·삭제, Gate 1
+│   │   ├── diff.py                   (Phase 6) 기존 vs 신규 요구사항 구조적 비교
+│   │   └── trace.py                  (Phase 4) 추적표 매트릭스 구성
 │   ├── research/
 │   │   ├── sources.py                출처 레코드, 공식 문서 우선순위
 │   │   └── feasibility.py            구현 가능성 판정 스키마 병합

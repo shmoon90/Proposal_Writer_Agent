@@ -20,11 +20,11 @@ def test_allocate_sequential_per_type_and_project(
 ) -> None:
     policy = RequirementIdPolicy(services.ctx.repos.sequences)
     a = proposal_project.id
-    assert policy.allocate(a, RequirementType.FUNCTIONAL) == "REQ-F-001"
-    assert policy.allocate(a, RequirementType.NON_FUNCTIONAL) == "REQ-N-001"
-    assert policy.allocate(a, RequirementType.FUNCTIONAL) == "REQ-F-002"
-    assert policy.allocate(build_project.id, RequirementType.FUNCTIONAL) == "REQ-F-001"
-    assert policy.peek(a, RequirementType.FUNCTIONAL) == "REQ-F-003"
+    assert policy.allocate(a, RequirementType.FUNCTIONAL) == "FR-001"
+    assert policy.allocate(a, RequirementType.NON_FUNCTIONAL) == "NFR-001"
+    assert policy.allocate(a, RequirementType.FUNCTIONAL) == "FR-002"
+    assert policy.allocate(build_project.id, RequirementType.FUNCTIONAL) == "FR-001"
+    assert policy.peek(a, RequirementType.FUNCTIONAL) == "FR-003"
 
 
 def test_ids_never_reissued_after_delete(services: Services, proposal_project: Project) -> None:
@@ -32,14 +32,14 @@ def test_ids_never_reissued_after_delete(services: Services, proposal_project: P
     first = policy.allocate(proposal_project.id, RequirementType.FUNCTIONAL)
     # 삭제는 상태 변경일 뿐 시퀀스를 되돌리지 않는다
     assert policy.allocate(proposal_project.id, RequirementType.FUNCTIONAL) != first
-    assert policy.allocate(proposal_project.id, RequirementType.FUNCTIONAL) == "REQ-F-003"
+    assert policy.allocate(proposal_project.id, RequirementType.FUNCTIONAL) == "FR-003"
 
 
 def test_resolve_keeps_existing_id_on_match(services: Services, proposal_project: Project) -> None:
     policy = RequirementIdPolicy(services.ctx.repos.sequences)
     existing = [
         Requirement(
-            id="REQ-F-001",
+            id="FR-001",
             project_id=proposal_project.id,
             name="사용자 로그인",
             type=RequirementType.FUNCTIONAL,
@@ -52,14 +52,14 @@ def test_resolve_keeps_existing_id_on_match(services: Services, proposal_project
         name="사용자  로그인!",
         rfp_quote=None,
         existing=existing,
-    ) == ("REQ-F-001", True)
+    ) == ("FR-001", True)
     assert policy.resolve(
         proposal_project.id,
         RequirementType.FUNCTIONAL,
         name="다른 이름",
         rfp_quote="sso 기반 로그인",
         existing=existing,
-    ) == ("REQ-F-001", True)
+    ) == ("FR-001", True)
     new_id, matched = policy.resolve(
         proposal_project.id,
         RequirementType.FUNCTIONAL,
@@ -67,7 +67,7 @@ def test_resolve_keeps_existing_id_on_match(services: Services, proposal_project
         rfp_quote=None,
         existing=existing,
     )
-    assert new_id == "REQ-F-001" and not matched  # 시퀀스는 이 프로젝트에서 처음 발급
+    assert new_id == "FR-001" and not matched  # 시퀀스는 이 프로젝트에서 처음 발급
 
 
 def test_normalize_and_find_match() -> None:
@@ -86,7 +86,9 @@ def test_legacy_scheme_infer_and_continue(services: Services, build_project: Pro
     assert LegacyIdScheme.infer(["없음"]) is None
 
 
-def test_validate_format() -> None:
-    RequirementIdPolicy.validate_format("REQ-F-001")
+def test_validate_format(services: Services) -> None:
+    policy = RequirementIdPolicy(services.ctx.repos.sequences)
+    assert policy.validate_format("FR-001") == RequirementType.FUNCTIONAL
+    assert policy.validate_format("CON-010") == RequirementType.CONSTRAINT
     with pytest.raises(ValidationError):
-        RequirementIdPolicy.validate_format("REQ-X-1")
+        policy.validate_format("ZZ-1")

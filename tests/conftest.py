@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
 
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # tests/fixtures 임포트
 
 from proposal_agent.config import ProjectPaths, Settings
 from proposal_agent.models import Project, ProjectMode

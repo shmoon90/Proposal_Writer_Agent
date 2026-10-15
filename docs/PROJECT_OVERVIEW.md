@@ -46,7 +46,10 @@ AI(LLM)는 **의미 해석·조사·작성·영향 분석**을 담당하고, **I
 | streamlit | 1.66.0 | |
 | pandas | 2.3.3 | D-03: 2.x 고정 결정 (`pandas>=2.2,<3`) |
 | openpyxl / python-pptx / python-docx | 3.1.5 / 1.0.2 / 1.2.0 | |
-| pymupdf / matplotlib | 1.28.2 / 3.11.2 | |
+| pdfplumber / pypdf / pypdfium2 | 0.11.10 / 6.20.1 / 5.14.0 | PyMuPDF 1.28.2는 이 PC의 앱 제어 정책이 DLL을 차단해 제거 (RISK R-19) |
+| rapidocr / onnxruntime | 3.10.0 / 1.31.0 | 한국어 OCR 확정 (D-02) |
+| matplotlib | 3.11.2 | |
+| reportlab (dev) | 5.0.1 | 테스트용 텍스트 PDF 픽스처 생성 |
 | pytest / pytest-asyncio / ruff / mypy | 9.1.1 / 1.4.0 / 0.17.0 / 2.4.0 | |
 | python-dotenv | 1.2.4 | .env 로드 |
 

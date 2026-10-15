@@ -41,7 +41,7 @@ def test_project_rejects_blank_name_and_bad_dates() -> None:
 
 def test_requirement_json_roundtrip() -> None:
     r = Requirement(
-        id="REQ-N-001",
+        id="NFR-001",
         project_id="prj_x",
         name="성능",
         type=RequirementType.NON_FUNCTIONAL,
@@ -57,11 +57,9 @@ def test_requirement_from_draft_sets_id_and_status() -> None:
     draft = RequirementDraft(
         name="로그인", description="SSO 로그인", type=RequirementType.FUNCTIONAL
     )
-    r = Requirement.from_draft(
-        draft, id="REQ-F-001", project_id="prj_x", created_by="agent:extractor"
-    )
+    r = Requirement.from_draft(draft, id="FR-001", project_id="prj_x", created_by="agent:extractor")
     assert (
-        r.id == "REQ-F-001"
+        r.id == "FR-001"
         and r.status == RequirementStatus.DRAFT
         and r.created_by == "agent:extractor"
     )
@@ -72,7 +70,7 @@ def test_draft_schema_excludes_id_and_status_and_is_draft07_compatible() -> None
     assert "id" not in schema["properties"] and "status" not in schema["properties"]
     assert "$schema" not in schema  # Agent SDK는 draft-07로 검증
     with pytest.raises(PydanticValidationError):
-        RequirementDraft(name="x", description="y", type="functional", id="REQ-F-999")  # type: ignore[call-arg]
+        RequirementDraft(name="x", description="y", type="functional", id="FR-999")  # type: ignore[call-arg]
 
 
 def test_requirement_state_transitions() -> None:

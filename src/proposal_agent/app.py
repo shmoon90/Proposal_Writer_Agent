@@ -14,6 +14,8 @@ st.set_page_config(
 pages = [
     st.Page("ui/app_pages/home.py", title="시작", icon=":material/home:", default=True),
     st.Page("ui/app_pages/project.py", title="프로젝트", icon=":material/folder_open:"),
+    st.Page("ui/app_pages/extraction.py", title="문서 추출", icon=":material/document_scanner:"),
+    st.Page("ui/app_pages/requirements.py", title="요구사항", icon=":material/checklist:"),
 ]
 page = st.navigation(pages, position="sidebar")
 page.run()

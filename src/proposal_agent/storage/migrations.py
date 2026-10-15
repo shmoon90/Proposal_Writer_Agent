@@ -156,4 +156,39 @@ MIGRATIONS: tuple[Migration, ...] = (
         );
         """,
     ),
+    Migration(
+        2,
+        "extraction_and_gates",
+        f"""
+        CREATE TABLE extraction_runs (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            source_document_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            {_COMMON}
+        );
+        CREATE INDEX ix_extraction_runs_doc ON extraction_runs(project_id, source_document_id);
+
+        CREATE TABLE extracted_blocks (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            source_document_id TEXT NOT NULL,
+            extraction_run_id TEXT NOT NULL,
+            block_type TEXT NOT NULL,
+            block_order INTEGER NOT NULL,
+            needs_review INTEGER NOT NULL DEFAULT 0,
+            {_COMMON}
+        );
+        CREATE INDEX ix_extracted_blocks_run ON extracted_blocks(project_id, extraction_run_id, block_order);
+
+        CREATE TABLE gate_evaluations (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            gate_key TEXT NOT NULL,
+            status TEXT NOT NULL,
+            {_COMMON}
+        );
+        CREATE INDEX ix_gate_evaluations_key ON gate_evaluations(project_id, gate_key, created_at);
+        """,
+    ),
 )

@@ -6,6 +6,7 @@ API 키는 로그·AuditEvent에 기록하지 않는다.
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field, fields
 from pathlib import Path
@@ -21,6 +22,15 @@ MODEL_ENV = "ANTHROPIC_MODEL"  # 설정 시 model_primary 기본값으로 사용
 
 DEFAULT_MODEL_PRIMARY = "claude-opus-5-5"
 DEFAULT_MODEL_WORKER = "claude-sonnet-5-5"
+
+# 요구사항 ID 접두사 기본값 (RequirementType.value → prefix). PWA_ID_PREFIXES=JSON 으로 재정의.
+DEFAULT_ID_PREFIXES: dict[str, str] = {
+    "functional": "FR",
+    "non_functional": "NFR",
+    "constraint": "CON",
+    "evaluation": "EVA",
+    "submission": "SUB",
+}
 
 _PATH_FIELDS = {"output_root", "workspace_root", "db_path"}
 APP_ENVS = ("dev", "prod")
@@ -45,6 +55,13 @@ class Settings:
     db_path: Path | None = None
     approver_name: str = "user"
     log_level: str = "INFO"
+    id_prefixes: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_ID_PREFIXES))
+    id_width: int = 3
+    ocr_engine: str = "rapidocr"  # rapidocr | none
+    ocr_lang: str = "korean"
+    ocr_min_chars_per_page: int = 25  # 이보다 적으면 스캔 페이지로 보고 OCR 시도
+    ocr_review_threshold: float = 0.80  # OCR 평균 신뢰도가 이보다 낮으면 검토 필요
+    extraction_chunk_chars: int = 12000
     env_file: Path | None = field(default=None, repr=False)
 
     @property
@@ -85,6 +102,11 @@ def _coerce(name: str, raw: str, current: object) -> object:
     try:
         if name in _PATH_FIELDS:
             return Path(raw).expanduser()
+        if isinstance(current, dict):
+            parsed = json.loads(raw)
+            if not isinstance(parsed, dict):
+                raise ValueError("JSON 객체가 아님")
+            return {str(k): str(v) for k, v in parsed.items()}
         if isinstance(current, bool):
             return raw.strip().lower() in {"1", "true", "yes", "on"}
         if isinstance(current, int):
@@ -92,11 +114,11 @@ def _coerce(name: str, raw: str, current: object) -> object:
         if isinstance(current, float):
             return float(raw)
         return raw
-    except ValueError as exc:
+    except (ValueError, json.JSONDecodeError) as exc:
         raise ConfigError(
             f"설정값 형식 오류: {ENV_PREFIX}{name.upper()}={raw!r}",
             cause=str(exc),
-            resolution="숫자/경로 형식을 확인하십시오.",
+            resolution="숫자/경로/JSON 형식을 확인하십시오.",
         ) from exc
 
 

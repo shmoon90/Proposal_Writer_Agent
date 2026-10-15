@@ -288,6 +288,16 @@ stateDiagram-v2
 - Phase 1 테이블: projects, source_documents, requirements, requirement_changes, requirement_traces, step_runs, gate_results, deliverables, validation_results, approvals, revisions, audit_events(추가 전용), sequences. WBS·인력·조사·아키텍처·화면·테스트 테이블은 모델만 정의하고 Phase 3~에서 마이그레이션 0002 이후로 추가한다.
 - 리비전 스냅샷은 DB 외에 `12_Revision_History/revision_v1.0.json`으로도 보존(파일 기반 복구 가능).
 
+### 6.2 Phase 2 추가 엔티티 (마이그레이션 0002)
+
+| 엔티티 | 주요 필드 | 설명 |
+|---|---|---|
+| `ExtractionRun` | `source_document_id`, `file_format`, `status`(success/partial/failed/unsupported), `page_count`, `unit_label`, `text_pages`, `ocr_pages`, `empty_pages`, `block_count`, `table_count`, `low_confidence_blocks`, `warnings`, `error`, `page_stats[]`, `ocr_engine`, `blocks_path` | 문서 1건 추출 실행 요약. 재실행은 새 레코드, 이전 블록 보존 |
+| `ExtractedBlock` | `source_document_id`, `extraction_run_id`, `file_name`, `file_format`, `order`, `block_type`(title/heading/toc/paragraph/list_item/table/page_text/appendix), `text`, `location`(page/section/paragraph_index/table_index/row/col/line_start), `extraction_method`(text/ocr), `confidence`, `needs_review`, `review_reason`, `table_cells` | 추출 단위. DOCX/TXT는 `page=None`(추측 금지) |
+| `GateEvaluation` | `gate_key`, `status`(PASS/FAIL/NEEDS_HUMAN_REVIEW), `reasons[]`, `metrics`, `evaluated_by`(code:… / user:…), `approval_id`, `step_run_id` | 코드가 계산한 Gate 상태. 사람 승인 시 `approval_id` 기록 |
+
+`Requirement`에 추가된 필드: `is_mandatory`, `review_status`(pending/approved/modified/rejected), `verification_method`, `impact_note`, `notes`, `linked_deliverables`, `confidence`, `history[]`(HistoryEntry: at/actor/action/changes/note). `RequirementType`에 `constraint`/`evaluation`/`submission` 추가, `ScopeClass`는 4단계(mandatory/supporting/optional_proposal/out_of_scope). `SourceRef`에 `block_id`, `location_label` 추가. 기본 ID 접두사는 FR/NFR/CON/EVA/SUB(설정 `PWA_ID_PREFIXES`, 프로젝트 `settings.id_prefixes`).
+
 ### 6.1 추가 엔티티: StepRun / GateResult (파이프라인 실행 기록)
 
 | 엔티티 | 주요 필드 | 설명 |

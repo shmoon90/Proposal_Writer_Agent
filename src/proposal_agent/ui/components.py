@@ -5,7 +5,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from proposal_agent.models import Project, StepStatus
+from proposal_agent.models import GateStatus, Project, StepStatus
+from proposal_agent.orchestrator.gates import GateState
 from proposal_agent.services.document_service import InputStatus
 from proposal_agent.services.pipeline_service import Issue, StepView
 from proposal_agent.services.project_service import ProjectLocations
@@ -104,3 +105,19 @@ def approvals_panel(history: list) -> None:
         for gate, approval in history
     ]
     st.dataframe(pd.DataFrame(rows), hide_index=True, alt="단계별 승인 이력")
+
+
+def gate_panel(gate: GateState) -> None:
+    """Gate 상태(PASS/FAIL/NEEDS_HUMAN_REVIEW)와 코드가 기록한 사유를 표시한다."""
+    reasons = gate.evaluation.reasons if gate.evaluation else ["아직 평가되지 않았습니다."]
+    lines = [f"**{gate.title}** — {gate.status.value}", ""]
+    lines.extend(f"- {r}" for r in reasons)
+    if gate.approved_by:
+        lines.extend(["", f"사람 검토 승인: {gate.approved_by}"])
+    body = chr(10).join(lines)
+    if gate.status == GateStatus.PASS:
+        st.success(body, icon=":material/verified:")
+    elif gate.status == GateStatus.NEEDS_HUMAN_REVIEW:
+        st.warning(body, icon=":material/rate_review:")
+    else:
+        st.error(body, icon=":material/block:")

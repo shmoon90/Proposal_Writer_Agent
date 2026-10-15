@@ -16,6 +16,16 @@ flowchart LR
 - 모드는 `Project.mode`로 저장되며 프로젝트 생성 후 변경 불가 (제안 프로젝트를 구축 모드로 **승계**하는 기능은 "기존 산출물 업로드" 대신 "제안 프로젝트에서 가져오기"로 Phase 6에 제공).
 - 모드에 따라 사이드바 메뉴, 입력 문서 종류, 파이프라인 단계, 검증 규칙 세트, 산출물 목록이 바뀐다.
 
+## 1.1 Gate 상태 (Phase 2 구현)
+
+| Gate | 판정 주체 | PASS | NEEDS_HUMAN_REVIEW | FAIL |
+|---|---|---|---|---|
+| Gate 0 문서 추출 품질 | `ExtractionService.evaluate_gate0` (코드) | 모든 필수 문서가 success, 검토 필요 블록 0 | 일부 페이지 저품질(partial), OCR 저신뢰 블록, 빈 페이지 30% 초과, OCR 비율 50% 이상 | 필수 문서 미등록·미추출·추출 실패·텍스트 없음 |
+| Gate 1 요구사항 추출·독립 검증 | `RequirementService.evaluate_gate1` (코드) | 모든 요구사항 검증 완료, 미해결 error 0, 기각·불확실 필수 항목 없음 | error 지적, 기각된 항목, 필수 항목 신뢰도 < 0.6 또는 수정 필요, 출처 없는 필수/지원 항목 | 요구사항 0건, 미검증 항목 존재 |
+
+- `NEEDS_HUMAN_REVIEW`는 사람이 **의견을 기록하고** 승인해야 PASS가 된다(`GateService.approve_human_review`). `FAIL`은 승인으로 넘길 수 없고 재처리 후 재평가해야 한다.
+- 오케스트레이터(`StepRunner`)는 요구사항 추출 전에 Gate 0, 제안서 생성 단계 전에 Gate 1을 `GateService.require()`로 검사한다. 에이전트가 자연어로 "통과"라고 해도 효력이 없다.
+
 ## 2. 파이프라인 공통 규칙
 
 - 각 단계(Step)는 `입력 조건 → 실행 → 결과 저장(draft) → 자동 검증 → (승인 게이트) → 다음 단계`로 구성.

@@ -26,6 +26,8 @@
 | R-16 | Windows 경로 길이(260자) 초과, 한글 파일명 인코딩 | 저장 실패 | 낮음 | slug 길이 제한, 긴 경로 허용 레지스트리 안내, UTF-8 고정 | 열림 |
 | R-17 | Agent SDK 번들 `claude.exe`가 Windows Defender·사내 보안 정책에 차단 | 에이전트 기동 실패 | 낮음 | `CLINotFoundError`/`ProcessError` 포착 후 원인·조치 안내, `cli_path` 옵션으로 수동 지정 | 열림 |
 | R-18 | API 데이터 보존 정책·보안: RFP가 외부 API로 전송됨 | 고객 보안 요건 위반 가능 | 중 | 프로젝트 생성 시 외부 전송 고지, 민감 문서는 사용자 책임으로 마스킹, 필요 시 Bedrock/Vertex 경로(R-04 연계) | 열림 |
+| R-19 | **PyMuPDF DLL이 개발 PC의 애플리케이션 제어 정책(WDAC/AppLocker)에 차단됨** (`_mupdf.pyd` 로드 실패, 2026-10-15 확인) | PDF 처리 불가 | 확실(현재) | PDF 스택을 순수 Python 조합으로 교체: 텍스트·표 `pdfplumber`, 암호화·손상 판별 `pypdf`, 스캔 페이지 렌더링 `pypdfium2`(DLL 로드 확인됨), 실패 시 `pypdf` 내장 이미지 추출로 대체. 다른 PC에서도 같은 정책이면 onnxruntime·pypdfium2도 차단될 수 있으므로 설치 후 `python -c "import pypdfium2, onnxruntime"`로 확인 | 완화됨 |
+| R-20 | OCR 결과의 띄어쓰기 누락·오탈자 (rapidocr 한국어 모델) | 요구사항 수치·용어 오류 | 중 | OCR 블록은 신뢰도와 `ocr="1"` 태그를 달아 에이전트에 전달, 저신뢰 페이지는 검토 필요로 표시, OCR 비율이 높으면 Gate 0 NEEDS_HUMAN_REVIEW | 열림 |
 
 ## 2. 외부 의존성
 
@@ -62,8 +64,9 @@
 | ID | 항목 | 선택지 | 결정 시점 | 담당 |
 |---|---|---|---|---|
 | D-01 | API 키 발급·보관 방식 | `.env` 로컬 / OS 환경변수 | Phase 1 시작 전 | 사용자 |
-| D-02 | OCR 엔진 | rapidocr / pytesseract / 미지원 | Phase 2 | 개발 |
-| D-03 | pandas 버전 | 2.x 고정 / 3.x | Phase 1 | 개발 |
+| D-02 | OCR 엔진 | **확정: `rapidocr` 3.10 + `onnxruntime`, 한국어 인식 모델 `korean_PP-OCRv5_rec_mobile`(첫 실행 시 12.9MB 다운로드). 모의 한국어 이미지 신뢰도 0.94~0.97 확인(2026-10-15)** | Phase 2 완료 | 개발 |
+| D-03 | pandas 버전 | **확정: 2.x 고정 (`pandas>=2.2,<3`)** | Phase 1 완료 | 개발 |
+| D-11 | PDF 라이브러리 | **확정: pdfplumber + pypdf + pypdfium2 (PyMuPDF는 R-19로 제외)** | Phase 2 완료 | 개발 |
 | D-04 | 역할별 모델 | opus/sonnet/haiku 조합 | Phase 2 실측 후 | 사용자+개발 |
 | D-05 | 다이어그램 렌더링 | matplotlib / python-pptx 도형 / 외부 Mermaid | Phase 4 | 개발 |
 | D-06 | PPT 템플릿 | 기본 생성 / 사용자 .pptx 템플릿 | Phase 4 | 사용자 |

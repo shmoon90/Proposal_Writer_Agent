@@ -18,6 +18,9 @@ from proposal_agent.models import (
     AuditEvent,
     Deliverable,
     Entity,
+    ExtractedBlock,
+    ExtractionRun,
+    GateEvaluation,
     GateResult,
     Project,
     ProjectScoped,
@@ -286,6 +289,78 @@ class AuditEventRepository(BaseRepository[AuditEvent]):
         return self.find(project_id, order_by="at", descending=True, limit=limit)
 
 
+class ExtractionRunRepository(BaseRepository[ExtractionRun]):
+    table = "extraction_runs"
+    model = ExtractionRun
+    columns = {"source_document_id": "source_document_id", "status": "status"}
+
+    def latest_for_document(self, project_id: str, document_id: str) -> ExtractionRun | None:
+        runs = self.find(
+            project_id,
+            source_document_id=document_id,
+            order_by="created_at",
+            descending=True,
+            limit=1,
+        )
+        return runs[0] if runs else None
+
+    def latest_by_document(self, project_id: str) -> dict[str, ExtractionRun]:
+        out: dict[str, ExtractionRun] = {}
+        for run in self.find(project_id, order_by="created_at"):
+            out[run.source_document_id] = run
+        return out
+
+
+class ExtractedBlockRepository(BaseRepository[ExtractedBlock]):
+    table = "extracted_blocks"
+    model = ExtractedBlock
+    columns = {
+        "source_document_id": "source_document_id",
+        "extraction_run_id": "extraction_run_id",
+        "block_type": "block_type",
+        "block_order": "order",
+        "needs_review": "needs_review",
+    }
+
+    def insert_many(self, blocks: list[ExtractedBlock]) -> None:
+        with self.db.transaction():
+            for b in blocks:
+                self.insert(b)
+
+    def for_run(self, project_id: str, run_id: str) -> list[ExtractedBlock]:
+        return self.find(project_id, extraction_run_id=run_id, order_by="block_order")
+
+    def get_many(self, project_id: str, ids: list[str]) -> dict[str, ExtractedBlock]:
+        if not ids:
+            return {}
+        return {b.id: b for b in self.find(project_id, id=list(ids), order_by="block_order")}
+
+    def search(
+        self, project_id: str, query: str, run_ids: list[str] | None = None, limit: int = 20
+    ) -> list[ExtractedBlock]:
+        """단순 부분 문자열 검색 (data JSON LIKE)."""
+        sql = f"SELECT data FROM {self.table} WHERE project_id = ? AND data LIKE ?"
+        params: list[Any] = [project_id, f"%{query}%"]
+        if run_ids:
+            sql += " AND extraction_run_id IN (" + ", ".join("?" for _ in run_ids) + ")"
+            params.extend(run_ids)
+        sql += f" ORDER BY block_order LIMIT {int(limit)}"
+        rows = self.db.conn.execute(sql, params).fetchall()
+        return [self._from_row(r) for r in rows]
+
+
+class GateEvaluationRepository(BaseRepository[GateEvaluation]):
+    table = "gate_evaluations"
+    model = GateEvaluation
+    columns = {"gate_key": "gate_key", "status": "status"}
+
+    def latest(self, project_id: str, gate_key: str) -> GateEvaluation | None:
+        rows = self.find(
+            project_id, gate_key=gate_key, order_by="created_at", descending=True, limit=1
+        )
+        return rows[0] if rows else None
+
+
 class SequenceRepository:
     """프로젝트별 단조 증가 시퀀스 (요구사항 ID 발급 등). 값은 낮아지지 않는다."""
 
@@ -349,3 +424,6 @@ class Repositories:
         self.revisions = RevisionRepository(db)
         self.audit = AuditEventRepository(db)
         self.sequences = SequenceRepository(db)
+        self.extraction_runs = ExtractionRunRepository(db)
+        self.blocks = ExtractedBlockRepository(db)
+        self.gate_evaluations = GateEvaluationRepository(db)

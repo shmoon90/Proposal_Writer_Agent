@@ -77,27 +77,27 @@ def test_requirements_are_isolated_per_project(repos: Repositories) -> None:
     a = repos.projects.insert(_project("A", "Project_A"))
     b = repos.projects.insert(_project("B", "Project_B"))
     repos.requirements.insert(
-        Requirement(id="REQ-F-001", project_id=a.id, name="a1", type=RequirementType.FUNCTIONAL)
+        Requirement(id="FR-001", project_id=a.id, name="a1", type=RequirementType.FUNCTIONAL)
     )
     repos.requirements.insert(
-        Requirement(id="REQ-F-001", project_id=b.id, name="b1", type=RequirementType.FUNCTIONAL)
+        Requirement(id="FR-001", project_id=b.id, name="b1", type=RequirementType.FUNCTIONAL)
     )
     assert [r.name for r in repos.requirements.find(a.id)] == ["a1"]
     assert [r.name for r in repos.requirements.find(b.id)] == ["b1"]
-    assert repos.requirements.get("REQ-F-001", a.id).name == "a1"
+    assert repos.requirements.get("FR-001", a.id).name == "a1"
     with pytest.raises(StorageError):
-        repos.requirements.get("REQ-F-001")  # 복합 키는 project_id 필수
+        repos.requirements.get("FR-001")  # 복합 키는 project_id 필수
 
 
 def test_requirement_has_no_physical_delete(repos: Repositories) -> None:
     p = repos.projects.insert(_project())
     r = repos.requirements.insert(
-        Requirement(id="REQ-F-001", project_id=p.id, name="x", type=RequirementType.FUNCTIONAL)
+        Requirement(id="FR-001", project_id=p.id, name="x", type=RequirementType.FUNCTIONAL)
     )
     assert not hasattr(repos.requirements, "delete")
     r.status = RequirementStatus.DELETED
     repos.requirements.update(r)
-    assert repos.requirements.get("REQ-F-001", p.id).status == RequirementStatus.DELETED
+    assert repos.requirements.get("FR-001", p.id).status == RequirementStatus.DELETED
     assert repos.requirements.count(p.id) == 1
 
 

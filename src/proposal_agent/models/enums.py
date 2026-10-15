@@ -56,8 +56,23 @@ class ExtractionMethod(StrEnum):
 
 
 class RequirementType(StrEnum):
+    """요구사항 종류. 기능/비기능을 명확히 분리하고 제약·평가·제출 조건은 별도 종류로 둔다."""
+
     FUNCTIONAL = "functional"
     NON_FUNCTIONAL = "non_functional"
+    CONSTRAINT = "constraint"
+    EVALUATION = "evaluation"
+    SUBMISSION = "submission"
+
+    @property
+    def label(self) -> str:
+        return {
+            "functional": "기능",
+            "non_functional": "비기능",
+            "constraint": "제약사항",
+            "evaluation": "평가 기준",
+            "submission": "제출 조건",
+        }[self.value]
 
 
 class RequirementCategory(StrEnum):
@@ -77,9 +92,21 @@ class RequirementCategory(StrEnum):
 
 
 class ScopeClass(StrEnum):
-    MANDATORY = "mandatory"
-    OPTIONAL_PROPOSAL = "optional_proposal"
-    OUT_OF_SCOPE = "out_of_scope"
+    """범위 분류 (4단계)."""
+
+    MANDATORY = "mandatory"  # 1. RFP 필수
+    SUPPORTING = "supporting"  # 2. 필수 구현에 필요한 지원 범위
+    OPTIONAL_PROPOSAL = "optional_proposal"  # 3. 선택적 부가 제안
+    OUT_OF_SCOPE = "out_of_scope"  # 4. 불필요하거나 위험한 과잉 범위
+
+    @property
+    def label(self) -> str:
+        return {
+            "mandatory": "RFP 필수",
+            "supporting": "지원 범위",
+            "optional_proposal": "부가 제안",
+            "out_of_scope": "과잉 범위",
+        }[self.value]
 
 
 class AcceptanceStatus(StrEnum):
@@ -96,6 +123,15 @@ class RequirementStatus(StrEnum):
     BASELINE = "baseline"
     CHANGED = "changed"
     DELETED = "deleted"
+
+
+class ReviewStatus(StrEnum):
+    """사람 검토 상태."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    MODIFIED = "modified"
+    REJECTED = "rejected"
 
 
 class VerificationStatus(StrEnum):
@@ -242,6 +278,38 @@ class StepStatus(StrEnum):
             "failed": "실패",
             "skipped": "건너뜀",
         }[self.value]
+
+
+class GateStatus(StrEnum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    NEEDS_HUMAN_REVIEW = "NEEDS_HUMAN_REVIEW"
+
+
+class FileFormat(StrEnum):
+    PDF = "pdf"
+    DOCX = "docx"
+    TXT = "txt"
+    UNSUPPORTED = "unsupported"
+
+
+class ExtractionStatus(StrEnum):
+    SUCCESS = "success"
+    PARTIAL = "partial"  # 일부 페이지 실패/저품질
+    FAILED = "failed"
+    UNSUPPORTED = "unsupported"
+
+
+class BlockType(StrEnum):
+    TITLE = "title"
+    HEADING = "heading"
+    TOC = "toc"
+    PARAGRAPH = "paragraph"
+    LIST_ITEM = "list_item"
+    TABLE = "table"
+    TABLE_CELL = "table_cell"
+    PAGE_TEXT = "page_text"  # OCR/PDF 페이지 단위 텍스트
+    APPENDIX = "appendix"
 
 
 class ActorKind(StrEnum):
