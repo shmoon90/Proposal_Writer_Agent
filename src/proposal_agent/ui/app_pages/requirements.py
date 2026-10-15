@@ -8,6 +8,7 @@ import streamlit as st
 from proposal_agent.config.errors import PWAError
 from proposal_agent.ingest.service import GATE0_KEY
 from proposal_agent.models import (
+    Difficulty,
     GateStatus,
     Priority,
     RequirementCategory,
@@ -203,7 +204,20 @@ else:
                 priority = st.selectbox(
                     "중요도", options=list(Priority), index=list(Priority).index(req.priority)
                 )
-                approach = st.text_area("구현 방안", value=req.implementation_approach or "")
+                approach = st.text_area(
+                    "구현 방안",
+                    value=req.implementation_approach or "",
+                    help=f"작성 주체: {req.approach_source or '없음'} · 근거: {', '.join(req.approach_basis[:3]) or '없음'}. 직접 고치면 '사람 작성(user)'으로 바뀌어 에이전트가 덮어쓰지 않습니다.",
+                )
+                diff_options = [None, *list(Difficulty)]
+                difficulty = st.selectbox(
+                    "구현 난이도",
+                    options=diff_options,
+                    index=diff_options.index(req.difficulty),
+                    format_func=lambda d: "(미정)" if d is None else d.label,
+                    help=req.difficulty_basis or "변경 요청 영향(공수·일정) 산정의 가중치",
+                )
+                criteria = st.text_area("검사 기준(판정 기준)", value=req.acceptance_criteria)
                 vmethod = st.text_input("검증 방법", value=req.verification_method or "")
                 impact = st.text_area(
                     "비용·일정·운영 영향 (부가 제안 시)", value=req.impact_note or ""
@@ -224,6 +238,13 @@ else:
                             "is_mandatory": mandatory,
                             "priority": priority,
                             "implementation_approach": approach or None,
+                            **(
+                                {"approach_source": "user"}
+                                if (approach or "") != (req.implementation_approach or "")
+                                else {}
+                            ),
+                            "difficulty": difficulty,
+                            "acceptance_criteria": criteria,
                             "verification_method": vmethod or None,
                             "impact_note": impact or None,
                             "notes": notes,

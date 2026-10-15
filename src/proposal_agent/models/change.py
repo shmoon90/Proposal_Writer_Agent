@@ -95,6 +95,14 @@ class ChangeCandidate(BaseModel):
     )
     screens_affected: list[str] = Field(default_factory=list)
     tests_affected: list[str] = Field(default_factory=list)
+    change_aspects: list[str] = Field(
+        default_factory=list,
+        description="문맥 비교에서 달라진 관점 (범위·대상 사용자·입출력·업무 규칙·수치 조건·화면·연계·성능/보안·데이터)",
+    )
+    difficulty: str | None = Field(
+        default=None, description="변경 구현 난이도 상/중/하 (공수·일정 영향 가중치)"
+    )
+    difficulty_basis: str = ""
     user_decision: str | None = Field(default=None, description="accept | reject | None")
     user_override: dict[str, Any] = Field(
         default_factory=dict, description="사용자가 직접 수정한 필드"

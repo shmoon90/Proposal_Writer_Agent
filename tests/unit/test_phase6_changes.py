@@ -599,16 +599,20 @@ def test_s12_approval_flow_and_versioned_outputs(services: Services, loaded: Pro
     wb = load_workbook(_out(services, cr.after_files[0]))
     assert "변경관리대장" in wb.sheetnames
     ws = wb["기능요구사항"]
-    header = [c.value for c in ws[1]]
-    assert "추가 요청자" in header and "추가일" in header and "변경 상태" in header
-    rows = {r[0]: r for r in ws.iter_rows(min_row=2, values_only=True) if r[0]}
+    header = [c.value for c in ws[2]]  # Phase 14: 1행 묶음 머리글, 2행 컬럼 머리글
+    assert "추가 요청자" in header and "추가일" in header and "요구사항 변경여부" in header
+    idc = header.index("요구사항 ID")
+    rows = {r[idc]: r for r in ws.iter_rows(min_row=3, values_only=True) if r[idc]}
     assert (
         rows["SFR-006"][header.index("추가 요청자")] == "홍길동"
-        and rows["SFR-005"][header.index("변경 상태")] == "삭제"
+        and rows["SFR-005"][header.index("요구사항 변경여부")] == "삭제"
+        and rows["SFR-006"][header.index("구현 난이도")] in ("상", "중", "하")
+        and "[자동 초안]" in str(rows["SFR-006"][header.index("구현방안")])
     )
     tm = load_workbook(_out(services, cr.after_files[1]))["추적표"]
-    th = [c.value for c in tm[1]]
-    trows = {r[0]: r for r in tm.iter_rows(min_row=2, values_only=True) if r[0]}
+    th = [c.value for c in tm[2]]
+    tidc = th.index("요구사항 ID")
+    trows = {r[tidc]: r for r in tm.iter_rows(min_row=3, values_only=True) if r[tidc]}
     assert (
         trows["SFR-005"][th.index("검토 상태")] == "재검토 필요"
         and trows["SFR-005"][th.index("화면 ID")] == "SCR-005"
@@ -651,9 +655,10 @@ def test_s12_approval_flow_and_versioned_outputs(services: Services, loaded: Pro
     )
     assert len(repos.revisions.find(loaded.id)) == 3
     log = services.changes.change_log_rows(loaded)
-    assert any(r[0] == "CR-001" and r[1] == "ADD" and r[9] == "applied" for r in log) and any(
-        r[0] == "CR-003" and r[9] == "rejected" for r in log
-    )
+    assert any(r[0] == "CR-001" and r[1] == "ADD" and r[11] == "applied" for r in log) and any(
+        r[0] == "CR-003" and r[11] == "rejected" for r in log
+    )  # Phase 14: 분류 근거 뒤에 변경 관점·구현 난이도 2열 추가
+    assert any(r[0] == "CR-001" and r[10] for r in log)  # 구현 난이도 기록
 
 
 # 13. 반영 중 오류 → 트랜잭션 롤백, 상태 error, 재시도 가능 ------------------------------------------

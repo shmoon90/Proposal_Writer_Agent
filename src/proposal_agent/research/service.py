@@ -28,6 +28,7 @@ from proposal_agent.models import (
     TechAlternativeRecord,
     TechnologyResearch,
 )
+from proposal_agent.requirements.difficulty import approach_lines
 from proposal_agent.research.sources import classify_url, effective_trust
 from proposal_agent.storage.repositories import Repositories
 
@@ -257,9 +258,11 @@ class ResearchService:
             req = by_any_id.get(rid)  # 내부 ID(FR-001) 또는 RFP ID(SFR-001)
             if req is None or req.implementation_approach:
                 continue
-            req.implementation_approach = (
-                f"{text[:300]} (근거: 조사 '{rec.topic[:40]}', {rec.feasibility.value})"
-            )
+            lines = approach_lines(text[:300])[:4]
+            lines.append(f"- 근거: 조사 '{rec.topic[:40]}' ({rec.feasibility.value})")
+            req.implementation_approach = "\n".join(lines)
+            req.approach_source = "research"  # 조사 기반 초안 — approach_writer가 다시 쓸 수 있다
+            req.approach_basis = [rec.id]
             req.add_history(actor, "approach_from_research", note=rec.topic[:60])
             self._repos.requirements.update(req)
 

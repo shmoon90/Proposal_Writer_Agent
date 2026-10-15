@@ -44,7 +44,7 @@ def test_step_without_gate_completes_to_approved(
         services.pipeline.start_step(proposal_project, "upload")  # 이미 실행 중
     services.pipeline.complete_step(proposal_project, run, summary="done")
     assert run.status == StepStatus.APPROVED
-    assert services.pipeline.progress(proposal_project) == (1, 13)
+    assert services.pipeline.progress(proposal_project) == (1, 14)
     assert services.pipeline.current_step(proposal_project).definition.key == "extract"
 
 

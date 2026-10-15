@@ -26,6 +26,7 @@ EXPECTED_ROLES = {
     "document_generator",
     "qa_reviewer",
     "semantic_differ",  # Phase 6: 구축 단계 변경 요청 의미 비교
+    "approach_writer",  # Phase 14: 요구사항별 구현 방안·난이도·검사 기준
 }
 
 
@@ -54,7 +55,7 @@ def test_only_researcher_has_web_tools() -> None:
         for k, r in ROLES.items()
         if "WebSearch" in r.builtin_tools or "WebFetch" in r.builtin_tools
     }
-    assert web == {"tech_researcher"}
+    assert web == {"tech_researcher", "approach_writer"}  # 조사·구현 방안 역할만 웹 검색
 
 
 def test_mcp_tool_patterns_exist_on_project_server() -> None:

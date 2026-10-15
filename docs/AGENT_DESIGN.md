@@ -21,7 +21,8 @@
 | 7 | `proposal_writer` | 기준 데이터 + `<proposal_template>`(템플릿 관행) + `<rfp_toc>`(RFP 지정 목차, Phase 12) | `ProposalContent` (섹션에 chapter/section/number/lead_message/table/requirement_ids/footnotes) | 없음 | pwa 읽기 9종 | 15 / $4 / 600s | 1·4·5·6 |
 | 8 | `document_generator` | 기준 데이터 | `DocumentPlan` (파일은 코드 생성) | 없음 | pwa 읽기 9종 | 10 / $2 / 600s | 7·6·5 |
 | 9 | `qa_reviewer` | 산출물 텍스트·기준·변경 요청 | `QaReport` | 없음 | pwa 읽기 9종 + `verify_deliverable_file` | 12 / $3 / 600s | 8·7 |
-| 10 | `semantic_differ` (Phase 6) | 변경 요청 항목·기존 요구사항·규칙 분류 | `SemanticDiffDraft` | 없음 | `pwa.list_requirements`, `pwa.get_requirement` | 8 / $1.5 / 600s | — (규칙 결과를 입력으로 받음) |
+| 10 | `semantic_differ` (Phase 6) | 변경 요청 항목·기존 요구사항(설명+구현 방안)·규칙 분류 | `SemanticDiffDraft` (Phase 14: `change_aspects`·`difficulty`·`difficulty_basis`·`effort_hint`) | 없음 | `pwa.list_requirements`, `pwa.get_requirement` | 8 / $1.5 / 600s | — (규칙 결과를 입력으로 받음) |
+| 11 | `approach_writer` (Phase 14) | 요구사항 묶음(≤20) + `<research>` 조사 기록 + `<architecture>` 구성 요소 + `<comparisons>` 기술 선택 | `ApproachReport{items[{requirement_id, approach(글머리 2~5줄), difficulty(상/중/하), difficulty_basis, verification_method, acceptance_criteria, research_refs, sources[], feasibility, notes}], research_needed[]}` | **WebSearch, WebFetch** | `pwa.get_requirement`, `pwa.list_research` | 20 / $4 / 900s | rfp_analyst |
 
 공통 실패 처리: `AgentRunError(subtype, cause, resolution, detail.category)` → StepRun `failed` + 감사 이벤트. 일시 오류(rate_limit/overloaded/connection/process)만 `retries` 횟수 재시도, 크레딧·인증·예산·스키마 오류는 즉시 실패. 시간 초과·취소는 `ClaudeSDKClient.interrupt()`로 중단.
 
@@ -115,6 +116,7 @@
 - 입력 문서 텍스트는 `<document id="…" page="…">` 블록으로 감싸 데이터임을 명시한다.
 - 요구사항 ID, 날짜, 금액은 프롬프트에서 "계산하지 말고 비워 두라"고 지시하고 스키마에서도 받지 않는다.
 - 독립 검증 프롬프트는 추출 프롬프트와 어휘·순서를 달리 작성해 동일 편향을 줄인다.
+- (Phase 14) `approach_writer`는 요구사항 정의서의 **구현방안·구현 난이도·검증 방법·검사 기준**을 요구사항마다 짧게 쓴다(`requirements/approach.py`, 단계 `impl_approach`). 조사·구성 요소·기술 선택에 근거가 있는 내용만 구체화하고, 새로 열람한 출처는 조사 기록(`TechnologyResearch`)으로 저장해 QA-TECH-07의 근거 연결에 쓰인다. 빠뜨린 항목은 코드가 프로젝트 데이터만으로 규칙 초안을 만들어 `[자동 초안]`(`approach_source=rule`)으로 표시하고, 사람이 쓴 방안(`user`)은 덮어쓰지 않는다. `semantic_differ`는 변경 항목마다 문맥 관점(범위·대상 사용자·입출력·업무 규칙·수치 조건·화면·연계·성능/보안·데이터)과 난이도를 내고, 코드는 이를 공수 추정 가중치(`changes/impact.py`)에 반영한다.
 - (Phase 13) `proposal_writer`는 `<feasibility>`(필수 요구사항별 구현 방안·근거 조사·구현 가능성·출처 수)를 받아 **구현 가능(feasible/with_risk) 조사 근거가 있는 것만** 구체적 구현 방안으로 쓰고, 조사가 없으면 "조사 후 확정"으로 쓰며 소절마다 `feasibility_basis`를 적는다(규칙 9). 작성 단계는 기술 조사 기록이 없으면 실행되지 않는다(`StepRunner.run_proposal_writing`). 소절 도식은 `visual`(VisualSpec: cards/flow/process/two_column/dataflow/screen/kpis/compare)로 지정하고 코드가 편집 가능한 도형으로 그린다(규칙 10, `generators/pptx/shapes.py`). 조사 결과는 `ResearchService._fill_implementation_approach`가 관련 요구사항의 구현 방안을 채운다.
 - (Phase 12) 제안서 작성(`proposal_writer`)은 `GenerationService.proposal_brief()`가 만든 `<proposal_template>`(템플릿 PPTX에서 읽은 관행: 용지·머리글 2단·리드·번호 체계·RFP ID 카드·표 유형·글꼴)과 `<rfp_toc>`(RFP 지정 목차 장/절·작성방법)를 받아 소절 단위 문안을 쓴다. 장·절 배치와 번호 매기기, 슬라이드 분할, 표 그리기는 코드(`outline.plan_chapters`, `TemplateDeckBuilder`)가 한다. `qa_reviewer`에도 같은 요약이 들어가고 코드 검사 QA-FILE-11이 용지·머리글·장 순서·글꼴을 대조한다.
 - (Phase 11) 코드가 만든 RFP 구조 프로파일을 에이전트에 넘긴다. `rfp_analyst`는 `<rfp_profile>`(절 구성·ID 체계·목차·평가 요약)을 먼저 받고, `requirement_extractor`는 block 태그의 `section="…"`(절 종류)와 `rfp_id="SFR-001"`(RFP 자체 ID)을 보고 `rfp_requirement_id`를 채우며 세로 라벨 잡음을 무시한다(프롬프트 규칙 13·14). ID 부여·커버리지 판정은 여전히 코드가 한다 (`RequirementService._check_rfp_coverage`, QA-RFP-07).

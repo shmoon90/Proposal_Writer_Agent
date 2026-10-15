@@ -119,7 +119,14 @@ erDiagram
 | `type` | RequirementType | 기능/비기능 |
 | `category` | RequirementCategory | |
 | `scope_class` | ScopeClass | 필수/선택 제안/과잉 범위 |
-| `implementation_approach` | str \| None | 구현 방안 |
+| `implementation_approach` | str \| None | 구현 방안 (글머리 2~5줄 요약, Phase 14부터 요구사항마다 자동 작성) |
+| `approach_source` | str | 구현 방안 작성 주체: `agent` / `research`(조사 한 줄 초안) / `rule`(규칙 초안 `[자동 초안]`) / `user` / `baseline` / 빈값 |
+| `approach_basis` | list[str] | 구현 방안 근거: 조사 ID(TR-…)·출처 URL·구성 요소 |
+| `difficulty` / `difficulty_basis` | Difficulty(상/중/하) \| None / str | 구현 난이도와 근거. 변경 영향 공수 가중치(0.7/1.0/1.4) |
+| `acceptance_criteria` | str | 검사(판정) 기준 — 정의서 '검사 기준', 추적표 '판정 기준' |
+| `business_area` | str | 대분류(업무 구분·RFP 장/절) |
+| `review_notes` | str | 검토 및 협의 내용 |
+| `related_requirement_ids` | list[str] | 관련 요구사항 ID |
 | `acceptance_status` | AcceptanceStatus | 수용 상태 |
 | `status` | RequirementStatus | 수명주기 (삭제=`deleted`) |
 | `verification_status` | VerificationStatus | 독립 검증 결과 |

@@ -579,6 +579,10 @@ def check_tech_feasibility(inp: QaInputs, ppt_texts: dict[str, list[str]]) -> li
         ]
         if not r.implementation_approach:
             rev07.append(f"{r.id}: 구현 방안 미작성")
+        elif r.approach_source == "rule" or "[자동 초안]" in r.implementation_approach:
+            rev07.append(
+                f"{r.id}: 구현 방안 미확정(규칙 초안 [자동 초안] — 에이전트 작성 또는 사람 확정 필요)"
+            )
         if not linked:
             rev07.append(f"{r.id}: 근거 조사 없음 (웹 검색 기반 기술 조사 필요)")
         elif not any(t.feasibility in ok_verdicts for t in linked):
@@ -687,6 +691,14 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
             gate="gate5",
             mandatory=False,
             fix_suggestion="기술·수용 여부를 확정한 뒤 재생성",
+        ),
+        _check(
+            "QA-CON-09",
+            cat,
+            "요구사항 정의서 구현 방안·난이도",
+            "수용된 구현 대상 요구사항마다 구현 방안(글머리 요약)·구현 난이도(상/중/하)·검사 기준이 기준 데이터와 정의서 파일에 있는가. 규칙 초안([자동 초안])은 사람 확인 대상(조사 검토 게이트)",
+            gate="gate2",
+            fix_suggestion="'구현 방안 작성(에이전트)'을 실행하거나 요구사항 화면에서 구현 방안·난이도를 확정한 뒤 재생성",
         ),
     ]
     f = art.outcome.findings
@@ -889,7 +901,55 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
         _not_run(checks[7], "구축 단계는 PPT를 생성하지 않음")
     else:
         _finish(checks[7], review=r08 + f08)
+    # 09: 정의서 구현 방안·난이도·검사 기준 (Phase 14) — 수용된 구현 대상 요구사항마다 채워져 있는가
+    f09: list[str] = []
+    r09: list[str] = []
+    spec_rows = _spec_rows(spec)
+    for r in inp.requirements:
+        if (
+            r.type.value in ("evaluation", "submission")
+            or r.acceptance_status == AcceptanceStatus.REJECTED
+            or r.change_state == "deleted"
+        ):
+            continue
+        if not r.implementation_approach:
+            f09.append(f"{r.id}: 구현 방안 없음")
+        elif r.approach_source == "rule" or "[자동 초안]" in r.implementation_approach:
+            r09.append(f"{r.id}: 규칙 초안([자동 초안]) — 사람 확인 필요")
+        if r.difficulty is None:
+            r09.append(f"{r.id}: 구현 난이도 미기재 (변경 영향 산정 시 '중' 가중치 적용)")
+        if not r.acceptance_criteria:
+            r09.append(f"{r.id}: 검사 기준 없음")
+        row = spec_rows.get(r.id)
+        if row is not None:
+            if not row.get("구현방안") or row.get("구현방안") == "검토 필요":
+                f09.append(f"{r.id}: 정의서 파일의 구현방안 칸이 비어 있음")
+            if row.get("구현 난이도") not in ("상", "중", "하"):
+                r09.append(f"{r.id}: 정의서 파일의 구현 난이도가 상/중/하가 아님")
+    _finish(
+        checks[8],
+        fail=_cap(f09),
+        review=_cap(r09),
+        req_ids=[x.split(":")[0] for x in f09 + r09],
+        files=_kind_files(inp, DeliverableKind.REQUIREMENT_SPEC_XLSX),
+    )
     return checks
+
+
+def _spec_rows(sheets: dict[str, list[list[Any]]]) -> dict[str, dict[str, Any]]:
+    """정의서 본문 시트 행을 요구사항 ID → {컬럼명: 값}으로 모은다."""
+    out: dict[str, dict[str, Any]] = {}
+    for name in ("기능요구사항", "비기능요구사항", "제약·평가·제출조건"):
+        data = sheets.get(name)
+        if not data or "요구사항 ID" not in data[0]:
+            continue
+        headers = [str(h) for h in data[0]]
+        for row in data[1:]:
+            rec = dict(zip(headers, row, strict=False))
+            rid = rec.get("요구사항 ID")
+            if rid:
+                out[str(rid)] = rec
+    return out
 
 
 def _looks_like_req_id(token: str, prefixes: dict[str, str]) -> bool:

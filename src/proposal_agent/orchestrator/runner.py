@@ -212,6 +212,54 @@ class StepRunner:
             pipeline.fail_step(project, run, exc, actor=actor)
             raise
 
+    STEP_APPROACH = "impl_approach"
+
+    def run_approach_writing(
+        self,
+        project: Project,
+        *,
+        actor: str = "user",
+        cancel: CancellationToken | None = None,
+        only_missing: bool = True,
+        requirement_ids: list[str] | None = None,
+    ) -> StepOutcome:
+        """요구사항별 구현 방안·난이도·검사 기준 작성 에이전트(approach_writer). Gate 1 통과 필요.
+
+        정의서의 '구현방안' 칸을 요구사항마다 채운다(제안서보다 짧은 요약). 에이전트가 빠뜨린 항목은
+        조사·구성 요소 데이터로 규칙 초안을 만들어 ``[자동 초안]``으로 표시한다. 사람이 쓴 방안은 유지한다.
+        """
+        self._s.gates.require(project, GATE1_KEY)
+        pipeline = self._s.pipeline
+        run = pipeline.start_step(project, self.STEP_APPROACH, actor=actor)
+        try:
+            result = self._s.approach.run(
+                project,
+                actor=actor,
+                step_run_id=run.id,
+                cancel=cancel,
+                only_missing=only_missing,
+                requirement_ids=requirement_ids,
+            )
+            summary = result.summary
+            if result.research_needed:
+                summary += " · 추가 조사: " + "; ".join(result.research_needed[:3])
+            pipeline.complete_step(
+                project,
+                run,
+                summary=summary,
+                cost_usd=result.cost_usd,
+                actor=actor,
+                output_refs={
+                    "agent": result.agent_filled,
+                    "rule": result.rule_filled,
+                    "research_created": result.research_created,
+                },
+            )
+            return StepOutcome(run=run, summary=summary)
+        except PWAError as exc:
+            pipeline.fail_step(project, run, exc, actor=actor)
+            raise
+
     def run_role_step(
         self,
         project: Project,
@@ -298,11 +346,14 @@ class StepRunner:
         pipeline = self._s.pipeline
         run = pipeline.start_step(project, self.STEP_GENERATE, actor=actor)
         try:
+            # 정의서 '구현방안' 칸이 비지 않도록: 빈 항목은 조사·구성 요소 데이터로 규칙 초안([자동 초안]) 채움
+            drafted = self._s.approach.ensure_filled(project, actor=actor)
             result = self._s.generation.generate_all(project, actor=actor)
             summary = (
                 f"산출물 {len(result.deliverables)}건 생성, 목차 출처 {result.outline[0].source if result.outline else '-'}, "
                 f"검토 필요 {len(result.review_items)}건"
                 + (f", 오류 {len(result.errors)}건" if result.errors else "")
+                + (f", 구현 방안 규칙 초안 {len(drafted)}건(사람 확인 필요)" if drafted else "")
             )
             if result.errors:
                 pipeline.fail_step(

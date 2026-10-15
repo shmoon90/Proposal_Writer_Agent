@@ -284,6 +284,45 @@ class DocumentPlan(_Strict):
     )
 
 
+# --- 8-2. 요구사항별 구현 방안 (Phase 14) -------------------------------------------------------
+
+
+class ApproachItem(_Strict):
+    """요구사항 정의서 '구현방안' 한 칸. 제안서보다 짧게(글머리 2~5줄, 300자 내외) 쓴다."""
+
+    requirement_id: str = Field(description="입력에 있는 요구사항 ID만")
+    approach: str = Field(
+        min_length=1,
+        description="구현 방안 요약. 줄마다 '- '로 시작, 2~5줄, 실제 구현 가능한 방식·제품·구조만",
+    )
+    difficulty: str = Field(default="중", description="구현 난이도: 상 | 중 | 하")
+    difficulty_basis: str = Field(
+        default="", description="난이도 판단 근거 (연계 수·신기술·수치 조건 등)"
+    )
+    verification_method: str = Field(default="", description="검증 방법: 시연 | 시험 | 검사 | 분석")
+    acceptance_criteria: str = Field(
+        default="", description="검사(판정) 기준 1~3줄 — 완료를 판정할 수 있는 조건"
+    )
+    research_refs: list[str] = Field(
+        default_factory=list, description="근거로 쓴 조사 ID(TR-…) — 입력 <research>에 있는 것만"
+    )
+    sources: list[ResearchSourceDraft] = Field(
+        default_factory=list, description="이 항목을 위해 새로 열람한 출처 (열람하지 않은 URL 금지)"
+    )
+    feasibility: FeasibilityVerdict = Field(
+        default=FeasibilityVerdict.UNKNOWN, description="근거 기준 구현 가능성"
+    )
+    notes: str = Field(default="", description="가정·확인 필요 사항")
+
+
+class ApproachReport(_Strict):
+    items: list[ApproachItem] = Field(default_factory=list)
+    research_needed: list[str] = Field(
+        default_factory=list, description="근거가 없어 추가 기술 조사가 필요한 요구사항 ID와 주제"
+    )
+    notes: str = ""
+
+
 # --- 9. QA·변경 검토 -----------------------------------------------------------------------------
 
 
@@ -299,6 +338,17 @@ class SemanticDiffCandidate(_Strict):
     )
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     needs_confirmation: bool = True
+    change_aspects: list[str] = Field(
+        default_factory=list,
+        description="문맥상 달라진 관점: 범위 | 대상 사용자 | 입력/출력 | 업무 규칙 | 수치 조건 | 화면 | 연계 | 성능/보안 | 데이터",
+    )
+    difficulty: str | None = Field(
+        default=None, description="변경 구현 난이도: 상 | 중 | 하 (판단 불가면 null)"
+    )
+    difficulty_basis: str = Field(default="", description="난이도 근거")
+    effort_hint: str = Field(
+        default="", description="공수·일정 영향 힌트 (예: 연계 1건 추가로 설계·시험 공수 증가)"
+    )
 
 
 class SemanticDiffDraft(_Strict):

@@ -185,6 +185,86 @@ def similarity(a: str, b: str) -> float:
     return round(score, 4)
 
 
+ASPECT_LABELS: dict[str, str] = {
+    "scope": "범위",
+    "actor": "대상 사용자",
+    "io": "입력/출력",
+    "rule": "업무 규칙",
+    "number": "수치 조건",
+    "screen": "화면",
+    "interface": "연계",
+    "quality": "성능/보안",
+    "data": "데이터",
+}
+_IO_WORDS = ("입력", "출력", "업로드", "다운로드", "첨부", "파일", "양식", "출력물", "인쇄")
+_INTERFACE_WORDS = ("연계", "인터페이스", "api", "외부", "전송", "수신", "연동")
+_DATA_WORDS = ("데이터", "테이블", "이관", "저장", "보관", "이력", "db")
+_RULE_WORDS = ("규칙", "조건", "기준", "권한", "승인", "반려", "검증", "제한", "필수", "만")
+
+
+def context_delta(before: str, after: str) -> list[str]:
+    """변경 전후 문장의 **문맥** 차이를 관점(ASPECT_LABELS 키)으로 돌려준다 — 단순 문자열 비교가 아니다.
+
+    주체(사용자)·행위·수치 조건·화면·품질 조건·연계·데이터·입출력·규칙 단어 집합을 비교하고,
+    분량이 크게 늘거나 줄면 '범위'로 본다.
+    """
+    fb, fa = extract_features(before or ""), extract_features(after or "")
+    lb, la = (before or "").casefold(), (after or "").casefold()
+    out: list[str] = []
+    if set(fb.actors) != set(fa.actors):
+        out.append("actor")
+    if set(fb.rules) != set(fa.rules):
+        out.append("number")
+    if set(fb.screens) != set(fa.screens):
+        out.append("screen")
+    if set(fb.quality) != set(fa.quality):
+        out.append("quality")
+
+    def diff(words: tuple[str, ...]) -> bool:
+        return {w for w in words if w in lb} != {w for w in words if w in la}
+
+    if diff(_INTERFACE_WORDS):
+        out.append("interface")
+    if diff(_DATA_WORDS):
+        out.append("data")
+    if diff(_IO_WORDS):
+        out.append("io")
+    if diff(_RULE_WORDS) or set(fb.constraints) != set(fa.constraints):
+        out.append("rule")
+    actions_changed = set(fb.actions) != set(fa.actions)
+    longer = len(la) > len(lb) * 1.3 + 20 or len(la) * 1.3 + 20 < len(lb)
+    if actions_changed or longer:
+        out.append("scope")
+    return out
+
+
+def aspect_labels(aspects: list[str]) -> list[str]:
+    return [ASPECT_LABELS.get(a, a) for a in aspects]
+
+
+def change_difficulty(
+    item: str, aspects: list[str], existing: Requirement | None
+) -> tuple[str, str]:
+    """변경 항목의 구현 난이도(상/중/하)와 근거. 기존 요구사항의 난이도·분류를 바탕으로 관점 수를 더한다."""
+    from proposal_agent.requirements.difficulty import estimate_difficulty
+
+    base = existing.difficulty if existing else None
+    category = existing.category if existing else None
+    level, why = estimate_difficulty(item, category=category, base=None)
+    order = ["low", "medium", "high"]
+    idx = order.index(level.value)
+    heavy = {"interface", "quality", "data", "number"}
+    hits = [a for a in aspects if a in heavy]
+    if len(hits) >= 2 or (len(aspects) >= 3 and hits):
+        idx = min(2, idx + 1)
+        why += f"; 변경 관점 {', '.join(aspect_labels(hits))} → 한 단계 상향"
+    if base is not None and order.index(base.value) > idx and hits:
+        idx = order.index(base.value)
+        why += f"; 기존 난이도 {base.label} 이상"
+    labels = {"low": "하", "medium": "중", "high": "상"}
+    return labels[order[idx]], why
+
+
 def name_containment(name: str, text: str) -> float:
     """요구사항 명이 요청문에 얼마나 포함되는지 (overlap coefficient). 이름이 완전히 들어 있으면 0.7."""
     nn, nt = normalize_text(name), normalize_text(text)
@@ -301,6 +381,8 @@ def classify_item(
     if input_kind == InputKind.MODIFY_BUTTON and selected:
         r = next(x for x in existing if x.id == selected[0])
         after = {**snapshot(r), "description": item}
+        aspects = context_delta(requirement_text(r), item)
+        level, level_why = change_difficulty(item, aspects, r)
         return ChangeCandidate(
             classification=CandidateClass.MODIFY,
             requirement_id=r.id,
@@ -309,10 +391,14 @@ def classify_item(
             proposed_type=r.type.value,
             before=snapshot(r),
             after=after,
-            rationale=f"사용자가 {r.id} 수정을 직접 요청 (유사도 {best.score if best else 0:.2f})",
+            rationale=f"사용자가 {r.id} 수정을 직접 요청 (유사도 {best.score if best else 0:.2f})"
+            + (f"; 문맥 차이: {', '.join(aspect_labels(aspects))}" if aspects else ""),
             confidence=0.95,
             needs_confirmation=True,
             source="user",
+            change_aspects=aspects,
+            difficulty=level,
+            difficulty_basis=level_why,
             **{**base, "similarity": best.score if best else 0.0},
         )
     if input_kind == InputKind.ADD_BUTTON:
@@ -331,6 +417,8 @@ def classify_item(
                 source="user",
                 **base,
             )
+        aspects = context_delta("", item)
+        level, level_why = change_difficulty(item, aspects, None)
         return ChangeCandidate(
             classification=CandidateClass.ADD,
             requirement_id=None,
@@ -344,6 +432,9 @@ def classify_item(
             confidence=0.9,
             needs_confirmation=True,
             source="user",
+            change_aspects=aspects,
+            difficulty=level,
+            difficulty_basis=level_why,
             **base,
         )
 
@@ -378,6 +469,13 @@ def classify_item(
 
     def modify(m: Match, why: str) -> ChangeCandidate:
         r = m.requirement
+        aspects = context_delta(requirement_text(r), item)
+        level, level_why = change_difficulty(item, aspects, r)
+        ctx_note = (
+            f"; 문맥 차이: {', '.join(aspect_labels(aspects))}"
+            if aspects
+            else "; 문맥 차이 없음(표현 차이)"
+        )
         return ChangeCandidate(
             classification=CandidateClass.MODIFY,
             requirement_id=r.id,
@@ -386,13 +484,18 @@ def classify_item(
             proposed_type=r.type.value,
             before=snapshot(r),
             after={**snapshot(r), "description": item},
-            rationale=f"기존 {r.id}와 유사(유사도 {m.score:.2f}), {why}. 기존 ID 유지",
+            rationale=f"기존 {r.id}와 유사(유사도 {m.score:.2f}), {why}{ctx_note}. 기존 ID 유지",
             confidence=round(min(0.9, 0.4 + m.score), 2),
             needs_confirmation=True,
+            change_aspects=aspects,
+            difficulty=level,
+            difficulty_basis=level_why,
             **base,
         )
 
     def add(why: str) -> ChangeCandidate:
+        aspects = context_delta("", item)
+        level, level_why = change_difficulty(item, aspects, None)
         return ChangeCandidate(
             classification=CandidateClass.ADD,
             requirement_id=None,
@@ -406,6 +509,9 @@ def classify_item(
             + ". ID는 승인 후 발급",
             confidence=round(0.9 - (best.score if best else 0.0) * 0.5, 2),
             needs_confirmation=True,
+            change_aspects=aspects,
+            difficulty=level,
+            difficulty_basis=level_why,
             **base,
         )
 

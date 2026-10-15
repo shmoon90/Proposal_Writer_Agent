@@ -12,6 +12,7 @@ from proposal_agent.ingest.ocr import OcrEngine
 from proposal_agent.ingest.service import ExtractionService
 from proposal_agent.orchestrator.gates import GateService
 from proposal_agent.planning.service import PlanningService
+from proposal_agent.requirements.approach import ApproachService
 from proposal_agent.requirements.service import RequirementService
 from proposal_agent.research.service import ResearchService
 from proposal_agent.services.agent_step_service import AgentStepService
@@ -43,6 +44,7 @@ class Services:
     baseline: BaselineService
     changes: ChangeService
     templates: TemplateService
+    approach: ApproachService
 
     @classmethod
     def from_context(
@@ -113,6 +115,7 @@ class Services:
             baseline=baseline,
             changes=changes,
             templates=templates,
+            approach=ApproachService(ctx.repos, audit, steps),
         )
 
 

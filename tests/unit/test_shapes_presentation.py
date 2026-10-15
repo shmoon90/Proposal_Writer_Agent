@@ -342,6 +342,7 @@ def test_tech_07_flags_accepted_functional_requirements_without_research(
     c = next(c for c in run.checks if c.check_id == "QA-TECH-07")
     assert c.result is QaResult.NEEDS_HUMAN_REVIEW
     assert any("근거 조사 없음" in i for i in c.issues) and any(
-        "구현 방안 미작성" in i for i in c.issues
+        "구현 방안 미" in i
+        for i in c.issues  # 미작성 또는 미확정(규칙 초안 [자동 초안])
     )
     assert "FR-002" in c.requirement_ids

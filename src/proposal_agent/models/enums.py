@@ -92,6 +92,81 @@ class RequirementCategory(StrEnum):
     CONSTRAINT = "constraint"
     OTHER = "other"
 
+    @property
+    def label(self) -> str:
+        """정의서·추적표 '중분류/유형' 컬럼 표기."""
+        return {
+            "ui": "UI/UX",
+            "business": "업무 기능",
+            "data": "데이터",
+            "interface": "인터페이스",
+            "report": "보고서/통계",
+            "admin": "관리 기능",
+            "performance": "성능",
+            "security": "보안",
+            "availability": "가용성",
+            "compatibility": "호환성",
+            "operability": "운영",
+            "constraint": "제약사항",
+            "other": "기타",
+        }[self.value]
+
+    @classmethod
+    def from_label(cls, text: str) -> RequirementCategory:
+        """정의서 '유형/중분류' 셀 값 → 분류 (모르면 OTHER)."""
+        t = (text or "").strip().casefold()
+        if not t:
+            return cls.OTHER
+        for c in cls:
+            if c.label.casefold() == t or c.value == t:
+                return c
+        words: tuple[tuple[tuple[str, ...], RequirementCategory], ...] = (
+            (("ui", "ux", "화면", "디자인"), cls.UI),
+            (("인터페이스", "연계", "interface", "api"), cls.INTERFACE),
+            (("보고서", "통계", "report"), cls.REPORT),
+            (("성능", "performance"), cls.PERFORMANCE),
+            (("보안", "security"), cls.SECURITY),
+            (("가용", "availability"), cls.AVAILABILITY),
+            (("호환", "compat"), cls.COMPATIBILITY),
+            (("운영", "operat", "시스템", "인프라"), cls.OPERABILITY),
+            (("데이터", "data", "이관"), cls.DATA),
+            (("관리", "admin"), cls.ADMIN),
+            (("제약", "constraint"), cls.CONSTRAINT),
+            (("기능", "업무", "function"), cls.BUSINESS),
+        )
+        for keys, cat in words:
+            if any(k in t for k in keys):
+                return cat
+        return cls.OTHER
+
+
+class Difficulty(StrEnum):
+    """구현 난이도 (상/중/하). 변경 영향(공수·일정) 산정의 가중치로 쓴다."""
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+    @property
+    def label(self) -> str:
+        return {"high": "상", "medium": "중", "low": "하"}[self.value]
+
+    @property
+    def effort_factor(self) -> float:
+        """공수 추정 가중치 (중=1.0 기준)."""
+        return {"high": 1.4, "medium": 1.0, "low": 0.7}[self.value]
+
+    @classmethod
+    def from_label(cls, text: str) -> Difficulty | None:
+        t = (text or "").strip().casefold()
+        if t in ("상", "high", "높음", "h", "3", "어려움"):
+            return cls.HIGH
+        if t in ("중", "medium", "보통", "m", "2"):
+            return cls.MEDIUM
+        if t in ("하", "low", "낮음", "l", "1", "쉬움"):
+            return cls.LOW
+        return None
+
 
 class ScopeClass(StrEnum):
     """범위 분류 (4단계)."""
@@ -147,6 +222,10 @@ class Priority(StrEnum):
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
+
+    @property
+    def label(self) -> str:
+        return {"high": "상", "medium": "중", "low": "하"}[self.value]
 
 
 class ChangeType(StrEnum):

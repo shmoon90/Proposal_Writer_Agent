@@ -14,7 +14,7 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from proposal_agent.changes.semantic import similarity
-from proposal_agent.models import Dependency, Requirement, StaffRole, WBSItem
+from proposal_agent.models import Dependency, Difficulty, Requirement, StaffRole, WBSItem
 from proposal_agent.models.change import (
     CandidateClass,
     ChangeCandidate,
@@ -141,34 +141,53 @@ def _effort_estimate(
             "확정",
             "사용자 입력 공수" + (f" (Task {share}개 균등 분배)" if share > 1 else ""),
         )
+    factor, factor_why = _difficulty_factor(cand)
     if cand.classification == CandidateClass.MODIFY and base_md is not None:
         ratio = Decimal(str(round(max(0.2, min(0.6, 1.0 - cand.similarity)), 2)))
-        est = q(base_md * ratio)
+        aspects = len(cand.change_aspects)
+        if aspects >= 2:  # 문맥상 달라진 관점이 많을수록 변경 비율을 올린다 (최대 0.8)
+            ratio = min(Decimal("0.8"), ratio + Decimal("0.1") * (aspects - 1))
+        est = q(base_md * ratio * factor)
         return (
             est,
             q(est * Decimal("0.5")),
             q(est * Decimal("1.5")),
             "범위",
-            f"기존 Task 공수 {base_md} M/D × 변경 비율 {ratio} (유사도 기반 추정)",
+            f"기존 Task 공수 {base_md} M/D × 변경 비율 {ratio}(유사도·문맥 관점 {aspects}개) × 난이도 가중치 {factor}{factor_why}",
         )
     if similar:
         vals = sorted(t.effort_md for t, _ in similar if t.effort_md > 0)
         if vals:
-            mid = vals[len(vals) // 2]
+            mid = q(vals[len(vals) // 2] * factor)
             return (
                 mid,
-                vals[0],
-                vals[-1],
+                q(vals[0] * factor),
+                q(vals[-1] * factor),
                 "범위",
-                f"유사 Task {', '.join(t.code for t, _ in similar)} 공수 중앙값 (범위 {vals[0]}~{vals[-1]} M/D)",
+                f"유사 Task {', '.join(t.code for t, _ in similar)} 공수 중앙값 (범위 {vals[0]}~{vals[-1]} M/D) × 난이도 가중치 {factor}{factor_why}",
             )
     return (
-        Decimal("10"),
-        Decimal("5"),
-        Decimal("20"),
+        q(Decimal("10") * factor),
+        q(Decimal("5") * factor),
+        q(Decimal("20") * factor),
         "범위",
-        "비교 가능한 Task가 없어 기본값(10 M/D, 범위 5~20) 적용 — 사용자 확인 필요",
+        f"비교 가능한 Task가 없어 기본값(10 M/D, 범위 5~20) × 난이도 가중치 {factor}{factor_why} 적용 — 사용자 확인 필요",
     )
+
+
+def _difficulty_factor(cand: ChangeCandidate) -> tuple[Decimal, str]:
+    """후보의 구현 난이도(상/중/하 — 사용자 수정값 우선) → 공수 가중치와 근거."""
+    label = cand.user_override.get("difficulty") or cand.difficulty
+    level = Difficulty.from_label(str(label)) if label else None
+    if level is None:
+        return Decimal("1"), ""
+    factor = Decimal(str(level.effort_factor))
+    why = (
+        f" (난이도 {level.label}: {cand.difficulty_basis[:60]})"
+        if cand.difficulty_basis
+        else f" (난이도 {level.label})"
+    )
+    return factor, why
 
 
 def analyze_impact(

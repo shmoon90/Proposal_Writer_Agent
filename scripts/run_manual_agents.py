@@ -269,6 +269,97 @@ def verifier(request: AgentRequest) -> dict[str, Any]:
     }
 
 
+# --- 2-2. 요구사항별 구현 방안 (Phase 14, 세션의 Claude가 수동 작성; 요구사항 이름 키워드로 매칭) ------------
+APPROACHES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
+    (
+        ("프로그램 개발", "연산 지원"),
+        {
+            "approach": "서버 계산 엔진(Python decimal/mpmath)에 사칙·거듭제곱·삼각·로그·팩토리얼 연산을 구현\n수식 파서는 토큰화→후위 표기 변환→평가 순으로 서버에서 처리\n전제: 지원 연산 목록은 Windows 공학용 계산기 기준으로 고객과 확정",
+            "difficulty": "중",
+            "difficulty_basis": "임의 정밀도 연산·수식 파서 구현",
+            "verification_method": "시험",
+            "acceptance_criteria": "지원 연산 목록의 각 연산이 기준 계산기와 같은 결과를 냄",
+        },
+    ),
+    (
+        ("수식 입력", "키보드"),
+        {
+            "approach": "React/TypeScript 웹 UI에 수식 입력창·버튼 패드·결과 영역 구성\n키보드 입력과 버튼 입력을 같은 입력 상태로 합쳐 처리\n전제: PC 브라우저 전용(반응형 모바일 미지원)",
+            "difficulty": "하",
+            "difficulty_basis": "일반 화면 구성",
+            "verification_method": "시연",
+            "acceptance_criteria": "키보드·버튼으로 같은 수식을 입력해 같은 결과를 표시",
+        },
+    ),
+    (
+        ("PC 웹",),
+        {
+            "approach": "데스크톱 브라우저(최신 Chrome/Edge) 기준으로 레이아웃 고정 폭 설계\n모바일 UA는 지원하지 않음을 안내",
+            "difficulty": "하",
+            "difficulty_basis": "제약 반영",
+            "verification_method": "검사",
+            "acceptance_criteria": "지원 브라우저 목록에서 정상 동작",
+        },
+    ),
+    (
+        ("이력 표시", "재사용"),
+        {
+            "approach": "계산 결과를 서버 DB(SQLite→PostgreSQL 전환 가능)에 저장하고 최근 이력을 목록으로 표시\n이력 클릭 시 수식을 입력창에 재적재, 내보내기는 CSV 다운로드",
+            "difficulty": "하",
+            "difficulty_basis": "단순 CRUD·목록",
+            "verification_method": "시연",
+            "acceptance_criteria": "계산 후 이력 목록에 즉시 표시되고 재적재·내보내기가 동작",
+        },
+    ),
+    (
+        ("유효성", "오류 메시지", "사전 경고"),
+        {
+            "approach": "프론트에서 괄호 짝·허용 문자·연속 연산자를 즉시 검사해 오류 메시지 표시\n실제 계산은 FastAPI 계산 API가 수행하고 오류 코드를 반환\n범위·정밀도 초과는 계산 전 사전 경고",
+            "difficulty": "중",
+            "difficulty_basis": "프론트·서버 이중 검증 규칙",
+            "verification_method": "시험",
+            "acceptance_criteria": "허용되지 않는 입력마다 정의된 메시지가 표시되고 서버가 거부",
+        },
+    ),
+    (
+        ("소수점", "큰 수"),
+        {
+            "approach": "서버 decimal 컨텍스트 정밀도 50자리, 표시 시 소수점 21자리 반올림\n10^25 범위 검사 후 초과 시 오류 반환\n전제: 삼각·로그 함수는 mpmath로 구현(조사 미확인 항목)",
+            "difficulty": "상",
+            "difficulty_basis": "임의 정밀도 수치 조건(21자리·10^25)",
+            "verification_method": "시험",
+            "acceptance_criteria": "경계값(21자리·10^25) 시험 케이스 통과",
+        },
+    ),
+]
+
+
+def approach_writer(request: AgentRequest) -> dict[str, Any]:
+    """프롬프트의 <req id name> 묶음마다 키워드로 사람 작성 방안을 붙인다. 조사 ID는 related로 연결."""
+    reqs = re.findall(r'<req id="([^"]+)"[^>]*>\nname: (.*)', request.prompt)
+    items_in_prompt = re.findall(
+        r'<item id="([^"]+)" feasibility="([^"]+)" related="([^"]*)"', request.prompt
+    )
+    items = []
+    for rid, name in reqs:
+        spec = next((v for keys, v in APPROACHES if any(k in name for k in keys)), None)
+        if spec is None:
+            continue
+        refs = [tid for tid, _, rel in items_in_prompt if rid in rel.split(",")]
+        feas = "feasible" if refs else "unknown"
+        items.append(
+            {
+                "requirement_id": rid,
+                "research_refs": refs,
+                "sources": [],
+                "feasibility": feas,
+                "notes": "" if refs else "근거 조사 없음 — 설계 단계 확인",
+                **spec,
+            }
+        )
+    return {"items": items, "research_needed": [], "notes": NOTE}
+
+
 def SRC(url: str, title: str, product: str, version: str, excerpt: str) -> dict[str, Any]:  # noqa: N802
     return {
         "url": url,
@@ -886,6 +977,7 @@ def main() -> int:
             "architect": ARCHITECTURE,
             "planner": WBS,
             "proposal_writer": PROPOSAL,
+            "approach_writer": approach_writer,
         },
         cost_per_call=0.0,
     )
@@ -932,6 +1024,7 @@ def main() -> int:
         ctx.repos.requirements.update(req)
     log.append(r.run_rfp_analysis(p, actor=ACTOR).summary)
     log.append(r.run_tech_research(p, actor=ACTOR).summary)
+    log.append(r.run_approach_writing(p, actor=ACTOR).summary)
     log.append(
         r.run_role_step(
             p, StepRunner.STEP_ARCHITECTURE, "architect", "아키텍처 설계", actor=ACTOR

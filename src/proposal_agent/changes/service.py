@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 from proposal_agent.agents.schemas import SemanticDiffDraft
 from proposal_agent.changes.baseline_service import REVISION_SUBDIR, BaselineService
 from proposal_agent.changes.impact import SimPlan, analyze_impact, simulate
-from proposal_agent.changes.semantic import classify_request, split_items
+from proposal_agent.changes.semantic import aspect_labels, classify_request, split_items
 from proposal_agent.config.errors import AgentRunError, PWAError, ValidationError
 from proposal_agent.config.logging import get_logger
 from proposal_agent.config.paths import ProjectPaths
@@ -40,6 +40,7 @@ from proposal_agent.models import (
     Deliverable,
     DeliverableKind,
     Dependency,
+    Difficulty,
     DocumentKind,
     IntegrityStatus,
     Project,
@@ -391,6 +392,19 @@ class ChangeService:
                     )
                 )
                 continue
+            # 문맥 비교 관점·난이도는 에이전트 판단을 우선 반영 (규칙 값은 근거에 남긴다)
+            if ai.change_aspects:
+                target.change_aspects = list(
+                    dict.fromkeys([*target.change_aspects, *ai.change_aspects])
+                )
+            if ai.difficulty and Difficulty.from_label(ai.difficulty):
+                prev = f"규칙 {target.difficulty}" if target.difficulty else "규칙 미산정"
+                target.difficulty = Difficulty.from_label(ai.difficulty).label  # type: ignore[union-attr]
+                target.difficulty_basis = f"AI: {ai.difficulty_basis or '근거 미기재'} ({prev})" + (
+                    f"; 공수 힌트: {ai.effort_hint}" if ai.effort_hint else ""
+                )
+            elif ai.effort_hint:
+                target.difficulty_basis += f"; 공수 힌트(AI): {ai.effort_hint}"
             if cls != target.classification or (rid and rid != target.requirement_id):
                 target.rationale += " | " + note + " → 규칙과 불일치, 사용자 확인 필요"
                 target.needs_confirmation = True
@@ -762,6 +776,15 @@ class ChangeService:
                     added_on=cr.requested_on,
                     change_state="added",
                     change_summary=f"{cr.id} 추가 — {cr.reason or cr.title}",
+                    difficulty=Difficulty.from_label(
+                        str(cand.user_override.get("difficulty") or cand.difficulty or "")
+                    ),
+                    difficulty_basis=cand.difficulty_basis,
+                    implementation_approach=(
+                        f"- {cr.id} 추가 요구 — 구현 방안은 설계 단계에서 확정\n"
+                        f"- [자동 초안] 변경 관점: {', '.join(aspect_labels(cand.change_aspects)) or '신규'}"
+                    ),
+                    approach_source="rule",
                     created_by=actor,
                 )
                 req.add_history(actor, "change.add", changes={"cr": cr.id}, note=cr.reason)
@@ -795,7 +818,21 @@ class ChangeService:
                 req.description, req.name = new_desc, new_name
                 req.status = RequirementStatus.CHANGED
                 req.change_state = "modified"
-                req.change_summary = f"{cr.id} 변경 — {cr.reason or cr.title}"
+                req.change_summary = f"{cr.id} 변경 — {cr.reason or cr.title}" + (
+                    f" (관점: {', '.join(aspect_labels(cand.change_aspects))})"
+                    if cand.change_aspects
+                    else ""
+                )
+                new_level = Difficulty.from_label(
+                    str(cand.user_override.get("difficulty") or cand.difficulty or "")
+                )
+                if new_level is not None:
+                    req.difficulty = new_level
+                    req.difficulty_basis = f"{cr.id}: {cand.difficulty_basis}"[:300]
+                if req.implementation_approach and req.approach_source != "user":
+                    req.review_notes = (
+                        req.review_notes + "\n" if req.review_notes else ""
+                    ) + f"@{cr.id} 변경 반영 — 구현 방안 재검토 필요"
                 req.verification_status = VerificationStatus.NEEDS_REVISION
                 req.touch()
                 self._repos.requirements.update(req)
@@ -1094,6 +1131,11 @@ class ChangeService:
                         json.dumps(c.before, ensure_ascii=False) if c.before else "",
                         json.dumps(c.after, ensure_ascii=False) if c.after else "",
                         c.rationale,
+                        ", ".join(aspect_labels(c.change_aspects)),
+                        (
+                            f"{c.user_override.get('difficulty') or c.difficulty or ''}"
+                            + (f" — {c.difficulty_basis[:80]}" if c.difficulty_basis else "")
+                        ).strip(),
                         cr.status.value,
                         cr.approver or "",
                         cr.approved_at.date() if cr.approved_at else None,

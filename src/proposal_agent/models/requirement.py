@@ -13,6 +13,7 @@ from proposal_agent.models.enums import (
     AcceptanceStatus,
     ChangeStatus,
     ChangeType,
+    Difficulty,
     Priority,
     RequirementCategory,
     RequirementStatus,
@@ -96,6 +97,23 @@ class Requirement(ProjectScoped):
     scope_class: ScopeClass = ScopeClass.MANDATORY
     is_mandatory: bool = True
     implementation_approach: str | None = None
+    approach_source: str = Field(
+        default="",
+        description="구현 방안 작성 주체: agent | research | rule(자동 초안) | user | baseline | ''",
+    )
+    approach_basis: list[str] = Field(
+        default_factory=list, description="구현 방안 근거 (조사 ID·출처 URL·구성 요소)"
+    )
+    difficulty: Difficulty | None = Field(default=None, description="구현 난이도 (상/중/하)")
+    difficulty_basis: str = Field(default="", description="난이도 판단 근거")
+    acceptance_criteria: str = Field(
+        default="", description="검사 기준(판정 기준) — 추적표 '판정 기준'·정의서 '검사 기준'"
+    )
+    business_area: str = Field(default="", description="대분류 (업무 구분·RFP 장/절)")
+    review_notes: str = Field(default="", description="검토 및 협의 내용 (고객 협의 기록)")
+    related_requirement_ids: list[str] = Field(
+        default_factory=list, description="관련 요구사항 ID (추적성)"
+    )
     acceptance_status: AcceptanceStatus = AcceptanceStatus.PROPOSED
     status: RequirementStatus = RequirementStatus.DRAFT
     verification_status: VerificationStatus = VerificationStatus.UNVERIFIED

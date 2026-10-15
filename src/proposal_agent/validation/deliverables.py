@@ -25,6 +25,7 @@ from proposal_agent.generators.excel.requirement_spec import (
     SHEET_OTHER,
 )
 from proposal_agent.generators.excel.staffing_plan import SHEET_MONTHLY, SHEET_PLAN, SHEET_SUMMARY
+from proposal_agent.generators.excel.style import find_header_row
 from proposal_agent.generators.excel.trace_matrix import SHEET_MAIN, SHEET_TESTS, SHEET_UNTRACED
 from proposal_agent.generators.excel.wbs_gantt import (
     SHEET_BASIS,
@@ -316,7 +317,8 @@ def check_xlsx(
             )
             continue
         ws = wb[sheet]
-        headers = [str(c.value) if c.value is not None else "" for c in ws[1]]
+        header_row = find_header_row(ws, cols)  # 묶음 머리글(1행)이 있는 시트는 2행이 컬럼 머리글
+        headers = [str(c.value) if c.value is not None else "" for c in ws[header_row]]
         missing = [c for c in cols if c not in headers]
         if missing:
             outcome.add(
@@ -326,7 +328,7 @@ def check_xlsx(
                 sheet,
             )
         rows: list[list[Any]] = []
-        for row in ws.iter_rows(min_row=2):
+        for row in ws.iter_rows(min_row=header_row + 1):
             values = [c.value for c in row]
             if not any(v is not None for v in values):
                 break

@@ -95,6 +95,29 @@ if c2.button(
         else:
             status.update(label=outcome.summary, state="complete")
 
+missing_approach = services.approach.missing(project)
+d1, d2 = st.columns([1, 2])
+if d1.button(
+    "구현 방안 작성 (에이전트)",
+    key="run_approach",
+    icon=":material/engineering:",
+    help="요구사항 정의서의 '구현방안·난이도·검증 방법·검사 기준'을 요구사항마다 짧게 씁니다. 조사·구성 요소 근거가 있는 것만 구체화하고, 빠진 항목은 규칙 초안([자동 초안])으로 채웁니다.",
+):
+    with st.status("요구사항별 구현 방안을 작성하는 중…", expanded=True) as status:
+        try:
+            outcome = runner.run_approach_writing(project, actor=actor_name())
+        except PWAError as exc:
+            status.update(label="실패", state="error")
+            show_error(exc, context="구현 방안 작성")
+        else:
+            status.update(label=outcome.summary, state="complete")
+            st.rerun()
+d2.caption(
+    f"구현 방안이 비어 있는 요구사항 {len(missing_approach)}건"
+    + (f" ({', '.join(r.id for r in missing_approach[:6])}…)" if missing_approach else "")
+    + " — 산출물 생성 시 빈 항목은 규칙 초안으로 채워지고 QA-CON-09가 확인을 요구합니다."
+)
+
 analysis = services.steps.prior_output(project, "rfp_analyst")
 if analysis:
     with st.expander("RFP 분석 결과 (최신)"):

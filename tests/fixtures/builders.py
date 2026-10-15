@@ -346,7 +346,9 @@ def build_structured_rfp_docx() -> bytes:
     doc.add_paragraph("2. 사업 기간 : 계약일로부터 8개월")
     doc.add_paragraph("3. 사업 예산 : 금 500,000,000원 (부가세 포함)")
     doc.add_heading("Ⅱ. 사업 범위", level=1)
-    doc.add_paragraph("민원 민원 민원 사건 접수·배정·종결 관리 시스템 신규 구축", style="List Bullet")
+    doc.add_paragraph(
+        "민원 민원 민원 사건 접수·배정·종결 관리 시스템 신규 구축", style="List Bullet"
+    )
     doc.add_paragraph("통계 조회 및 접근 통제 기능 구축", style="List Bullet")
     doc.add_heading("Ⅲ. 요구사항", level=1)
     doc.add_paragraph("1. 요구사항 요약")

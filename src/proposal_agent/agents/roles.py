@@ -262,6 +262,32 @@ QA_REVIEWER = _register(
 )
 
 
+# --- 11. 요구사항별 구현 방안 (Phase 14) -----------------------------------------------------
+APPROACH_WRITER = _register(
+    AgentRole(
+        key="approach_writer",
+        title="요구사항 구현 방안 작성",
+        description="요구사항 정의서의 '구현방안·난이도·검증 방법·검사 기준'을 요구사항마다 짧게 쓴다. 기술 조사·아키텍처 근거가 있는 것만 구체화하고, 근거가 없으면 웹 검색으로 확인한 출처를 기록하거나 추가 조사 필요로 남긴다.",
+        inputs=("요구사항 목록(묶음)", "기술 조사 결과", "아키텍처 구성 요소", "구현 가능성 비교"),
+        output_schema=schemas.ApproachReport,
+        prompt_name="approach_writer",
+        builtin_tools=("WebSearch", "WebFetch"),
+        mcp_servers=(MCP_PROJECT,),
+        mcp_tool_patterns=(
+            f"mcp__{MCP_PROJECT}__get_requirement",
+            f"mcp__{MCP_PROJECT}__list_research",
+        ),
+        max_turns=20,
+        max_budget_usd=4.0,
+        timeout_s=900,
+        effort="high",
+        reuses=("rfp_analyst",),
+        output_subdir="04_Technology_Research",
+        output_stem="approach_report",
+    )
+)
+
+
 # --- 10. 구축 단계 의미 비교 (Phase 6) ------------------------------------------------------
 SEMANTIC_DIFFER = _register(
     AgentRole(

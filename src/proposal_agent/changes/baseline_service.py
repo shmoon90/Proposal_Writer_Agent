@@ -29,12 +29,14 @@ from proposal_agent.models import (
     ActorKind,
     Dependency,
     DependencyType,
+    Difficulty,
     DocumentKind,
     HistoryEntry,
     IntegrationTest,
     Priority,
     Project,
     Requirement,
+    RequirementCategory,
     RequirementStatus,
     RequirementTrace,
     RequirementType,
@@ -76,19 +78,69 @@ TYPE_WORDS: dict[str, RequirementType] = {  # 순서 중요: '비기능'을 '기
     "non-functional": RequirementType.NON_FUNCTIONAL,
     "기능": RequirementType.FUNCTIONAL,
     "functional": RequirementType.FUNCTIONAL,
+    "인터페이스": RequirementType.FUNCTIONAL,
     "제약": RequirementType.CONSTRAINT,
     "constraint": RequirementType.CONSTRAINT,
     "평가": RequirementType.EVALUATION,
     "evaluation": RequirementType.EVALUATION,
     "제출": RequirementType.SUBMISSION,
     "submission": RequirementType.SUBMISSION,
+    # 고객 정의서의 '유형' 값(성능·품질·보안·시스템·데이터·운영·테스트)은 비기능으로 본다
+    "성능": RequirementType.NON_FUNCTIONAL,
+    "품질": RequirementType.NON_FUNCTIONAL,
+    "보안": RequirementType.NON_FUNCTIONAL,
+    "시스템": RequirementType.NON_FUNCTIONAL,
+    "데이터": RequirementType.NON_FUNCTIONAL,
+    "운영": RequirementType.NON_FUNCTIONAL,
+    "테스트": RequirementType.NON_FUNCTIONAL,
+    "사업관리": RequirementType.CONSTRAINT,
+    "프로젝트": RequirementType.CONSTRAINT,
 }
 ACCEPT_WORDS: dict[str, AcceptanceStatus] = {
     "수용": AcceptanceStatus.ACCEPTED,
     "조건부 수용": AcceptanceStatus.PARTIALLY_ACCEPTED,
+    "부분수용": AcceptanceStatus.PARTIALLY_ACCEPTED,
+    "부분 수용": AcceptanceStatus.PARTIALLY_ACCEPTED,
+    "일부제외": AcceptanceStatus.PARTIALLY_ACCEPTED,
     "미수용": AcceptanceStatus.REJECTED,
+    "불가": AcceptanceStatus.REJECTED,
+    "제외": AcceptanceStatus.REJECTED,
     "검토 필요": AcceptanceStatus.PROPOSED,
+    "협의중": AcceptanceStatus.PROPOSED,
+    "협의 중": AcceptanceStatus.PROPOSED,
+    "이관": AcceptanceStatus.DEFERRED,
 }
+CHANGE_STATE_WORDS: dict[str, str] = {
+    "신규": "none",
+    "기존": "none",
+    "추가": "added",
+    "변경": "modified",
+    "수정": "modified",
+    "통합": "modified",
+    "삭제 요청": "delete_requested",
+    "삭제": "deleted",
+}
+
+
+def _accept(text: str) -> AcceptanceStatus:
+    """수용여부 셀 → 상태. '일부제외 - 제외: …'처럼 사유가 붙은 값은 첫 줄 앞부분으로 판단."""
+    head = (text or "").splitlines()[0].strip() if text else ""
+    if head in ACCEPT_WORDS:
+        return ACCEPT_WORDS[head]
+    for key, status in ACCEPT_WORDS.items():
+        if key and key in head:
+            return status
+    return AcceptanceStatus.ACCEPTED
+
+
+def _change_state(text: str) -> str:
+    t = (text or "").strip()
+    for key, state in CHANGE_STATE_WORDS.items():
+        if key and t.startswith(key):
+            return state
+    return "none"
+
+
 PENDING_VALUES = {"", "미정", "-", "none", "n/a"}
 
 
@@ -357,13 +409,16 @@ class BaselineService:
                 )
                 name = "(이름 없음)"
             req_type = infer_type(v, prefixes)
-            accept = ACCEPT_WORDS.get(_text(v.get("acceptance")), AcceptanceStatus.ACCEPTED)
+            accept = _accept(_text(v.get("acceptance")))
             added_on = parse_date(v.get("added_on"))
+            implementation = _text(v.get("implementation")) or None
+            category_text = _text(v.get("category")) or _text(v.get("type"))
             fields: dict[str, Any] = {
                 "name": name,
                 "description": _text(v.get("description")),
                 "type": req_type,
-                "implementation_approach": _text(v.get("implementation")) or None,
+                "implementation_approach": implementation,
+                "approach_source": "baseline" if implementation else "",
                 "acceptance_status": accept,
                 "notes": _text(v.get("notes")),
                 "priority": _priority(_text(v.get("priority"))),
@@ -371,7 +426,20 @@ class BaselineService:
                 not in ("N", "아니오", "no", "false", "선택"),
                 "added_by": _text(v.get("added_by")) or None,
                 "added_on": added_on,
+                # Phase 14: 고객 정의서의 분류·난이도·검사 기준·협의 내용·변경 상태도 기준 데이터로 보존
+                "category": RequirementCategory.from_label(category_text),
+                "business_area": _text(v.get("business_area")),
+                "rfp_requirement_id": _text(v.get("rfp_id")) or None,
+                "difficulty": Difficulty.from_label(_text(v.get("difficulty"))),
+                "difficulty_basis": _text(v.get("difficulty_basis")),
+                "acceptance_criteria": _text(v.get("acceptance_criteria")),
+                "verification_method": _text(v.get("verification")) or None,
+                "review_notes": _text(v.get("review_notes")),
+                "change_state": _change_state(_text(v.get("change_state"))),
+                "change_summary": _text(v.get("change_summary")),
             }
+            if fields["change_state"] == "none":
+                fields.pop("change_summary")  # 기준선 행은 변경 내용이 없음
             if rid in existing:
                 req = existing[rid]
                 before = {k: getattr(req, k) for k in fields}
@@ -426,7 +494,8 @@ class BaselineService:
     def _load_traces(
         self, project: Project, rows: list[ParsedRow], warnings: list[str]
     ) -> dict[str, int]:
-        req_ids = {r.id for r in self._repos.requirements.find(project.id)}
+        req_by_id = {r.id: r for r in self._repos.requirements.find(project.id)}
+        req_ids = set(req_by_id)
         self._repos.traces.clear_project(project.id)
         self._repos.screens.clear_project(project.id)
         self._repos.unit_tests.clear_project(project.id)
@@ -527,6 +596,11 @@ class BaselineService:
                     )
                 )
                 traces += 1
+            criteria = _text(v.get("acceptance_criteria"))
+            if criteria and rid in req_by_id and not req_by_id[rid].acceptance_criteria:
+                req = req_by_id[rid]  # 추적표의 판정 기준을 정의서 검사 기준으로 보존
+                req.acceptance_criteria = criteria
+                self._repos.requirements.update(req)
         for s in screens.values():
             self._repos.screens.insert(s)
         for u in uts.values():

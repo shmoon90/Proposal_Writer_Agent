@@ -28,7 +28,7 @@ streamlit run src\proposal_agent\app.py
 | [docs/INSTALLATION.md](docs/INSTALLATION.md) | Python·가상환경·의존성·.env·SDK·MCP·DB·Streamlit·로그 (처음 설치하는 사용자용) |
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | 제안 단계·구축 단계 화면 사용법, 승인 게이트, 산출물 확인 |
 | [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) | 운영 절차: 설정·백업·로그·비용 통제·장애 대응·회귀 테스트 |
-| [docs/AGENT_DESIGN.md](docs/AGENT_DESIGN.md) | 에이전트 10역할·권한·도구·실패 처리 (구현 반영) |
+| [docs/AGENT_DESIGN.md](docs/AGENT_DESIGN.md) | 에이전트 11역할·권한·도구·실패 처리 (구현 반영) |
 | [docs/AGENT_OVERVIEW.md](docs/AGENT_OVERVIEW.md) | 에이전트 구성·역할 카드·호출 Flow·스윔레인 (PNG 3종 + `docs/AGENT_OVERVIEW.pptx`) |
 | [docs/FLOW_DIAGRAM.md](docs/FLOW_DIAGRAM.md) | 에이전트·MCP·도구·코드 간 호출 흐름 (Mermaid 원본). PNG: `docs/diagrams/flow_0*.png`, PPT: `docs/FLOW_DIAGRAM.pptx` (`scripts/render_flow_diagrams.py`로 재생성) |
 | [docs/MCP_CONFIGURATION.md](docs/MCP_CONFIGURATION.md) | 인프로세스 `pwa` MCP 서버, 외부 MCP 추가 방법, 연결 점검 |
@@ -38,7 +38,7 @@ streamlit run src\proposal_agent\app.py
 | [docs/LIMITATIONS.md](docs/LIMITATIONS.md) | 미구현·부분 구현·검증되지 않은 사항 |
 | [docs/FINAL_REPORT.md](docs/FINAL_REPORT.md) | 최종 검수 보고서 |
 | 설계 | [PROJECT_OVERVIEW](docs/PROJECT_OVERVIEW.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) · [DATA_MODEL](docs/DATA_MODEL.md) · [WORKFLOW_DESIGN](docs/WORKFLOW_DESIGN.md) · [IMPLEMENTATION_PLAN](docs/IMPLEMENTATION_PLAN.md) · [TEST_STRATEGY](docs/TEST_STRATEGY.md) · [RISK_REGISTER](docs/RISK_REGISTER.md) |
-| 단계 보고 | [PHASE1](docs/PHASE1_REPORT.md) · [PHASE2](docs/PHASE2_REPORT.md) · [PHASE3](docs/PHASE3_REPORT.md) · [PHASE4](docs/PHASE4_REPORT.md) · [PHASE6](docs/PHASE6_REPORT.md) · [PHASE7](docs/PHASE7_REPORT.md) · [PHASE11](docs/PHASE11_REPORT.md) · [PHASE12](docs/PHASE12_REPORT.md) · [PHASE13](docs/PHASE13_REPORT.md) · [템플릿 분석](docs/PROPOSAL_TEMPLATE_ANALYSIS.md) |
+| 단계 보고 | [PHASE1](docs/PHASE1_REPORT.md) · [PHASE2](docs/PHASE2_REPORT.md) · [PHASE3](docs/PHASE3_REPORT.md) · [PHASE4](docs/PHASE4_REPORT.md) · [PHASE6](docs/PHASE6_REPORT.md) · [PHASE7](docs/PHASE7_REPORT.md) · [PHASE11](docs/PHASE11_REPORT.md) · [PHASE12](docs/PHASE12_REPORT.md) · [PHASE13](docs/PHASE13_REPORT.md) · [PHASE14](docs/PHASE14_REPORT.md) · [템플릿 분석](docs/PROPOSAL_TEMPLATE_ANALYSIS.md) · [정의서·추적표 분석](docs/REQUIREMENT_DOCS_ANALYSIS.md) |
 
 ## 폴더
 

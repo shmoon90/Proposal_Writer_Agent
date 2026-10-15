@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
 from pptx import Presentation
 
 from fixtures import builders as bld
@@ -135,32 +136,48 @@ def test_requirement_spec_sheets_columns_validation_and_notes(
         wb.sheetnames
     )
     ws = wb[SHEET_FUNCTIONAL]
-    headers = [c.value for c in ws[1]]
+    headers = [c.value for c in ws[2]]  # 1행 묶음 머리글, 2행 컬럼 머리글 (Phase 14 양식)
     assert all(col in headers for col in REQUIRED_COLUMNS)
-    assert ws.freeze_panes == "A2" and ws.auto_filter.ref
+    assert ws.freeze_panes == "C3" and ws.auto_filter.ref.startswith("A2:")
+    formulas = " ".join(dv.formula1 for dv in ws.data_validations.dataValidation)
+    assert "수용" in formulas and "상,중,하" in formulas and "시연" in formulas
+    id_col = headers.index("요구사항 ID") + 1
     assert (
-        ws.data_validations.dataValidation
-        and "수용" in ws.data_validations.dataValidation[0].formula1
+        ws.column_dimensions[get_column_letter(headers.index("요구사항 상세 내용") + 1)].width >= 40
     )
-    assert ws.column_dimensions["C"].width >= 40
     ids = {
-        ws.cell(row=r, column=1).value
-        for r in range(2, ws.max_row + 1)
-        if ws.cell(row=r, column=1).value and str(ws.cell(row=r, column=1).value).startswith("FR-")
+        ws.cell(row=r, column=id_col).value
+        for r in range(3, ws.max_row + 1)
+        if ws.cell(row=r, column=id_col).value
+        and str(ws.cell(row=r, column=id_col).value).startswith("FR-")
     }
     assert ids == {
         r.id for r in services.requirements.list_requirements(ready) if r.id.startswith("FR-")
     }
     rejected_row = next(
-        r for r in range(2, ws.max_row + 1) if ws.cell(row=r, column=1).value == "FR-001"
+        r for r in range(3, ws.max_row + 1) if ws.cell(row=r, column=id_col).value == "FR-001"
     )
     note_col = headers.index("비고") + 1
-    assert ws.cell(row=rejected_row, column=5).value == "미수용" and "사유" in str(
+    accept_col = headers.index("수용여부") + 1
+    assert ws.cell(row=rejected_row, column=accept_col).value == "미수용" and "사유" in str(
         ws.cell(row=rejected_row, column=note_col).value
     )
-    assert wb[SHEET_NON_FUNCTIONAL].max_row >= 2 and all(
-        str(wb[SHEET_NON_FUNCTIONAL].cell(row=r, column=1).value).startswith("NFR-")
-        for r in range(2, 5)
+    # 구현방안·난이도·검사 기준은 모든 수용 요구사항에 채워진다 (규칙 초안은 [자동 초안] 표시)
+    appr_col, diff_col, crit_col = (
+        headers.index(h) + 1 for h in ("구현방안", "구현 난이도", "검사 기준")
+    )
+    for r in range(3, ws.max_row + 1):
+        rid = ws.cell(row=r, column=id_col).value
+        if not rid or rid == "FR-001":
+            continue
+        assert str(ws.cell(row=r, column=appr_col).value).startswith("- ")
+        assert ws.cell(row=r, column=diff_col).value in ("상", "중", "하")
+        assert ws.cell(row=r, column=crit_col).value
+    assert {"표지", "개정이력", "요구사항목록", "작성가이드"} <= set(wb.sheetnames)
+    assert wb.sheetnames[0] == "표지" and wb["개정이력"]["C2"].value == "요구사항 정의서"
+    assert wb[SHEET_NON_FUNCTIONAL].max_row >= 3 and all(
+        str(wb[SHEET_NON_FUNCTIONAL].cell(row=r, column=id_col).value).startswith("NFR-")
+        for r in range(3, 6)
     )
 
 
@@ -169,7 +186,9 @@ def test_trace_matrix_marks_pending_and_not_run(services: Services, ready: Proje
     d = services.generation.latest_deliverables(ready)[DeliverableKind.TRACE_MATRIX_XLSX]
     wb = load_workbook(io.BytesIO(_path(services, d).read_bytes()))
     ws = wb["추적표"]
-    headers = [c.value for c in ws[1]]
+    headers = [
+        c.value for c in ws[2]
+    ]  # 1행 묶음 머리글(요구사항/수용/설계/구현/테스트/검사 기준/검토)
     for col in (
         "요구사항 ID",
         "요구사항 명",
@@ -178,13 +197,23 @@ def test_trace_matrix_marks_pending_and_not_run(services: Services, ready: Proje
         "단위테스트 결과",
         "통합테스트 ID",
         "통합테스트 결과",
+        "판정 기준",
+        "완료여부",
     ):
         assert col in headers
-    row = [c.value for c in ws[2]]
+    groups = [c.value for c in ws[1] if c.value]
+    assert groups[:3] == ["요구사항", "수용", "설계"] and "검사 기준" in groups
+    row = dict(zip(headers, [c.value for c in ws[3]], strict=True))
     assert (
-        row[2] == "미정" and row[4] == "미실행" and row[6] == "미실행" and row[7] != "미정"
+        row["화면 ID"] == "미정"
+        and row["단위테스트 결과"] == "미실행"
+        and row["통합테스트 결과"] == "미실행"
+        and row["WBS"] != "미정"
+        and row["완료여부"] in ("미착수", "대상제외")
     )  # WBS는 연결됨
-    assert "테스트상세" in wb.sheetnames and "미추적" in wb.sheetnames
+    assert {"테스트상세", "미추적", "검사기준(비기능)", "표지", "개정이력", "작성가이드"} <= set(
+        wb.sheetnames
+    )
 
 
 def test_wbs_gantt_and_staffing_consistency(services: Services, ready: Project) -> None:

@@ -24,41 +24,109 @@ FIELD_SYNONYMS: dict[DocumentKind, dict[str, tuple[str, ...]]] = {
         "requirement_id": (
             "요구사항 ID",
             "요구사항ID",
+            "분석 요구사항ID",
+            "분석 요구사항 ID",
             "REQ ID",
             "ID",
             "식별자",
             "요구사항번호",
             "번호",
         ),
-        "name": ("요구사항 명", "요구사항명", "명칭", "제목", "요구사항"),
+        "name": (
+            "요구사항 명",
+            "요구사항명",
+            "분석 요구사항명",
+            "상세명",
+            "세부 요구사항",
+            "명칭",
+            "제목",
+            "요구사항",
+        ),
         "description": (
             "요구사항 상세 내용",
+            "요구사항 상세내역",
+            "요구사항 설명",
+            "요구사항 내용",
             "상세내용",
             "상세 내용",
             "내용",
             "설명",
-            "요구사항 설명",
             "상세",
         ),
-        "implementation": ("구현방안", "구현 방안", "대응방안", "대응 방안"),
+        "implementation": (
+            "구현방안",
+            "구현 방안",
+            "요구사항 해결 방안",
+            "해결 방안",
+            "해결방안",
+            "구현내용",
+            "구현 내용",
+            "대응방안",
+            "대응 방안",
+        ),
         "acceptance": ("수용여부", "수용 여부", "수용"),
         "notes": ("비고", "참고", "메모"),
-        "type": ("종류", "구분", "유형", "요구사항 유형"),
+        "type": ("종류", "과업대비표 구분", "구분", "분류", "요구사항 유형", "유형"),
+        "category": ("중분류", "요구사항 분류", "세부 분류"),
+        "business_area": ("대분류", "업무구분", "업무 구분", "업무영역", "Level1(대)"),
+        "rfp_id": ("RFP 고유번호", "고유번호", "RFP ID", "RFP 요구사항 ID", "과업대비표 순번"),
+        "difficulty": ("구현 난이도", "난이도"),
+        "difficulty_basis": ("난이도 근거",),
+        "acceptance_criteria": (
+            "검사 기준",
+            "검사기준",
+            "판정 기준",
+            "판정기준",
+            "검수 기준",
+            "검수기준",
+        ),
+        "verification": ("검증 방법", "검증방법"),
+        "approach_basis": ("구현 근거(조사·출처)", "구현 근거"),
+        "change_state": ("요구사항 변경여부", "요구사항변경여부", "변경 상태", "변경여부"),
+        "change_summary": ("변경 내용", "변경내용"),
+        "review_notes": ("검토 및 협의 내용", "협의 내용", "검토 의견"),
+        "source": ("원본 출처", "출처", "관련 근거"),
         "scope": ("범위 분류", "범위"),
         "mandatory": ("필수 여부", "필수"),
         "priority": ("중요도", "우선순위"),
-        "added_by": ("추가 요청자", "요청자"),
-        "added_on": ("추가일", "추가 일자", "등록일"),
+        "added_by": ("추가 요청자", "요청자", "담당팀"),
+        "added_on": ("추가일", "추가 일자", "등록일", "생성/변경일자"),
     },
     DocumentKind.TRACE_MATRIX: {
-        "requirement_id": ("요구사항 ID", "요구사항ID", "REQ ID", "ID"),
-        "name": ("요구사항 명", "요구사항명", "명칭"),
-        "screen_id": ("화면 ID", "화면ID", "화면"),
-        "unit_test_id": ("단위테스트 ID", "단위테스트ID", "단위 테스트", "UT ID"),
+        "requirement_id": (
+            "요구사항 ID",
+            "요구사항ID",
+            "분석 요구사항ID",
+            "분석 요구사항 ID",
+            "REQ ID",
+            "ID",
+        ),
+        "name": ("요구사항 명", "요구사항명", "분석 요구사항명", "명칭"),
+        "screen_id": ("화면 ID", "화면ID", "화면/보고서ID", "화면/보고서 ID", "화면"),
+        "unit_test_id": (
+            "단위테스트 ID",
+            "단위테스트ID",
+            "단위테스트케이스ID",
+            "단위테스트 케이스 ID",
+            "단위테스트 케이스ID",
+            "단위 테스트",
+            "UT ID",
+        ),
         "unit_test_result": ("단위테스트 결과", "단위 결과"),
-        "integration_test_id": ("통합테스트 ID", "통합테스트ID", "통합 테스트", "IT ID"),
-        "integration_test_result": ("통합테스트 결과", "통합 결과"),
-        "wbs": ("WBS", "WBS ID", "작업"),
+        "integration_test_id": (
+            "통합테스트 ID",
+            "통합테스트ID",
+            "통합테스트케이스ID",
+            "통합테스트 케이스 ID",
+            "통합테스트 케이스ID",
+            "통합 테스트",
+            "IT ID",
+        ),
+        "integration_test_result": ("통합테스트 결과", "통합 결과", "수행결과", "수행 결과"),
+        "wbs": ("WBS", "WBS ID", "단위기능 ID", "프로그램ID", "작업"),
+        "component_id": ("구성 요소 ID", "인터페이스ID", "배치ID"),
+        "acceptance_criteria": ("판정 기준", "판정기준", "검사 기준", "검사기준"),
+        "completion": ("완료여부", "완료 여부"),
         "review_status": ("검토 상태", "검토상태"),
         "review_reason": ("변경 사유", "사유"),
     },
@@ -138,7 +206,21 @@ STANDARD_SHEETS: dict[str, DocumentKind] = {
     "의존관계": DocumentKind.WBS,
     "투입계획": DocumentKind.STAFFING_PLAN,
 }
-SKIP_SHEETS = {"변경이력", "간트", "산정근거", "공수요약", "월별투입", "미추적", "테스트상세"}
+SKIP_SHEETS = {
+    "변경이력",
+    "간트",
+    "산정근거",
+    "공수요약",
+    "월별투입",
+    "미추적",
+    "테스트상세",
+    "표지",
+    "개정이력",
+    "이력",
+    "작성가이드",
+    "변경관리대장",
+    "검사기준(비기능)",  # 추적표의 비기능 요약 시트 (추적 링크 없음)
+}
 _NORM = re.compile(r"[\s\W_]+")
 
 
@@ -315,6 +397,17 @@ def profile_workbook(data: bytes, declared_kind: DocumentKind) -> WorkbookProfil
                 )
             continue
         mapping = propose_mapping(ws, kind)
+        if (
+            kind == DocumentKind.REQUIREMENT_SPEC
+            and ws.title == "요구사항목록"
+            and mapping.index_of("description") is None
+            and mapping.index_of("implementation") is None
+        ):
+            # 정의서의 '요구사항목록'(구분·번호·명칭 요약) 시트: 본문이 아니므로 적재하지 않는다
+            profile.quality.append(
+                f"시트 '{ws.title}'는 요약 목록(상세 내용 없음)으로 보여 적재에서 제외합니다."
+            )
+            continue
         _check_quality(ws, mapping, profile)
         profile.sheets.append(mapping)
     if not profile.sheets:
