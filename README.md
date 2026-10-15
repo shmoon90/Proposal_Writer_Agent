@@ -29,6 +29,7 @@ streamlit run src\proposal_agent\app.py
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | 제안 단계·구축 단계 화면 사용법, 승인 게이트, 산출물 확인 |
 | [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) | 운영 절차: 설정·백업·로그·비용 통제·장애 대응·회귀 테스트 |
 | [docs/AGENT_DESIGN.md](docs/AGENT_DESIGN.md) | 에이전트 10역할·권한·도구·실패 처리 (구현 반영) |
+| [docs/AGENT_OVERVIEW.md](docs/AGENT_OVERVIEW.md) | 에이전트 구성·역할 카드·호출 Flow·스윔레인 (PNG 3종 + `docs/AGENT_OVERVIEW.pptx`) |
 | [docs/FLOW_DIAGRAM.md](docs/FLOW_DIAGRAM.md) | 에이전트·MCP·도구·코드 간 호출 흐름 (Mermaid 원본). PNG: `docs/diagrams/flow_0*.png`, PPT: `docs/FLOW_DIAGRAM.pptx` (`scripts/render_flow_diagrams.py`로 재생성) |
 | [docs/MCP_CONFIGURATION.md](docs/MCP_CONFIGURATION.md) | 인프로세스 `pwa` MCP 서버, 외부 MCP 추가 방법, 연결 점검 |
 | [docs/OUTPUT_STRUCTURE.md](docs/OUTPUT_STRUCTURE.md) | `Output/<프로젝트>/00_~13_` 폴더·파일명·버전 규칙 |
