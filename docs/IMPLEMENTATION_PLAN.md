@@ -98,17 +98,17 @@
 - error 0건일 때만 최종 승인 가능함을 테스트로 보장.
 - 제안 단계 E2E(모의 LLM) 통과.
 
-## Phase 6 — 구축 단계
+## Phase 6 — 구축 단계 (2026-10-15 구현, `docs/PHASE6_REPORT.md`; 6.7 승계는 미포함)
 
 | 작업 | 세부 |
 |---|---|
-| 6.1 excel_reader | 매핑 프로파일 기반 파싱, 필수 필드 검사, 원본 ID 유지·이어 발급 |
-| 6.2 B1 구조 분석 | `ColumnMappingProposal`, 매핑 UI |
-| 6.3 변경 요청 | `change_request.py` 수명주기, UI(추가/변경/삭제) |
-| 6.4 diff | 결정적 필드 diff, 유사 후보(정규화 문자열) |
-| 6.5 B2/B3 | 의미 비교, 영향 분석, `impact.py` 그래프 탐색, planning 재계산 |
-| 6.6 적용·갱신 | 승인 후 Requirement 갱신, B4, generators 새 버전, 변경이력 시트 |
-| 6.7 제안→구축 승계 | 제안 프로젝트 데이터 가져오기 |
+| 6.1 excel_reader | **구현** `ingest/excel_reader.py`: 동의어·유사도 매핑 제안, 품질 검사, 확정 매핑으로 파싱 |
+| 6.2 B1 구조 분석 | **구현** `changes/baseline_service.py` + `ui/app_pages/build_baseline.py` |
+| 6.3 변경 요청 | **구현** `changes/service.py` 수명주기, `ui/app_pages/changes.py` |
+| 6.4 diff | **구현** `changes/semantic.py` 규칙 분류 + `semantic_differ` 덧붙임 |
+| 6.5 B2/B3 | **구현** `changes/impact.py` 전후 일정·공수·인력 시나리오 1~6 |
+| 6.6 적용·갱신 | **구현** 승인 후 트랜잭션 반영, 타임스탬프 파일, 변경관리대장 시트 |
+| 6.7 제안→구축 승계 | 미구현 (제안 산출물 Excel 업로드로 대체 가능) |
 
 **완료 조건**
 - 승인 전 기준 데이터 불변, 삭제=상태변경, 새 버전 파일명, 변경 이력 보존을 테스트로 보장.

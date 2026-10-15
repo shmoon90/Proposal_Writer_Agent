@@ -18,6 +18,7 @@ from proposal_agent.models import (
     Approval,
     ArchitectureComponent,
     AuditEvent,
+    ChangeRequest,
     Deliverable,
     Dependency,
     Entity,
@@ -217,7 +218,16 @@ class RequirementChangeRepository(BaseRepository[RequirementChange]):
     }
 
 
-class RequirementTraceRepository(BaseRepository[RequirementTrace]):
+class _ClearableRepository[T: Entity](BaseRepository[T]):
+    """계획·설계처럼 코드가 재생성하는 파생 데이터용. 요구사항과 달리 프로젝트 단위 물리 교체를 허용한다."""
+
+    def clear_project(self, project_id: str) -> int:
+        with self.db.transaction() as conn:
+            cur = conn.execute(f"DELETE FROM {self.table} WHERE project_id = ?", (project_id,))
+        return int(cur.rowcount)
+
+
+class RequirementTraceRepository(_ClearableRepository[RequirementTrace]):
     table = "requirement_traces"
     model = RequirementTrace
     columns = {
@@ -394,15 +404,6 @@ class AgentOutputRepository(BaseRepository[AgentOutput]):
         return rows[0] if rows else None
 
 
-class _ClearableRepository[T: Entity](BaseRepository[T]):
-    """계획·설계처럼 코드가 재생성하는 파생 데이터용. 요구사항과 달리 프로젝트 단위 물리 교체를 허용한다."""
-
-    def clear_project(self, project_id: str) -> int:
-        with self.db.transaction() as conn:
-            cur = conn.execute(f"DELETE FROM {self.table} WHERE project_id = ?", (project_id,))
-        return int(cur.rowcount)
-
-
 class WBSItemRepository(_ClearableRepository[WBSItem]):
     table = "wbs_items"
     model = WBSItem
@@ -452,6 +453,13 @@ class IntegrationTestRepository(_ClearableRepository[IntegrationTest]):
     table = "integration_tests"
     model = IntegrationTest
     columns = {"name": "name"}
+
+
+class ChangeRequestRepository(BaseRepository[ChangeRequest]):
+    table = "change_requests"
+    model = ChangeRequest
+    composite_key = True  # CR-001은 프로젝트 안에서만 유일
+    columns = {"status": "status", "requester": "requester"}
 
 
 class SequenceRepository:
@@ -531,3 +539,4 @@ class Repositories:
         self.screens = ScreenRepository(db)
         self.unit_tests = UnitTestRepository(db)
         self.integration_tests = IntegrationTestRepository(db)
+        self.change_requests = ChangeRequestRepository(db)

@@ -29,6 +29,8 @@ GATE_TITLES: dict[str, str] = {
     "gate0": "Gate 0: 문서 추출 품질",
     "gate1": "Gate 1: 요구사항 추출 및 독립 검증",
     "gate4": "Gate 4: 산출물 QA 및 최종 승인",
+    "gate5": "Gate 5: 변경 요청 승인 (사람)",
+    "gate6": "Gate 6: 변경 반영 문서 QA",
 }
 
 

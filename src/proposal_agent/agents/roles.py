@@ -262,6 +262,29 @@ QA_REVIEWER = _register(
 )
 
 
+# --- 10. 구축 단계 의미 비교 (Phase 6) ------------------------------------------------------
+SEMANTIC_DIFFER = _register(
+    AgentRole(
+        key="semantic_differ",
+        title="변경 요청 의미 비교",
+        description="변경 요청 항목을 기존 요구사항과 의미 단위로 비교해 ADD/MODIFY/DELETE_REQUEST/NO_CHANGE/AMBIGUOUS로 분류하고 근거를 쓴다. 최종 분류·ID 발급·반영은 코드와 사람이 한다.",
+        inputs=("변경 요청 항목", "기존 요구사항 목록", "규칙 기반 분류 결과"),
+        output_schema=schemas.SemanticDiffDraft,
+        prompt_name="semantic_differ",
+        mcp_servers=(MCP_PROJECT,),
+        mcp_tool_patterns=(
+            f"mcp__{MCP_PROJECT}__list_requirements",
+            f"mcp__{MCP_PROJECT}__get_requirement",
+        ),
+        max_turns=8,
+        max_budget_usd=1.5,
+        effort="high",
+        output_subdir="12_Revision_History",
+        output_stem="semantic_diff",
+    )
+)
+
+
 def get_role(key: str) -> AgentRole:
     try:
         return ROLES[key]

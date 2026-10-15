@@ -290,4 +290,19 @@ MIGRATIONS: tuple[Migration, ...] = (
         );
         """,
     ),
+    Migration(
+        5,
+        "change_requests",
+        f"""
+        CREATE TABLE change_requests (
+            id TEXT NOT NULL,
+            {_FK_PROJECT},
+            status TEXT NOT NULL,
+            requester TEXT NOT NULL,
+            {_COMMON},
+            PRIMARY KEY (project_id, id)
+        );
+        CREATE INDEX ix_change_requests_project ON change_requests(project_id, created_at);
+        """,
+    ),
 )

@@ -25,6 +25,9 @@ class TaskNode:
     duration_days: int = 1  # 영업일
     fixed_start: date | None = None  # UI 등에서 명시한 날짜 (있으면 우선, 충돌 검사 대상)
     fixed_end: date | None = None
+    earliest_start: date | None = (
+        None  # 이보다 빠르지 않게 (기준 계획일 유지 → 여유가 있으면 후행이 밀리지 않음)
+    )
 
 
 @dataclass
@@ -153,6 +156,8 @@ def compute_schedule(
             elif d.type == DependencyType.SF:
                 e = calendar.offset(ps, d.lag_days)
                 end = e if end is None else max(end, e)
+        if node.earliest_start is not None:
+            start = max(start, calendar.next_business_day(node.earliest_start))
         if end is not None:
             # FF/SF로 종료가 당겨지면 시작을 역산하되 다른 제약보다 늦게 끝나야 한다
             start_from_end = calendar.offset(end, -(dur - 1))

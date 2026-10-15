@@ -161,6 +161,7 @@ class ChangeStatus(StrEnum):
     REJECTED = "rejected"
     APPLIED = "applied"
     WITHDRAWN = "withdrawn"
+    ERROR = "error"  # 반영 중 오류 → 기준 데이터 롤백, 재시도 가능
 
 
 class TraceTargetType(StrEnum):

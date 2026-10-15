@@ -52,6 +52,7 @@ class GenerationContext:
     review_notes: list[str] = field(default_factory=list)
     version: str = "v1.0"
     generated_on: date = field(default_factory=date.today)
+    change_log: list[list[Any]] = field(default_factory=list)  # 구축 단계 변경관리대장 행 (CR 단위)
 
     @property
     def wbs_by_id(self) -> dict[str, WBSItem]:

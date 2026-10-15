@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from typing import Any, ClassVar
 
@@ -108,6 +109,15 @@ class Requirement(ProjectScoped):
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     history: list[HistoryEntry] = Field(default_factory=list)
     version: int = 1
+    added_by: str | None = Field(default=None, description="구축 단계에서 추가 요청한 사람")
+    added_on: date | None = None
+    change_state: str = Field(
+        default="none", description="none | added | modified | delete_requested | deleted"
+    )
+    change_summary: str = ""
+    previous_versions: list[dict[str, Any]] = Field(
+        default_factory=list, description="변경 전 스냅샷 (이전 버전 보존)"
+    )
 
     @classmethod
     def from_draft(
@@ -198,3 +208,5 @@ class RequirementTrace(ProjectScoped):
     target_type: TraceTargetType
     target_id: str
     note: str | None = None
+    review_status: str = Field(default="유효", description="유효 | 재검토 필요 | 무효")
+    review_reason: str = ""

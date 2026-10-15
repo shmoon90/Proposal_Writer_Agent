@@ -231,6 +231,25 @@ class DocumentPlan(_Strict):
 # --- 9. QA·변경 검토 -----------------------------------------------------------------------------
 
 
+class SemanticDiffCandidate(_Strict):
+    item_index: int = Field(description="요청 항목 번호 (1부터)")
+    classification: str = Field(description="ADD | MODIFY | DELETE_REQUEST | NO_CHANGE | AMBIGUOUS")
+    requirement_id: str | None = Field(default=None, description="관련 기존 요구사항 ID (있으면)")
+    related_ids: list[str] = Field(default_factory=list)
+    proposed_name: str = ""
+    proposed_description: str = ""
+    rationale: str = Field(
+        default="", description="목적·사용자·입출력·규칙·제약·성능/보안·화면 비교 근거"
+    )
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    needs_confirmation: bool = True
+
+
+class SemanticDiffDraft(_Strict):
+    candidates: list[SemanticDiffCandidate] = Field(default_factory=list)
+    notes: str = ""
+
+
 class QaFinding(_Strict):
     target: str = Field(description="산출물 종류 또는 요구사항 ID")
     level: str = Field(description="error/warning/info")

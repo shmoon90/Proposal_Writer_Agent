@@ -26,6 +26,8 @@ HEADERS = (
     "통합테스트 ID",
     "통합테스트 결과",
     "WBS",
+    "검토 상태",
+    "변경 사유",
     "비고",
 )
 RESULT_OPTIONS = tuple(t.value for t in TestResult)
@@ -38,16 +40,21 @@ def build_trace_matrix(
     unit_tests: list[UnitTest],
     integration_tests: list[IntegrationTest],
 ) -> bytes:
-    screen_ids = {s.id for s in screens}
-    ut_ids = {t.id for t in unit_tests}
-    it_ids = {t.id for t in integration_tests}
+    screen_ids = {s.code or s.id for s in screens}
+    ut_ids = {t.code or t.id for t in unit_tests}
+    it_ids = {t.code or t.id for t in integration_tests}
     by_req: dict[str, dict[str, list[str]]] = {}
+    review: dict[str, list[str]] = {}
     for t in traces:
         bucket = by_req.setdefault(
             t.requirement_id,
             {"screen": [], "unit_test": [], "integration_test": [], "wbs_item": []},
         )
         bucket.setdefault(t.target_type.value, []).append(t.target_id)
+        if t.review_status != "유효":
+            review.setdefault(t.requirement_id, []).append(
+                f"{t.target_id}: {t.review_status} ({t.review_reason})"
+            )
     wbs_by_req: dict[str, list[str]] = {}
     for w in ctx.wbs:
         for rid in w.related_requirement_ids:
@@ -76,6 +83,8 @@ def build_trace_matrix(
                 ", ".join(its) or PENDING_ID,
                 TestResult.NOT_RUN.value,
                 ", ".join(wbs_codes) or PENDING_ID,
+                "재검토 필요" if review.get(r.id) else "유효",
+                "; ".join(review.get(r.id, [])),
                 note,
             ]
         )
@@ -86,8 +95,8 @@ def build_trace_matrix(
         ws,
         HEADERS,
         rows,
-        widths=(12, 30, 16, 18, 12, 18, 12, 18, 30),
-        validations={5: RESULT_OPTIONS, 7: RESULT_OPTIONS},
+        widths=(12, 30, 16, 18, 12, 18, 12, 18, 12, 30, 30),
+        validations={5: RESULT_OPTIONS, 7: RESULT_OPTIONS, 9: ("유효", "재검토 필요", "무효")},
     )
     add_note(
         ws,
@@ -97,10 +106,26 @@ def build_trace_matrix(
 
     ws2 = wb.create_sheet(SHEET_TESTS)
     test_rows = [
-        [t.id, "단위", t.name, t.target_component, TestResult.NOT_RUN.value, ""] for t in unit_tests
+        [
+            t.code or t.id,
+            "단위",
+            t.name,
+            t.target_component,
+            t.status if t.status in RESULT_OPTIONS else TestResult.NOT_RUN.value,
+            "",
+        ]
+        for t in unit_tests
     ]
     test_rows += [
-        [t.id, "통합", t.name, t.scenario, TestResult.NOT_RUN.value, ""] for t in integration_tests
+        [
+            t.code or t.id,
+            "통합",
+            t.name,
+            t.scenario,
+            t.status if t.status in RESULT_OPTIONS else TestResult.NOT_RUN.value,
+            "",
+        ]
+        for t in integration_tests
     ]
     write_table(
         ws2,

@@ -67,13 +67,13 @@ PROPOSAL_STEPS = _steps(
 
 BUILD_STEPS = _steps(
     ("upload", "기존 산출물 업로드", None, None),
-    ("doc_structure", "문서 구조 분석·컬럼 매핑", None, "legacy_doc_analyst"),
+    ("doc_structure", "문서 구조 분석·컬럼 매핑", None, None),
     ("load_baseline", "기준 데이터 적재", None, None),
     ("change_request", "변경 요청 등록", None, None),
     ("diff", "결정적·의미 비교", None, "semantic_differ"),
-    ("impact", "영향 분석·재계산", "게이트 5: 변경 승인", "impact_analyst"),
+    ("impact", "영향 분석·재계산", "게이트 5: 변경 승인", None),
     ("apply", "기준 데이터 적용", None, None),
-    ("regenerate", "문서 갱신 (새 버전)", None, "revision_writer"),
+    ("regenerate", "문서 갱신 (새 버전)", None, None),
     ("qa", "무결성·QA", "게이트 6: 최종 QA 승인", "deliverable_qa"),
     ("finalize", "Revision 확정", None, None),
 )

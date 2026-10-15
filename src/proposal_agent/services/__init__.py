@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from proposal_agent.agents.runner import AgentRunner, build_runner
+from proposal_agent.changes.baseline_service import BaselineService
+from proposal_agent.changes.service import ChangeService
 from proposal_agent.generators.service import GenerationService
 from proposal_agent.ingest.ocr import OcrEngine
 from proposal_agent.ingest.service import ExtractionService
@@ -37,6 +39,8 @@ class Services:
     planning: PlanningService
     generation: GenerationService
     qa: QaService
+    baseline: BaselineService
+    changes: ChangeService
 
     @classmethod
     def from_context(
@@ -54,11 +58,24 @@ class Services:
         generation = GenerationService(
             ctx.repos, ctx.paths, ctx.settings, audit, ctx.files, planning, steps, extraction
         )
+        documents = DocumentService(ctx.repos, ctx.files, audit)
+        baseline = BaselineService(ctx.repos, ctx.paths, ctx.settings, audit, ctx.files)
+        changes = ChangeService(
+            ctx.repos,
+            ctx.paths,
+            ctx.settings,
+            audit,
+            ctx.files,
+            steps,
+            baseline,
+            documents,
+            extraction,
+        )
         return cls(
             ctx=ctx,
             audit=audit,
             projects=ProjectService(ctx.repos, ctx.paths, audit),
-            documents=DocumentService(ctx.repos, ctx.files, audit),
+            documents=documents,
             pipeline=PipelineService(ctx.repos, audit),
             extraction=extraction,
             requirements=RequirementService(ctx.repos, ctx.settings, audit, extraction, runner),
@@ -69,6 +86,8 @@ class Services:
             planning=planning,
             generation=generation,
             qa=QaService(ctx.repos, ctx.paths, audit, ctx.files, generation),
+            baseline=baseline,
+            changes=changes,
         )
 
 
@@ -76,6 +95,8 @@ __all__ = [
     "AgentStepService",
     "AppContext",
     "AuditService",
+    "BaselineService",
+    "ChangeService",
     "DocumentService",
     "ExtractionService",
     "GateService",

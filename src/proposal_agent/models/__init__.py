@@ -1,6 +1,18 @@
 """공통 데이터 모델 (DATA_MODEL.md)."""
 
 from proposal_agent.models.audit import AuditEvent
+from proposal_agent.models.change import (
+    CandidateClass,
+    ChangeCandidate,
+    ChangeImpact,
+    ChangeRequest,
+    EffortImpact,
+    InputKind,
+    RoleImpact,
+    SemanticFeatures,
+    StaffingScenario,
+    TaskImpact,
+)
 from proposal_agent.models.common import Entity, ProjectScoped, new_id, utcnow
 from proposal_agent.models.deliverable import Approval, Deliverable, Revision, ValidationResult
 from proposal_agent.models.design import (
@@ -93,6 +105,10 @@ __all__ = [
     "AuditEvent",
     "BlockLocation",
     "BlockType",
+    "CandidateClass",
+    "ChangeCandidate",
+    "ChangeImpact",
+    "ChangeRequest",
     "ChangeStatus",
     "ChangeType",
     "Deliverable",
@@ -100,6 +116,7 @@ __all__ = [
     "DependencyType",
     "Dependency",
     "DocumentKind",
+    "EffortImpact",
     "Entity",
     "ExtractedBlock",
     "ExtractionMethod",
@@ -114,6 +131,7 @@ __all__ = [
     "GateStatus",
     "HistoryEntry",
     "ImpactAnalysis",
+    "InputKind",
     "IntegrityStatus",
     "IntegrationTest",
     "PageStat",
@@ -133,8 +151,11 @@ __all__ = [
     "RequirementVerdict",
     "ResearchSource",
     "ReviewStatus",
+    "RoleImpact",
     "Revision",
     "ScopeClass",
+    "SemanticFeatures",
+    "StaffingScenario",
     "Screen",
     "SourceDocument",
     "SourceRef",
@@ -145,6 +166,7 @@ __all__ = [
     "StepRun",
     "StepStatus",
     "TechAlternativeRecord",
+    "TaskImpact",
     "TaskStatus",
     "TechnologyResearch",
     "TestResult",

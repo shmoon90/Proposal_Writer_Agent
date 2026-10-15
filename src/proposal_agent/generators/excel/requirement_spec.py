@@ -19,6 +19,26 @@ SHEET_FUNCTIONAL = "기능요구사항"
 SHEET_NON_FUNCTIONAL = "비기능요구사항"
 SHEET_OTHER = "제약·평가·제출조건"
 SHEET_HISTORY = "변경이력"
+SHEET_CHANGE_LOG = "변경관리대장"
+CHANGE_LOG_HEADERS = (
+    "CR ID",
+    "변경 유형",
+    "요청자",
+    "요청일",
+    "사유",
+    "기존 요구사항 ID",
+    "변경 전",
+    "변경 후",
+    "분류 근거",
+    "승인 상태",
+    "승인자",
+    "승인일",
+    "관련 산출물",
+    "일정 영향",
+    "공수 영향",
+    "비용 영향",
+    "결과",
+)
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "요구사항 ID",
     "요구사항 명",
@@ -37,10 +57,21 @@ HEADERS: tuple[str, ...] = (
     "검토 상태",
     "검증 상태",
     "연결 산출물",
+    "추가 요청자",
+    "추가일",
+    "변경 상태",
+    "변경 내용",
     REQUIRED_COLUMNS[5],
 )
-WIDTHS = (12, 28, 50, 36, 12, 12, 9, 9, 14, 30, 10, 12, 18, 40)
+WIDTHS = (12, 28, 50, 36, 12, 12, 9, 9, 14, 30, 10, 12, 18, 12, 12, 12, 30, 40)
 ACCEPT_COL = 5
+CHANGE_STATE_LABELS = {
+    "none": "",
+    "added": "추가",
+    "modified": "변경",
+    "delete_requested": "삭제 요청",
+    "deleted": "삭제",
+}
 
 
 def _row(r: Requirement) -> list[object]:
@@ -61,6 +92,10 @@ def _row(r: Requirement) -> list[object]:
         r.review_status.value,
         r.verification_status.value,
         ", ".join(r.linked_deliverables),
+        r.added_by or "",
+        r.added_on,
+        CHANGE_STATE_LABELS.get(r.change_state, r.change_state),
+        r.change_summary,
         requirement_note(r),
     ]
 
@@ -120,6 +155,14 @@ def build_requirement_spec(ctx: GenerationContext) -> bytes:
         hist_rows,
         widths=(12, 22, 22, 18, 40, 50),
     )
+    if ctx.change_log:
+        ws = wb.create_sheet(SHEET_CHANGE_LOG)
+        write_table(
+            ws,
+            CHANGE_LOG_HEADERS,
+            ctx.change_log,
+            widths=(10, 14, 12, 12, 30, 14, 40, 40, 50, 12, 12, 12, 40, 16, 30, 14, 40),
+        )
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

@@ -12,6 +12,9 @@ from proposal_agent.models.common import ProjectScoped
 
 
 class Screen(ProjectScoped):
+    code: str = Field(
+        default="", description="문서에 표시되는 ID (예: SCR-001). 비우면 내부 id 사용"
+    )
     id_prefix: ClassVar[str] = "SCR"
 
     name: str
@@ -21,6 +24,9 @@ class Screen(ProjectScoped):
 
 
 class UnitTest(ProjectScoped):
+    code: str = Field(
+        default="", description="문서에 표시되는 ID (예: SCR-001). 비우면 내부 id 사용"
+    )
     id_prefix: ClassVar[str] = "UT"
 
     name: str
@@ -30,6 +36,9 @@ class UnitTest(ProjectScoped):
 
 
 class IntegrationTest(ProjectScoped):
+    code: str = Field(
+        default="", description="문서에 표시되는 ID (예: SCR-001). 비우면 내부 id 사용"
+    )
     id_prefix: ClassVar[str] = "IT"
 
     name: str

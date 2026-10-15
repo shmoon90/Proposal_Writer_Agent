@@ -18,6 +18,12 @@ pages = [
     st.Page("ui/app_pages/requirements.py", title="요구사항", icon=":material/checklist:"),
     st.Page("ui/app_pages/agents.py", title="에이전트·조사", icon=":material/smart_toy:"),
     st.Page("ui/app_pages/deliverables.py", title="산출물", icon=":material/inventory_2:"),
+    st.Page(
+        "ui/app_pages/build_baseline.py", title="구축: 기준 문서", icon=":material/upload_file:"
+    ),
+    st.Page(
+        "ui/app_pages/changes.py", title="구축: 변경 관리", icon=":material/published_with_changes:"
+    ),
 ]
 page = st.navigation(pages, position="sidebar")
 page.run()

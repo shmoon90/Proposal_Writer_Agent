@@ -25,10 +25,11 @@ EXPECTED_ROLES = {
     "proposal_writer",
     "document_generator",
     "qa_reviewer",
+    "semantic_differ",  # Phase 6: 구축 단계 변경 요청 의미 비교
 }
 
 
-def test_nine_roles_defined_with_prompts_and_schemas() -> None:
+def test_all_roles_defined_with_prompts_and_schemas() -> None:
     assert set(ROLES) == EXPECTED_ROLES
     for role in ROLES.values():
         assert (PROMPTS_DIR / f"{role.prompt_name}.md").exists(), role.key

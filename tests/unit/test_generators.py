@@ -154,8 +154,9 @@ def test_requirement_spec_sheets_columns_validation_and_notes(
     rejected_row = next(
         r for r in range(2, ws.max_row + 1) if ws.cell(row=r, column=1).value == "FR-001"
     )
+    note_col = headers.index("비고") + 1
     assert ws.cell(row=rejected_row, column=5).value == "미수용" and "사유" in str(
-        ws.cell(row=rejected_row, column=14).value
+        ws.cell(row=rejected_row, column=note_col).value
     )
     assert wb[SHEET_NON_FUNCTIONAL].max_row >= 2 and all(
         str(wb[SHEET_NON_FUNCTIONAL].cell(row=r, column=1).value).startswith("NFR-")
