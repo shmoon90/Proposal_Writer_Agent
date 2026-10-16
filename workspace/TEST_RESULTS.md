@@ -2,6 +2,14 @@
 
 상세 이력은 `docs/TEST_RESULTS.md`(Phase 1~23), 단계별 보고서는 `docs/PHASE*_REPORT.md`. 이 파일은 지시문 §19 요구에 따라 최신 상태만 짧게 유지한다.
 
+## 2026-10-16 단계 5 완료 시점
+
+- pytest 324 passed, 1 skipped(전체, llm 제외; 단계 4 대비 +8: 신규 tests/unit/test_stage5_change_control.py — 회의록 규칙 추출(종류·담당·기한·요구 ID)·권한 미확인 승인 금지·공식 결정만 승인·승인 결정만 변경 요청 전환·기한 경과, 에이전트 보강(FakeAgentRunner meeting_analyzer, 같은 항목 병합, 권한 힌트 무시), 협상 고객 합의 통제·'반영'은 코드만·변경 요청 전환 → 분석 → 승인 대기(8종) → 승인(정의서만 선택 재생성) → NEG 반영 전이·요구사항 수정, 상태 8종·흐름·라벨, 정의서 Excel 비교(문구만/의미/삭제/추가/변경 없음·신뢰도 0.9)·화면 이동 판정, 첨부 흐름(Excel ID 비교, 영향 확장 API·화면·보안, PPT 판독 불확실·신뢰도 ≤0.6, Word ≤0.7), QA-CON-14 판정). 기존 테스트 3곳 갱신(역할 목록 +meeting_analyzer, 문서 첨부 분석 출처 ["rule","document","ai"], E2E executed 52). ruff·mypy(144 파일) 통과. 민감 용어 검사 통과.
+- 계산기 샘플(모의 에이전트, 렌더링): 회의록(7줄 표지) 등록 → 구조화 6건(규칙 7건 + 대행 에이전트 6건을 제목·근거 문장으로 병합; 병합 전에는 11건으로 중복이 남아 근거 문장 비교를 추가) → 공식 결정 DEC 1건을 권한 확인으로 승인. QA 55항목 중 52 실행·44 통과·0 실패·8 검토(단계 4 대비 통과 +1 = QA-CON-14 PASS, 검토 항목 동일).
+- 실제 고객 RFP(저장소 밖 fixture·템플릿 2종): 회의록 구조화·결정 승인 동일. QA 55 전부 실행·48 통과·0 실패·7 검토(단계 4 대비 통과 +1, gate4 PASS). QA-CON-14 PASS(권한 미확인 결정은 '제안' 상태로만 남아 실패 없음).
+- 구축 모드 시나리오는 단위 테스트로 검증(실샘플은 제안 모드): 수정 정의서 Excel(명칭만 변경·수치 변경·행 삭제·새 행) → 후보 분류 6종, 수락·승인 → 기준선 반영·Revision·정의서만 재생성, 협상 NEG-001 합의 → CR → 반영 시 NEG '반영' 전이.
+- 미검증: 실제 Claude 모델(A-6) — meeting_analyzer 가 논의 사실과 결정을 실제로 구분하는지, semantic_differ 의 change_kind 판단 정확도. 화면(회의·결정·협상, 변경 관리 확장)은 Streamlit 을 띄워 보지 않고 코드·타입 검사만 했다.
+
 ## 2026-10-16 단계 4 완료 시점
 
 - pytest 316 passed, 1 skipped(전체, llm 제외; 단계 3 대비 +9: 신규 tests/unit/test_stage4_deliverables.py — parse_krw, estimate_cost(단가 없음→unavailable, 설정 단가+RFP 예산 문구→원가·마진, 설정 예산 우선), 비용산정 시트, 추적표 7열·'미정', 정의서 기술검토 열, build_context design_links(STR dropped 제외·API/TBL/DSG/MOD/TC), 요약 모드·장 수 상한 각주·장 수 감소, 배포 소절(구성 요소 없으면 생략)·영역 매핑·연결, draw_deployment/draw_decision_table 도형·가중 합계). 기존 테스트 2곳은 도식 종류 수 14→16 으로 갱신. ruff·mypy(140 파일) 통과. 민감 용어 검사 통과.

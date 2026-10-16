@@ -2,13 +2,14 @@
  "updated": "2026-10-16",
  "main_commit": "ab75fba",
  "plan": "docs/IMPROVEMENT_PLAN_2026-10.md",
- "status": "directive_stage4_done_stage5_pending",
+ "status": "directive_stage5_done_stage6_in_progress",
  "analysis_done": [
   "existing project structure, agents, MCP, outputs, tests (Phase 1-15)",
   "gap analysis against the quality/editability directive (19 sections)",
   "environment: PowerPoint COM registered, pywin32 installed, LibreOffice absent, no API credit"
  ],
  "implemented": [
+  "지시문 단계 5: decisions/service(회의록 구조화·권한 규칙·협상 통제·변경 요청 전환), changes/compare(Excel ID 기준 6종·PPT/Word 불확실), ChangeStatus 8종, 영향 확장, 선택 재생성·회귀 비교, QA-CON-14(55항목), 회의·결정·협상 화면, meeting_analyzer 역할",
   "지시문 단계 4: ProjectSettings 분량 모드·장 수 상한, deployment·decision 도식·배포 구조 소절, planning/cost.estimate_cost·비용산정 시트·사업성 평가 공유, GenerationContext.settings/design_links·추적표 7열·정의서 기술검토 열, 렌더링 미리보기 화면, 대행 스크립트 --rate/--budget/--detail/--group-cap",
   "지시문 단계 3: StrategyItem 보강·ProposalStrategy 저장·덱 전략 표, RequirementAnalysis(14항목)·Requirement.analysis, AlternativeComparison·비기능 설계·checked_on, QA-TECH-08(54항목)",
   "지시문 단계 2: pptx/image 리더·MEETING_NOTE, requirements/quality.py+QA-RFP-09(53항목), feasibility(13항목·권고·비용·평가서·bid_assessment 단계·bid_reviewer·Decision 기록·화면)",
@@ -50,7 +51,7 @@
   "failed": 0,
   "skipped": 1,
   "deselected": 2,
-  "pytest": "- pytest 316 passed, 1 skipped(전체, llm 제외; 단계 3 대비 +9: 신규 tests/unit/test_stage4",
+  "pytest": "- pytest 324 passed, 1 skipped(전체, llm 제외; 단계 4 대비 +8: 신규 tests/unit/test_stage5",
   "ruff": "pass",
   "mypy": "pass (117 files)"
  },
@@ -98,14 +99,13 @@
   "check": "QA-FILE-12 (tagged photos allowed), QA-FILE-03/04 flatten groups"
  },
  "next": [
-  "단계 5: 기준선·변경 관리",
-  "단계 6: 화면·DB·API 설계(코드 생성 입력 규격 깊이, D-21·D-22)",
+  "단계 6: 화면·DB·API 설계(코드 생성 입력 규격 깊이, 발주처 문맥 주입, 구현 방안 구체성 검사; D-21·D-22)",
   "단계 7: WBS·테스트·검수 + RFP_JAVA 발췌 이식(development/)",
   "단계 8: 통합 품질·최종 보고",
-  "main 병합은 단계 8 뒤 맨 마지막; 단계 5~8 연속 진행(단계별 승인 없음)"
+  "main 병합은 단계 8 뒤 맨 마지막"
  ],
  "qa_checks": {
-  "total": 54,
+  "total": 55,
   "categories": {
    "RFP": 8,
    "TECH": 7,
@@ -116,7 +116,7 @@
   "by_category": {
    "RFP": 9,
    "TECH": 8,
-   "CON": 13,
+   "CON": 14,
    "FILE": 14,
    "EDIT": 10
   }
@@ -141,8 +141,8 @@
  },
  "branch": "feature/major-revision",
  "directive": {
-  "stage": 4,
-  "stage_name": "제안서·제출 산출물",
+  "stage": 5,
+  "stage_name": "기준선·변경 관리",
   "done": true,
   "documents": [
    "workspace/PROJECT_ANALYSIS.md",
@@ -161,7 +161,7 @@
    "not_implemented": 8
   },
   "approvals_pending": [],
-  "next_stage": 5,
+  "next_stage": 6,
   "last_run": "2026-10-16",
   "approvals_granted": [
    "A-1",
@@ -175,6 +175,7 @@
   "stage1_report": "docs/DIRECTIVE_STAGE1_REPORT.md",
   "stage2_report": "docs/DIRECTIVE_STAGE2_REPORT.md",
   "stage3_report": "docs/DIRECTIVE_STAGE3_REPORT.md",
-  "stage4_report": "docs/DIRECTIVE_STAGE4_REPORT.md"
+  "stage4_report": "docs/DIRECTIVE_STAGE4_REPORT.md",
+  "stage5_report": "docs/DIRECTIVE_STAGE5_REPORT.md"
  }
 }

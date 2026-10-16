@@ -142,6 +142,8 @@ class QaService:
             deliverables=self._generation.latest_deliverables(project),
             change_requests=self._repos.change_requests.find(project.id, order_by="created_at"),
             revisions=self._repos.revisions.find(project.id, order_by="created_at"),
+            decisions=self._repos.decisions.find(project.id, order_by="code"),
+            negotiations=self._repos.negotiations.find(project.id, order_by="code"),
             rfp_analysis=analysis,
             id_prefixes=prefixes,
             rfp_profile=(

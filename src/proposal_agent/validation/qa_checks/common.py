@@ -175,6 +175,8 @@ class QaInputs:
     deliverables: dict[DeliverableKind, Deliverable] = field(default_factory=dict)
     change_requests: list[ChangeRequest] = field(default_factory=list)
     revisions: list[Revision] = field(default_factory=list)
+    decisions: list[Any] = field(default_factory=list)  # 단계 5: Decision(DEC)
+    negotiations: list[Any] = field(default_factory=list)  # 단계 5: Negotiation(NEG)
     rfp_analysis: dict[str, Any] | None = None
     id_prefixes: dict[str, str] = field(default_factory=dict)
     rfp_profile: Any | None = None  # ingest.rfp_profile.RfpProfile

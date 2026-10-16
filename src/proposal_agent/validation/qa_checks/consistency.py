@@ -156,6 +156,14 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
             fixable=FIX_REGENERATE,
             fix_suggestion="'구현 설계 작성(에이전트, 웹 검색)'을 실행해 묶음마다 구조·절차·적용 기술·근거를 채우고 산출물을 재생성",
         ),
+        _check(
+            "QA-CON-14",
+            cat,
+            "결정·협상 ↔ 기준선 반영 통제",
+            "권한 미확인 결정이 승인 상태가 아니고, 협상은 고객 합의·승인 없이 '반영'이 아니며, 결정·협상에서 온 변경 요청이 승인된 원천만 가리키는가(실패). 기한 지난 미결·조치 항목과 승인 없이 변경 요청으로 이어진 결정은 검토",
+            gate="gate5",
+            fix_suggestion="회의·결정·협상 화면에서 권한 확인·고객 합의를 기록하고, 미결·조치 항목을 해결·보류 처리",
+        ),
     ]
     f = art.outcome.findings
     by_rule: dict[str, list[tuple[ValidationLevel, str]]] = {}
@@ -390,6 +398,9 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
         req_ids=[x.split(":")[0] for x in f09 + r09],
         files=_kind_files(inp, DeliverableKind.REQUIREMENT_SPEC_XLSX),
     )
+    # 14: 결정·협상 ↔ 기준선 반영 통제 (단계 5, 지시문 §10·§11) — 두 모드 공통
+    f14, r14 = _decision_control_issues(inp)
+    _finish(checks[13], fail=_cap(f14), review=_cap(r14))
     # 10·11: 제안 문안 추상 표현·근거 없는 수치, 약어 미설명 (Phase 19)
     if inp.mode != ProjectMode.PROPOSAL:
         for i in (9, 10, 11, 12):
@@ -652,3 +663,54 @@ def _unexplained_acronyms(
         f"{src} 약어 미설명 {len(unexplained)}건: " + ", ".join(unexplained[:15]),
         "용어집(glossary)에 용어·풀이·비전문가용 설명을 추가하거나 첫 등장 시 괄호로 풀어쓰기",
     ]
+
+
+def _decision_control_issues(inp: QaInputs) -> tuple[list[str], list[str]]:
+    """QA-CON-14: 결정 권한·협상 합의·변경 요청 원천의 정합성 (단계 5).
+
+    - 실패: 권한 미확인인데 승인 상태인 결정, 승인자 없는 승인 결정, 고객 합의·승인자 없이 '반영'인 협상,
+      변경 요청이 가리키는 결정·협상이 승인/합의 상태가 아님.
+    - 검토: 기한이 지난 미결 질문·조치 항목, 승인된 공식 결정인데 관련 요구가 있으면서 변경 요청이 없는 것.
+    """
+    from datetime import date as _date
+
+    fails: list[str] = []
+    revs: list[str] = []
+    dec_by_id = {d.id: d for d in inp.decisions}
+    neg_by_id = {n.id: n for n in inp.negotiations}
+    today = _date.today()
+    for d in inp.decisions:
+        status = getattr(d.status, "value", str(d.status))
+        kind = getattr(d.kind, "value", str(d.kind))
+        if status == "approved" and not d.authority_confirmed:
+            fails.append(f"{d.code}: 권한 미확인 결정이 승인 상태")
+        if status == "approved" and not d.approved_by:
+            fails.append(f"{d.code}: 승인자 없는 승인 결정")
+        if (
+            kind in ("open_question", "action_item")
+            and status not in ("resolved", "rejected")
+            and d.due_date
+            and d.due_date < today
+        ):
+            revs.append(f"{d.code}: 기한 경과 미결·조치 항목 ({d.due_date})")
+    for n in inp.negotiations:
+        status = getattr(n.status, "value", str(n.status))
+        if status == "applied" and not (n.customer_agreed is True and n.approved_by):
+            fails.append(f"{n.code}: 고객 합의·승인 없이 '반영' 상태")
+        if status == "agreed" and n.customer_agreed is not True:
+            fails.append(f"{n.code}: 고객 합의 미확인인데 '합의' 상태")
+    for cr in inp.change_requests:
+        for did in getattr(cr, "decision_ids", []) or []:
+            d = dec_by_id.get(did)
+            if d is None:
+                fails.append(f"{cr.id}: 원천 결정 {did} 없음")
+            elif not d.is_binding:
+                fails.append(f"{cr.id}: 원천 결정 {d.code} 가 승인된 공식 결정이 아님")
+        nid = getattr(cr, "negotiation_id", None)
+        if nid:
+            n = neg_by_id.get(nid)
+            if n is None:
+                fails.append(f"{cr.id}: 원천 협상 {nid} 없음")
+            elif not (n.customer_agreed is True and n.approved_by):
+                fails.append(f"{cr.id}: 원천 협상 {n.code} 가 고객 합의·승인 상태가 아님")
+    return fails, revs

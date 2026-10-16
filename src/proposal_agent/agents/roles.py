@@ -385,6 +385,28 @@ SEMANTIC_DIFFER = _register(
 )
 
 
+MEETING_ANALYZER = _register(
+    AgentRole(
+        key="meeting_analyzer",
+        title="회의록·인터뷰 구조화",
+        description="회의록·인터뷰·질의응답 텍스트를 고객 요청/내부 의견/공식 결정/미결 질문/조치 항목/위험으로 구조화한다. 논의 사실과 결정을 구분하고 권한·날짜·담당을 추정하지 않는다. 확정은 사람이 한다.",
+        inputs=("회의록 텍스트", "규칙 추출 항목"),
+        output_schema=schemas.MeetingNoteReport,
+        prompt_name="meeting_analyzer",
+        mcp_servers=(MCP_PROJECT,),
+        mcp_tool_patterns=(
+            f"mcp__{MCP_PROJECT}__list_requirements",
+            f"mcp__{MCP_PROJECT}__get_requirement",
+        ),
+        max_turns=6,
+        max_budget_usd=1.0,
+        timeout_s=600,
+        output_subdir="12_Revision_History",
+        output_stem="meeting_notes",
+    )
+)
+
+
 def get_role(key: str) -> AgentRole:
     try:
         return ROLES[key]

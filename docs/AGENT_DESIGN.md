@@ -4,7 +4,9 @@
 
 ---
 
-## 0. 구현 반영 (Phase 3·6·7, 2026-10-15) — 실제 구현된 역할·도구·통제
+> 단계 5(2026-10-16): 역할 `meeting_analyzer`(회의록·인터뷰 구조화, `MeetingNoteReport`) 추가 — 논의 사실과 결정을 구분하고 권한·날짜·담당을 추정하지 않으며 확정은 사람이 한다. `semantic_differ` 출력에 `change_kind` 추가.
+
+##  (Phase 3·6·7, 2026-10-15) — 실제 구현된 역할·도구·통제
 
 > 2026-10-16 기준 역할 14종(Phase 23 `design_writer`, 단계 2 `bid_reviewer` 포함). 실제 모델 호출은 크레딧 부족으로 미검증이며, 모든 역할은 FakeAgentRunner(모의 응답)와 SDK 연결 점검(비용 0)으로만 검증했다. 통합 QA(Phase 7)는 에이전트 자기 평가를 쓰지 않고 코드(`validation/independent_qa.py`)가 독립 검증하며, `qa_reviewer` 결과는 사람 검토 항목으로만 덧붙는다 ([PHASE7_REPORT.md](PHASE7_REPORT.md)).
 

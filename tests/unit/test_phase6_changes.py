@@ -296,7 +296,7 @@ def test_s07_document_request_and_agent_overlay(ctx: AppContext, build_project: 
     )
     assert cr.attachment_document_ids and "[첨부" in cr.request_text
     cr = services.changes.analyze(p, cr, use_agent=True)
-    assert cr.analysis_sources == ["rule", "ai"]
+    assert cr.analysis_sources == ["rule", "document", "ai"]  # 단계 5: 첨부 문서 비교 경로
     assert any(c.source == "rule+ai" for c in cr.candidates)
     c1 = next(c for c in cr.candidates if "푸시" in c.evidence[0])
     assert (

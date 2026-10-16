@@ -7,9 +7,10 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
+from proposal_agent.changes.compare import CHANGE_KIND_LABELS
 from proposal_agent.changes.service import CHANGE_LOG_HEADERS
 from proposal_agent.config.errors import PWAError
-from proposal_agent.models import ChangeStatus, InputKind, ProjectMode
+from proposal_agent.models import ChangeStatus, DeliverableKind, InputKind, ProjectMode
 from proposal_agent.ui import components as ui
 from proposal_agent.ui.state import actor_name, current_project, get_services, show_error
 
@@ -75,8 +76,8 @@ title = c3.text_input("제목 (비우면 첫 항목으로)", key="ch_title")
 reason = st.text_input("변경 사유", key="ch_reason")
 uploads = (
     st.file_uploader(
-        "변경 요청 문서 (DOCX/PDF/TXT, 선택)",
-        type=["docx", "pdf", "txt", "md"],
+        "변경 요청 문서 (정의서 Excel → ID 기준 비교, PPT·Word 는 텍스트 판독으로 불확실 표시)",
+        type=["xlsx", "pptx", "docx", "pdf", "txt", "md"],
         accept_multiple_files=True,
         key="ch_files",
     )
@@ -206,6 +207,8 @@ if cr.candidates:
                 {
                     "후보": c.id,
                     "분류": CLASS_LABELS.get(c.classification.value, c.classification.value),
+                    "변경 종류": CHANGE_KIND_LABELS.get(c.change_kind, c.change_kind),
+                    "비교 근거": c.compare_source + (" (불확실)" if c.uncertain else ""),
                     "대상 ID": c.requirement_id or "(신규)",
                     "관련 ID": ", ".join(c.related_ids),
                     "유사도": c.similarity,
@@ -394,6 +397,14 @@ if imp is not None:
         st.write(
             {
                 "영향 받는 다른 요구사항": imp.affected_requirement_ids,
+                "화면": imp.screens_affected,
+                "단위/통합 테스트": imp.unit_tests_affected + imp.integration_tests_affected,
+                "API": imp.apis_affected,
+                "DB 테이블": imp.tables_affected,
+                "설계 항목": imp.design_items_affected,
+                "테스트케이스": imp.test_cases_affected,
+                "보안 검토 필요": imp.security_review_needed,
+                "보안 검토 사유": imp.security_reasons,
                 "날짜 변경": imp.changed_task_dates,
                 "의존 변경": imp.dependency_changes,
                 "테스트": imp.tests_added,
@@ -434,6 +445,18 @@ else:
         disabled=not staffing_present,
         help="투입계획이 업로드된 경우에만 갱신합니다.",
     )
+    kind_opts = [
+        DeliverableKind.REQUIREMENT_SPEC_XLSX,
+        DeliverableKind.TRACE_MATRIX_XLSX,
+        DeliverableKind.WBS_GANTT_XLSX,
+    ] + ([DeliverableKind.STAFFING_PLAN_XLSX] if upd else [])
+    regen = st.multiselect(
+        "재생성할 산출물 (비우면 전부; 단계 5 선택 재생성)",
+        kind_opts,
+        default=kind_opts,
+        format_func=lambda k: k.value,
+        key="ch_regen_kinds",
+    )
     x1, x2 = st.columns(2)
     if x1.button(
         "승인 · 기준 반영 · 문서 재생성",
@@ -445,7 +468,14 @@ else:
         with st.status("반영 중…", expanded=True) as status:
             try:
                 res = services.changes.approve(
-                    project, cr, approver=approver, comments=comments, update_staffing=upd
+                    project,
+                    cr,
+                    approver=approver,
+                    comments=comments,
+                    update_staffing=upd,
+                    regenerate_kinds=[k.value for k in regen]
+                    if regen and len(regen) < len(kind_opts)
+                    else None,
                 )
             except PWAError as exc:
                 status.update(label="반영 실패 (롤백됨)", state="error")
@@ -486,6 +516,18 @@ if cr.status == ChangeStatus.APPLIED:
                     label=f"통합 QA 판정 {qa.gate.status.value} — 보고서 {qa.report_path}",
                     state="complete",
                 )
+    runs = services.ctx.repos.qa_runs.find(
+        project.id, order_by="created_at", descending=True, limit=2
+    )
+    if len(runs) == 2:  # 단계 5: 회귀 비교 — 변경 전 QA 와 변경 후 QA 의 통과·실패 차이
+        cur, prev = runs[0].counts, runs[1].counts
+        delta_fail = cur.get("fail", 0) - prev.get("fail", 0)
+        delta_pass = cur.get("pass", 0) - prev.get("pass", 0)
+        (st.error if delta_fail > 0 else st.info)(
+            f"회귀 비교(직전 QA 대비): 통과 {delta_pass:+d} · 실패 {delta_fail:+d} · 검토 {cur.get('needs_human_review', 0) - prev.get('needs_human_review', 0):+d}"
+            + (" — 실패가 늘었습니다. 변경 반영을 점검하십시오." if delta_fail > 0 else ""),
+            icon=":material/compare_arrows:",
+        )
     last_qa = services.qa.latest_run(project)
     if last_qa is not None:
         cc = last_qa.counts

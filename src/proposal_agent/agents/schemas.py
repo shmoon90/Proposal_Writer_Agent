@@ -796,6 +796,37 @@ class BidReviewDraft(_Strict):
 # --- 9. QA·변경 검토 -----------------------------------------------------------------------------
 
 
+class MeetingItemDraft(_Strict):
+    """회의록 항목 (단계 5, 지시문 §10.1)."""
+
+    kind: str = Field(
+        description="customer_request | internal_opinion | official_decision | open_question | action_item | risk_issue"
+    )
+    title: str = Field(min_length=1, max_length=80)
+    content: str = Field(default="", description="항목 내용 한두 문장")
+    rationale: str = Field(default="", description="결정·요청의 이유 (회의록에 있으면)")
+    owner: str = Field(default="", description="담당자 (회의록에 있으면)")
+    due_date: str = Field(default="", description="기한 YYYY-MM-DD (회의록에 있으면)")
+    authority_hint: str = Field(
+        default="", description="결정을 내린 사람의 직책·이름 (회의록에 명시된 경우만)"
+    )
+    related_requirement_ids: list[str] = Field(default_factory=list)
+    action_items: list[str] = Field(
+        default_factory=list, description="조치 항목(담당·기한 포함 문장)"
+    )
+    evidence: str = Field(default="", description="근거 문장 원문 인용")
+
+
+class MeetingNoteReport(_Strict):
+    meeting_title: str = ""
+    held_on: str = Field(default="", description="회의 일자 YYYY-MM-DD (있으면)")
+    attendees: list[str] = Field(default_factory=list)
+    items: list[MeetingItemDraft] = Field(default_factory=list)
+    unresolved: list[str] = Field(
+        default_factory=list, description="분류가 모호해 사람이 봐야 할 것"
+    )
+
+
 class SemanticDiffCandidate(_Strict):
     item_index: int = Field(description="요청 항목 번호 (1부터)")
     classification: str = Field(description="ADD | MODIFY | DELETE_REQUEST | NO_CHANGE | AMBIGUOUS")
@@ -818,6 +849,10 @@ class SemanticDiffCandidate(_Strict):
     difficulty_basis: str = Field(default="", description="난이도 근거")
     effort_hint: str = Field(
         default="", description="공수·일정 영향 힌트 (예: 연계 1건 추가로 설계·시험 공수 증가)"
+    )
+    change_kind: str = Field(
+        default="",
+        description="변경 종류: wording(문구만 변경) | semantic(의미 변경) | screen_move(화면 이동) | add | delete | none",
     )
 
 

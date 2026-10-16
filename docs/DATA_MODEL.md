@@ -353,6 +353,10 @@ stateDiagram-v2
 
 - `ProjectSettings.proposal_detail_level`(detailed|summary)·`max_slides_per_group`(Project.settings JSON). `GenerationContext.settings`(ProjectSettings)·`design_links`(요구사항 ID → 전략/API/DB/설계/코드/테스트케이스 코드, 저장소에서 수집). 비용 산정은 `planning/cost.py` `CostEstimate`(estimated|unavailable) 로 인력투입계획 '비용산정' 시트와 사업성 평가 JSON 의 `cost_estimate` 에 같은 값이 들어간다.
 
+## 6.7 단계 5 추가 (스키마 변경 없음, JSON 필드)
+
+- `ChangeStatus` 8종(`pending_approval` 추가). `ChangeCandidate.change_kind`(wording|semantic|screen_move|add|delete|none)·`compare_source`(text|excel|pptx|docx)·`uncertain`. `ChangeImpact` 에 screens/unit_tests/integration_tests/apis/tables/design_items/test_cases_affected·security_review_needed·security_reasons. `ChangeRequest.decision_ids`·`negotiation_id`·`regenerate_kinds`. `Decision`(DEC) 은 회의록 구조화로 생성되고 `source_document_id`·`source_excerpt` 로 원문에 연결, `Negotiation`(NEG) 은 변경 요청 반영 시 `applied` 로 전이.
+
 ## 7. 데이터 흐름 요약
 
 | 단계 | 입력 | 처리 주체 | 출력(저장) |

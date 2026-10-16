@@ -108,6 +108,16 @@ class ChangeCandidate(BaseModel):
         default_factory=dict, description="사용자가 직접 수정한 필드"
     )
     evidence: list[str] = Field(default_factory=list, description="근거 문장(요청문·문서 인용)")
+    change_kind: str = Field(
+        default="",
+        description="변경 종류 (단계 5): wording 문구만 변경 | semantic 의미 변경 | screen_move 화면 이동 | add | delete | none",
+    )
+    compare_source: str = Field(
+        default="text", description="비교 근거 문서: text | excel | pptx | docx (A-5 우선순위)"
+    )
+    uncertain: bool = Field(
+        default=False, description="PPT·Word 판독 비교라 불확실 (사용자 확인 필수)"
+    )
 
     def effective(self, key: str) -> Any:
         return self.user_override.get(key, getattr(self, key, None))
@@ -183,6 +193,16 @@ class ChangeImpact(BaseModel):
     cost_after: Decimal | None = None
     cost_delta: Decimal | None = None
     tests_added: list[str] = Field(default_factory=list)
+    # 단계 5 (지시문 §11.2): 영향 대상 확장 — 화면·API·DB 테이블·설계 항목·테스트 케이스·보안
+    screens_affected: list[str] = Field(default_factory=list)
+    unit_tests_affected: list[str] = Field(default_factory=list)
+    integration_tests_affected: list[str] = Field(default_factory=list)
+    apis_affected: list[str] = Field(default_factory=list)
+    tables_affected: list[str] = Field(default_factory=list)
+    design_items_affected: list[str] = Field(default_factory=list)
+    test_cases_affected: list[str] = Field(default_factory=list)
+    security_review_needed: bool = False
+    security_reasons: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     error: str | None = Field(default=None, description="순환 의존 등으로 계산을 중단한 사유")
     computed_by: str = "code:changes.impact"
@@ -217,6 +237,15 @@ class ChangeRequest(ProjectScoped):
     error: dict[str, Any] | None = None
     user_edits: dict[str, Any] = Field(
         default_factory=dict, description="사용자가 직접 편집한 요청 필드"
+    )
+    decision_ids: list[str] = Field(
+        default_factory=list, description="전환 원천 결정(DEC) — 승인된 공식 결정만 (단계 5)"
+    )
+    negotiation_id: str | None = Field(
+        default=None, description="전환 원천 협상(NEG) — 고객 합의·승인된 협상만 (단계 5)"
+    )
+    regenerate_kinds: list[str] = Field(
+        default_factory=list, description="선택 재생성 대상 산출물 종류 (비우면 전부)"
     )
 
     @property

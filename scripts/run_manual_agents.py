@@ -616,6 +616,69 @@ DESIGNS: dict[str, Any] = {
 }
 
 
+# --- 5-1. 회의록(샘플)과 구조화 대행 응답 (단계 5, 지시문 §10) ------------------------------------------
+MEETING_NOTE: str = """제안 준비 회의록 (2026-10-16)
+참석: 영업 PM, 기술 PL, 고객 담당자(정보화팀)
+결정: 제안서 분량은 요약 모드로 하고 요구사항별 상세는 정의서에 둔다 (담당: 기술 PL)
+요청: 고객이 계산 이력 보관 기간을 1년으로 늘려 달라고 요청함 (FR-004 관련)
+미결: 모바일 지원 범위(PC 전용인지, 반응형까지인지) 확인 필요 — 담당: 영업 PM, 기한 2026-10-20
+조치: 고정밀 연산 PoC 결과를 10/22 까지 공유 (담당: 기술 PL, 기한 2026-10-22)
+의견: 내부적으로는 FastAPI 대신 Flask 도 검토해 볼 만하다는 의견
+위험: 발주처 서버 사양이 미정이라 성능 목표(응답 1초) 보장이 어려울 수 있음
+"""
+MEETING_REPORT: dict[str, Any] = {
+    "meeting_title": "제안 준비 회의",
+    "held_on": "2026-10-16",
+    "attendees": ["영업 PM", "기술 PL", "고객 담당자(정보화팀)"],
+    "items": [
+        {
+            "kind": "official_decision",
+            "title": "제안서 분량은 요약 모드, 상세는 정의서",
+            "content": "제안서는 요약 모드로 작성하고 요구사항별 상세는 정의서에 둔다.",
+            "owner": "기술 PL",
+            "authority_hint": "",
+            "evidence": "결정: 제안서 분량은 요약 모드로 하고 요구사항별 상세는 정의서에 둔다",
+        },
+        {
+            "kind": "customer_request",
+            "title": "계산 이력 보관 기간 1년으로 연장",
+            "content": "고객이 계산 이력 보관 기간을 1년으로 늘려 달라고 요청.",
+            "related_requirement_ids": ["FR-004"],
+            "evidence": "요청: 고객이 계산 이력 보관 기간을 1년으로 늘려 달라고 요청함 (FR-004 관련)",
+        },
+        {
+            "kind": "open_question",
+            "title": "모바일 지원 범위 확인",
+            "content": "PC 전용인지 반응형까지인지 확인 필요.",
+            "owner": "영업 PM",
+            "due_date": "2026-10-20",
+            "evidence": "미결: 모바일 지원 범위(PC 전용인지, 반응형까지인지) 확인 필요",
+        },
+        {
+            "kind": "action_item",
+            "title": "고정밀 연산 PoC 결과 공유",
+            "content": "PoC 결과를 10/22 까지 공유.",
+            "owner": "기술 PL",
+            "due_date": "2026-10-22",
+            "evidence": "조치: 고정밀 연산 PoC 결과를 10/22 까지 공유",
+        },
+        {
+            "kind": "internal_opinion",
+            "title": "Flask 검토 의견",
+            "content": "FastAPI 대신 Flask 도 검토해 볼 만하다는 내부 의견.",
+            "evidence": "의견: 내부적으로는 FastAPI 대신 Flask 도 검토해 볼 만하다는 의견",
+        },
+        {
+            "kind": "risk_issue",
+            "title": "발주처 서버 사양 미정으로 성능 목표 보장 어려움",
+            "content": "서버 사양이 미정이라 응답 1초 목표 보장이 어려울 수 있음.",
+            "evidence": "위험: 발주처 서버 사양이 미정이라 성능 목표(응답 1초) 보장이 어려울 수 있음",
+        },
+    ],
+    "unresolved": [],
+}
+
+
 # --- 2-5. 사업 참여 타당성 검토 (단계 2, 대행 응답) -------------------------------------------------
 BID_REVIEW: dict[str, Any] = {
     "items": [
@@ -1463,6 +1526,8 @@ FIXTURE_NAMES = (
     "APPROACHES",
     "DESIGNS",
     "BID_REVIEW",
+    "MEETING_NOTE",
+    "MEETING_REPORT",
     "STRATEGY",
     "RESEARCH",
     "ARCHITECTURE",
@@ -1657,6 +1722,7 @@ def main() -> int:
             "strategy_planner": STRATEGY,
             "design_writer": DESIGNS,
             "bid_reviewer": BID_REVIEW,
+            "meeting_analyzer": MEETING_REPORT,
         },
         cost_per_call=0.0,
     )
@@ -1749,6 +1815,30 @@ def main() -> int:
         log.append(
             f"참여 결정 {_dec.code} 기록(제안 상태, 권한 미확인) — 권고 {_bid.recommendation.label}"
         )
+    # 단계 5: 회의록 등록 → 구조화(규칙 + 대행 에이전트) → 결정 1건 확정(권한 확인) · 미결은 그대로
+    _mdoc = s.documents.register_upload(
+        p,
+        kind=DocumentKind.MEETING_NOTE,
+        file_name="제안준비회의록_20261016.txt",
+        data=MEETING_NOTE.encode("utf-8"),
+        actor=ACTOR,
+    )
+    _decs, _mwarn = s.decisions.structure_meeting(p, _mdoc, actor=ACTOR)
+    _official = [d for d in _decs if d.kind.value == "official_decision"]
+    if _official:
+        from proposal_agent.models import DecisionStatus
+
+        s.decisions.confirm_decision(
+            p,
+            _official[0].id,
+            status=DecisionStatus.APPROVED,
+            approver="영업 PM",
+            authority_confirmed=True,
+            comments="사업 책임자 확인",
+        )
+    log.append(
+        f"회의록 구조화: {len(_decs)}건 ({', '.join(sorted({d.kind.value for d in _decs}))}), 공식 결정 승인 {len(_official[:1])}건, 경고 {len(_mwarn)}건"
+    )
     log.append(r.run_tech_research(p, actor=ACTOR).summary)
     log.append(r.run_approach_writing(p, actor=ACTOR).summary)
     log.append(r.run_strategy_brief(p, actor=ACTOR).summary)

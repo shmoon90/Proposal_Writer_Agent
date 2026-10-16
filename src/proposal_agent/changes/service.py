@@ -18,6 +18,14 @@ from typing import TYPE_CHECKING, Any
 
 from proposal_agent.agents.schemas import SemanticDiffDraft
 from proposal_agent.changes.baseline_service import REVISION_SUBDIR, BaselineService
+from proposal_agent.changes.compare import (
+    CHANGE_KIND_LABELS,
+    SOURCE_DOCX,
+    SOURCE_PPTX,
+    change_kind_of,
+    classify_document_text,
+    compare_spec_workbook,
+)
 from proposal_agent.changes.impact import SimPlan, analyze_impact, simulate
 from proposal_agent.changes.semantic import aspect_labels, classify_request, split_items
 from proposal_agent.config.errors import AgentRunError, PWAError, ValidationError
@@ -43,6 +51,7 @@ from proposal_agent.models import (
     Difficulty,
     DocumentKind,
     IntegrityStatus,
+    NegotiationStatus,
     Project,
     QaStatus,
     Requirement,
@@ -82,6 +91,7 @@ if TYPE_CHECKING:
     from proposal_agent.services.audit import AuditService
 
 log = get_logger("changes.service")
+NL = chr(10)
 
 GATE5_KEY = "gate5"
 ATTACHMENT_MAX_CHARS = 6000
@@ -92,6 +102,19 @@ FILE_STEMS: dict[DeliverableKind, tuple[str, str]] = {
     DeliverableKind.STAFFING_PLAN_XLSX: ("06_WBS_Effort_Schedule", "Staffing_Plan"),
 }
 from proposal_agent.generators.excel.requirement_spec import CHANGE_LOG_HEADERS  # noqa: E402  (재노출)
+
+_SECURITY_WORDS = (
+    "개인정보",
+    "보안",
+    "인증",
+    "암호",
+    "권한",
+    "접근 통제",
+    "접근통제",
+    "마스킹",
+    "로그인",
+    "세션",
+)
 
 
 @dataclass
@@ -189,6 +212,9 @@ class ChangeService:
                 project, kind=DocumentKind.OTHER, file_name=name, data=data, actor=actor
             )
             attachment_ids.append(doc.id)
+            if name.lower().endswith(".xlsx"):  # 단계 5 (A-5): 정의서 Excel 은 분석 시 ID 기준 비교
+                excerpts.append(f"[첨부 {name}: 요구사항 정의서 Excel — 분석 시 ID 기준 비교]")
+                continue
             outcome = self._extraction.extract_document(project, doc, actor=actor)
             blocks = [b.text for b in getattr(outcome, "blocks", []) if b.text.strip()]
             if not blocks:
@@ -295,17 +321,29 @@ class ChangeService:
             raise ValidationError(f"{cr.id}는 이미 승인·반영되었습니다.")
         existing = self.active_requirements(project)
         decisions = {c.id: (c.user_decision, c.user_override) for c in cr.candidates}
-        candidates = classify_request(
-            cr.request_text,
-            existing,
-            input_kind=cr.input_kind,
-            selected_ids=cr.selected_requirement_ids,
+        candidates, doc_notes = self._document_candidates(project, cr, existing)
+        own_text = (
+            cr.request_text.split(NL + "[첨부 ", 1)[0]
+            if cr.attachment_document_ids
+            else cr.request_text
         )
+        own_ok = own_text.strip() and not own_text.lstrip().startswith("[첨부 ")
+        if own_ok or (not cr.attachment_document_ids and cr.selected_requirement_ids):
+            candidates.extend(
+                classify_request(
+                    own_text,
+                    existing,
+                    input_kind=cr.input_kind,
+                    selected_ids=cr.selected_requirement_ids,
+                )
+            )
         for c in candidates:  # 재분석 시 사용자 결정은 유지
+            if not c.change_kind:
+                c.change_kind = change_kind_of(c.classification, c.change_aspects)
             if c.id in decisions:
                 c.user_decision, c.user_override = decisions[c.id]
-        cr.analysis_sources = ["rule"]
-        cr.unresolved = []
+        cr.analysis_sources = ["rule"] + (["document"] if cr.attachment_document_ids else [])
+        cr.unresolved = list(doc_notes)
         if use_agent:
             self._overlay_agent(project, cr, candidates, existing, actor)
         cr.candidates = candidates
@@ -337,7 +375,10 @@ class ChangeService:
         existing: list[Requirement],
         actor: str,
     ) -> None:
-        items = split_items(cr.request_text)
+        items = [
+            (c.proposed_description or (c.evidence[0] if c.evidence else c.rationale))[:400]
+            for c in candidates
+        ] or split_items(cr.request_text)
         prompt = (
             f'<request requester="{cr.requester}" reason="{cr.reason}">\n'
             + "\n".join(f"[{i}] {t}" for i, t in enumerate(items, start=1))
@@ -394,6 +435,8 @@ class ChangeService:
                 )
                 continue
             # 문맥 비교 관점·난이도는 에이전트 판단을 우선 반영 (규칙 값은 근거에 남긴다)
+            if ai.change_kind in CHANGE_KIND_LABELS and ai.change_kind:
+                target.change_kind = ai.change_kind
             if ai.change_aspects:
                 target.change_aspects = list(
                     dict.fromkeys([*target.change_aspects, *ai.change_aspects])
@@ -427,9 +470,117 @@ class ChangeService:
                 if x in valid_ids and x not in target.related_ids:
                     target.related_ids.append(x)
 
+    def _document_candidates(
+        self, project: Project, cr: ChangeRequest, existing: list[Requirement]
+    ) -> tuple[list[ChangeCandidate], list[str]]:
+        """첨부 문서별 비교 (A-5): Excel 정의서 → ID 기준, PPT·Word → 텍스트 판독(불확실 표시)."""
+        out: list[ChangeCandidate] = []
+        notes: list[str] = []
+        docs = []
+        for doc_id in cr.attachment_document_ids:
+            try:
+                docs.append(self._repos.documents.get(doc_id, project.id))
+            except PWAError:
+                notes.append(f"첨부 문서 {doc_id} 를 찾을 수 없음")
+        for di, doc in enumerate(docs, start=1):
+            name = doc.file_name
+            low = name.lower()
+            cands: list[ChangeCandidate] = []
+            if low.endswith(".xlsx"):
+                data = self._paths.resolve_output(doc.stored_path).read_bytes()
+                try:
+                    cands, warn = compare_spec_workbook(data, existing, file_name=name)
+                except PWAError as exc:
+                    notes.append(f"{name}: 정의서 비교 실패 — {exc}")
+                    continue
+                notes.extend(warn)
+            else:
+                text = NL.join(
+                    b.text
+                    for b in self._extraction.current_blocks(project)
+                    if b.source_document_id == doc.id and b.text.strip()
+                )
+                if not text.strip():
+                    notes.append(f"{name}: 추출된 텍스트가 없어 비교하지 못함")
+                    continue
+                src = SOURCE_PPTX if low.endswith(".pptx") else SOURCE_DOCX
+                cands = classify_document_text(text, existing, source=src, file_name=name)
+                notes.append(
+                    f"{name}: {'PPT' if src == SOURCE_PPTX else 'Word/텍스트'} 판독 비교라 불확실 — 후보마다 사용자 확인 필요"
+                )
+            if len(docs) > 1:
+                for c in cands:
+                    c.id = f"{c.id}@{di}"
+            out.extend(cands)
+        return out, notes
+
+    def _extend_impact(self, project: Project, cr: ChangeRequest, impact: ChangeImpact) -> None:
+        """영향 대상 확장 (지시문 §11.2): 화면·테스트(추적표)·API·DB·설계 항목·테스트 케이스(연결 엔티티)·보안 검토."""
+        targets = [
+            c
+            for c in cr.candidates
+            if c.classification != CandidateClass.NO_CHANGE and c.user_decision != "reject"
+        ]
+        req_ids = {c.requirement_id for c in targets if c.requirement_id}
+        req_ids.update(impact.affected_requirement_ids)
+        if req_ids:
+            for t in self._repos.traces.find(project.id):
+                if t.requirement_id not in req_ids:
+                    continue
+                if t.target_type == TraceTargetType.SCREEN:
+                    impact.screens_affected.append(t.target_id)
+                elif t.target_type == TraceTargetType.UNIT_TEST:
+                    impact.unit_tests_affected.append(t.target_id)
+                elif t.target_type == TraceTargetType.INTEGRATION_TEST:
+                    impact.integration_tests_affected.append(t.target_id)
+            for repo, attr in (
+                (self._repos.api_specs, "apis_affected"),
+                (self._repos.db_tables, "tables_affected"),
+                (self._repos.design_items, "design_items_affected"),
+                (self._repos.test_cases, "test_cases_affected"),
+            ):
+                for e in repo.find(project.id, order_by="code"):
+                    if req_ids & set(e.related_requirement_ids):
+                        getattr(impact, attr).append(e.code or e.id)
+        for attr in (
+            "screens_affected",
+            "unit_tests_affected",
+            "integration_tests_affected",
+            "apis_affected",
+            "tables_affected",
+            "design_items_affected",
+            "test_cases_affected",
+        ):
+            setattr(impact, attr, sorted(set(getattr(impact, attr))))
+        reasons: list[str] = []
+        for c in targets:
+            text = (c.proposed_description or "") + " " + " ".join(c.evidence)
+            hits = [w for w in _SECURITY_WORDS if w in text]
+            if hits:
+                reasons.append(f"{c.id}: 보안 관련 표현 {', '.join(hits[:3])}")
+            if any(a in ("quality", "interface", "data") for a in c.change_aspects):
+                reasons.append(
+                    f"{c.id}: 문맥 변화 관점 {', '.join(aspect_labels([a for a in c.change_aspects if a in ('quality', 'interface', 'data')]))}"
+                )
+        if impact.apis_affected or impact.tables_affected:
+            reasons.append("연계 API·DB 테이블이 영향 범위에 있음 — 인증·개인정보 영향 확인")
+        impact.security_reasons = reasons[:8]
+        impact.security_review_needed = bool(reasons)
+
+    def _mark_negotiation_applied(self, project: Project, cr: ChangeRequest) -> None:
+        if not cr.negotiation_id:
+            return
+        try:
+            n = self._repos.negotiations.get(cr.negotiation_id, project.id)
+        except PWAError:
+            return
+        n.status = NegotiationStatus.APPLIED
+        n.touch()
+        self._repos.negotiations.update(n)
+
     def compute_impact(self, project: Project, cr: ChangeRequest) -> ChangeImpact:
         start, end = self.period(project)
-        return analyze_impact(
+        impact = analyze_impact(
             cr.candidates,
             requirements=self.active_requirements(project),
             wbs=self._repos.wbs.tree(project.id),
@@ -440,6 +591,8 @@ class ChangeService:
             project_end=end,
             calendar=self.calendar(),
         )
+        self._extend_impact(project, cr, impact)
+        return impact
 
     # --- 사용자 확인 -----------------------------------------------------------------------------
     def decide_candidate(
@@ -498,6 +651,17 @@ class ChangeService:
         if decision is not None:
             cand.needs_confirmation = False
         cr.impact = self.compute_impact(project, cr)
+        if cr.status in (ChangeStatus.ANALYZED, ChangeStatus.PENDING_APPROVAL):
+            undecided = [
+                c
+                for c in cr.candidates
+                if c.user_decision is None and c.classification != CandidateClass.NO_CHANGE
+            ]
+            cr.status = (
+                ChangeStatus.PENDING_APPROVAL
+                if not undecided and cr.accepted_candidates and not cr.impact.error
+                else ChangeStatus.ANALYZED
+            )
         cr.touch()
         self._repos.change_requests.update(cr)
         self._audit.record(
@@ -518,10 +682,19 @@ class ChangeService:
 
     def approval_blockers(self, cr: ChangeRequest) -> list[str]:
         problems: list[str] = []
-        if cr.status not in (ChangeStatus.ANALYZED,):
+        if cr.status not in (ChangeStatus.ANALYZED, ChangeStatus.PENDING_APPROVAL):
             problems.append(
-                f"상태가 '{cr.status.value}'라 승인할 수 없습니다 (분석 완료 상태여야 함)."
+                f"상태가 '{cr.status.label}'라 승인할 수 없습니다 (분석 완료·승인 대기 상태여야 함)."
             )
+        if cr.negotiation_id:  # 단계 5: 협상에서 온 요청은 고객 합의·승인이 유지되어야 반영 가능
+            try:
+                neg = self._repos.negotiations.get(cr.negotiation_id, cr.project_id)
+                if not neg.can_apply_to_baseline:
+                    problems.append(
+                        f"{neg.code}: 고객 합의·승인된 협상이 아니라 기준선에 반영할 수 없습니다."
+                    )
+            except PWAError:
+                problems.append(f"협상 {cr.negotiation_id} 를 찾을 수 없습니다.")
         accepted = cr.accepted_candidates
         if not accepted:
             problems.append("수락된 변경 후보가 없습니다. 후보별로 수락/거절을 결정하십시오.")
@@ -556,6 +729,7 @@ class ChangeService:
         comments: str,
         update_staffing: bool | None = None,
         actor: str | None = None,
+        regenerate_kinds: list[str] | None = None,
     ) -> ApplyResult:
         problems = self.approval_blockers(cr)
         if problems:
@@ -591,7 +765,13 @@ class ChangeService:
             entity_id=cr.id,
             payload={"approval": approval.id, "comments": comments},
         )
-        return self.apply(project, cr, actor=actor or approver, update_staffing=update_staffing)
+        return self.apply(
+            project,
+            cr,
+            actor=actor or approver,
+            update_staffing=update_staffing,
+            regenerate_kinds=regenerate_kinds,
+        )
 
     def reject(
         self, project: Project, cr: ChangeRequest, *, approver: str, comments: str
@@ -650,7 +830,10 @@ class ChangeService:
         *,
         actor: str,
         update_staffing: bool | None = None,
+        regenerate_kinds: list[str] | None = None,
     ) -> ApplyResult:
+        if regenerate_kinds is not None:
+            cr.regenerate_kinds = list(regenerate_kinds)
         if cr.status not in (ChangeStatus.APPROVED, ChangeStatus.ERROR):
             raise ValidationError(f"{cr.id}는 승인 상태가 아닙니다 (현재 {cr.status.value}).")
         if cr.status == ChangeStatus.ERROR and not cr.approval_id:
@@ -666,8 +849,14 @@ class ChangeService:
                 cr.error = None
                 cr.touch()
                 self._repos.change_requests.update(cr)
+                self._mark_negotiation_applied(project, cr)
             deliverables, qa_errors = self.regenerate(
-                project, cr, result.revision, actor=actor, include_staffing=include_staffing
+                project,
+                cr,
+                result.revision,
+                actor=actor,
+                include_staffing=include_staffing,
+                kinds=cr.regenerate_kinds or None,
             )
             result.deliverables, result.qa_errors = deliverables, qa_errors
             cr.after_files = [d.file_path for d in deliverables]
@@ -1171,6 +1360,7 @@ class ChangeService:
         *,
         actor: str,
         include_staffing: bool,
+        kinds: list[str] | None = None,
     ) -> tuple[list[Deliverable], list[str]]:
         ctx = self.build_context(project, revision.number)
         stamp = datetime.now().strftime("%Y%m%d%H%M")
@@ -1190,6 +1380,8 @@ class ChangeService:
         ]
         if include_staffing:
             builders.append((DeliverableKind.STAFFING_PLAN_XLSX, lambda: build_staffing_plan(ctx)))
+        if kinds:  # 단계 5: 선택 재생성 — 고른 산출물만 다시 만든다 (나머지는 이전 버전 유지)
+            builders = [(k, m) for k, m in builders if k.value in set(kinds)]
         out: list[Deliverable] = []
         qa_errors: list[str] = []
         for kind, make in builders:

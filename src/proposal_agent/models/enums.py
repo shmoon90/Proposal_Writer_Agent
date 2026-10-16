@@ -240,13 +240,47 @@ class ChangeType(StrEnum):
 
 
 class ChangeStatus(StrEnum):
-    REQUESTED = "requested"
-    ANALYZED = "analyzed"
-    APPROVED = "approved"
+    """변경 요청 상태 8종 (지시문 §11, 단계 5): 분석 대기 → 분석 완료 → 승인 대기 → 승인 → 기준선 반영, 반려·철회·오류."""
+
+    REQUESTED = "requested"  # 분석 대기
+    ANALYZED = "analyzed"  # 분석 완료 (후보 결정 중)
+    PENDING_APPROVAL = "pending_approval"  # 승인 대기 (후보 전부 결정·영향 분석 정상)
+    APPROVED = "approved"  # 승인 (반영 중)
+    APPLIED = "applied"  # 기준선 반영
     REJECTED = "rejected"
-    APPLIED = "applied"
     WITHDRAWN = "withdrawn"
     ERROR = "error"  # 반영 중 오류 → 기준 데이터 롤백, 재시도 가능
+
+    @property
+    def label(self) -> str:
+        return CHANGE_STATUS_LABELS[self]
+
+    @property
+    def order(self) -> int:
+        return (
+            CHANGE_STATUS_FLOW.index(self)
+            if self in CHANGE_STATUS_FLOW
+            else len(CHANGE_STATUS_FLOW)
+        )
+
+
+CHANGE_STATUS_FLOW: tuple[ChangeStatus, ...] = (
+    ChangeStatus.REQUESTED,
+    ChangeStatus.ANALYZED,
+    ChangeStatus.PENDING_APPROVAL,
+    ChangeStatus.APPROVED,
+    ChangeStatus.APPLIED,
+)
+CHANGE_STATUS_LABELS: dict[ChangeStatus, str] = {
+    ChangeStatus.REQUESTED: "분석 대기",
+    ChangeStatus.ANALYZED: "분석 완료",
+    ChangeStatus.PENDING_APPROVAL: "승인 대기",
+    ChangeStatus.APPROVED: "승인(반영 중)",
+    ChangeStatus.APPLIED: "기준선 반영",
+    ChangeStatus.REJECTED: "반려",
+    ChangeStatus.WITHDRAWN: "철회",
+    ChangeStatus.ERROR: "반영 오류",
+}
 
 
 class TraceTargetType(StrEnum):
