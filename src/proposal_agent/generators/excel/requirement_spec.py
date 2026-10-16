@@ -33,6 +33,11 @@ from proposal_agent.generators.excel.style import (
     write_table,
 )
 from proposal_agent.models import Requirement, RequirementCategory, RequirementType
+from proposal_agent.requirements.evidence import (
+    EVIDENCE_LABELS,
+    default_response_strategy,
+    evidence_label,
+)
 
 SHEET_COVER = "표지"
 SHEET_REVISION = "개정이력"
@@ -106,6 +111,7 @@ COLUMNS: tuple[Column, ...] = (
     Column("유형", 9, "center", "content"),
     Column("원본 출처", 18, "left", "content"),
     Column("RFP 원문 근거", 36, "left", "content"),
+    Column("근거 구분", 10, "center", "content", tuple(EVIDENCE_LABELS.values())),
     Column("구현방안", 52, "left", "impl"),
     Column("구현 난이도", 8, "center", "impl", DIFFICULTY_OPTIONS),
     Column("난이도 근거", 24, "left", "impl"),
@@ -113,6 +119,7 @@ COLUMNS: tuple[Column, ...] = (
     Column("검증 방법", 9, "center", "impl", VERIFICATION_OPTIONS),
     Column("검사 기준", 36, "left", "impl"),
     Column("수용여부", 11, "center", "accept", ACCEPTANCE_OPTIONS),
+    Column("대응 전략", 30, "left", "accept"),
     Column("중요도", 8, "center", "accept", PRIORITY_OPTIONS),
     Column("필수 여부", 8, "center", "accept", ("필수", "선택")),
     Column("범위 분류", 10, "center", "accept"),
@@ -241,6 +248,7 @@ def _row(no: int, r: Requirement) -> list[Any]:
         r.type.label,
         _source(r),
         (r.rfp_quote or "")[:400],
+        evidence_label(r),
         r.implementation_approach
         or (
             f"해당 없음 ({r.type.label})"
@@ -253,6 +261,7 @@ def _row(no: int, r: Requirement) -> list[Any]:
         r.verification_method or "",
         r.acceptance_criteria,
         acceptance_label(r),
+        default_response_strategy(r),
         r.priority.label,
         "필수" if r.is_mandatory else "선택",
         r.scope_class.label,

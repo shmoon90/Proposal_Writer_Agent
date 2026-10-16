@@ -53,6 +53,7 @@ from proposal_agent.models import (
     utcnow,
 )
 from proposal_agent.models.planning import TaskStatus
+from proposal_agent.requirements.evidence import EVIDENCE_LABELS
 from proposal_agent.requirements.id_policy import LegacyIdScheme
 from proposal_agent.storage.files import FileStore
 from proposal_agent.storage.repositories import Repositories
@@ -131,6 +132,15 @@ def _accept(text: str) -> AcceptanceStatus:
         if key and key in head:
             return status
     return AcceptanceStatus.ACCEPTED
+
+
+def _evidence_class(text: str) -> str:
+    """정의서 '근거 구분' 셀 → 코드값. 없으면 기준 문서 적재이므로 reference_doc."""
+    t = (text or "").strip()
+    for code, label in EVIDENCE_LABELS.items():
+        if t and (t == label or t == code):
+            return code
+    return "reference_doc"
 
 
 def _change_state(text: str) -> str:
@@ -437,6 +447,8 @@ class BaselineService:
                 "review_notes": _text(v.get("review_notes")),
                 "change_state": _change_state(_text(v.get("change_state"))),
                 "change_summary": _text(v.get("change_summary")),
+                "evidence_class": _evidence_class(_text(v.get("evidence_class"))),
+                "response_strategy": _text(v.get("response_strategy")),
             }
             if fields["change_state"] == "none":
                 fields.pop("change_summary")  # 기준선 행은 변경 내용이 없음

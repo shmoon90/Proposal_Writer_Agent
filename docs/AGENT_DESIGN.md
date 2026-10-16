@@ -12,7 +12,7 @@
 
 | # | 역할 key | 입력 | 출력 스키마 | 내장 도구 | MCP 도구 | 턴/예산/시간 | 재사용 |
 |---|---|---|---|---|---|---|---|
-| 1 | `rfp_analyst` | 추출 블록 청크 | `RfpAnalysis` | 없음 | `pwa.search_source_text`, `pwa.get_source_block` | 10 / $2 / 600s | — |
+| 1 | `rfp_analyst` | 추출 블록 청크 + `<rfp_profile>`(절·ID·목차·평가·제출·페이지 제한) | `RfpAnalysis` (Phase 17: 현행 문제점·보안/개인정보·데이터 이관/운영·개발 환경·단계별 산출물·시험/검수/교육/유지관리·제안서 작성 지침·페이지 제한·문서 규격·필수 제출 자료 추가) | 없음 | `pwa.search_source_text`, `pwa.get_source_block` | 10 / $2 / 600s | — |
 | 2 | `requirement_extractor` | 청크 | `RequirementExtraction` | 없음 | 없음 | 8 / $2 / 600s | rfp_analyst |
 | 3 | `requirement_verifier` | 청크 + 요구사항 | `VerificationReport` | 없음 | 없음 | 8 / $2 / 600s | — |
 | 4 | `tech_researcher` | 요구사항·RFP 분석·주제 | `ResearchReport` | **WebSearch, WebFetch** | `pwa.get_requirement`, `pwa.list_research` | 30 / $6 / 1200s | rfp_analyst |

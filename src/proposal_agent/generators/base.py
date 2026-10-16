@@ -75,6 +75,9 @@ class GenerationContext:
     version: str = "v1.0"
     generated_on: date = field(default_factory=date.today)
     change_log: list[list[Any]] = field(default_factory=list)  # 구축 단계 변경관리대장 행 (CR 단위)
+    page_map: dict[str, dict[str, list[int]]] = field(
+        default_factory=dict
+    )  # 요구사항 ID → {"submission": [슬라이드…], "presentation": [...]} (Phase 17, 덱 생성 후 채움)
 
     @property
     def wbs_by_id(self) -> dict[str, WBSItem]:

@@ -34,6 +34,7 @@ from proposal_agent.generators.pptx import (
     decide_outline,
 )
 from proposal_agent.generators.pptx.outline import ChapterPlan, OutlineSection, plan_chapters
+from proposal_agent.generators.pptx.pagemap import requirement_page_map
 from proposal_agent.models import (
     ActorKind,
     ArchitectureComponent,
@@ -265,29 +266,6 @@ class GenerationService:
                 staffing_png,
             )
             ctx.diagram_paths["staffing"] = str(stored.path)
-        # Excel
-        traces = self._repos.traces.find(project.id)
-        builders = (
-            (DeliverableKind.REQUIREMENT_SPEC_XLSX, lambda: build_requirement_spec(ctx)),
-            (
-                DeliverableKind.TRACE_MATRIX_XLSX,
-                lambda: build_trace_matrix(
-                    ctx,
-                    traces,
-                    self._repos.screens.find(project.id),
-                    self._repos.unit_tests.find(project.id),
-                    self._repos.integration_tests.find(project.id),
-                ),
-            ),
-            (DeliverableKind.WBS_GANTT_XLSX, lambda: build_wbs_gantt(ctx)),
-            (DeliverableKind.STAFFING_PLAN_XLSX, lambda: build_staffing_plan(ctx)),
-        )
-        for dk, fn in builders:
-            try:
-                result.deliverables.append(self._store(project, dk, fn(), ctx))
-            except Exception as exc:  # noqa: BLE001
-                log.exception("생성 실패 %s", dk)
-                result.errors.append(f"{dk.value} 생성 실패: {type(exc).__name__}: {exc}")
         # PPT (템플릿이 등록되어 있으면 그 양식, 없으면 기본 양식)
         rfp_toc = self._extraction.rfp_proposal_toc(project)
         toc_tree = self._extraction.rfp_proposal_toc_tree(project)
@@ -335,6 +313,33 @@ class GenerationService:
                 ),
             ),
         ):
+            try:
+                data = fn()
+                purpose = "submission" if dk == DeliverableKind.SUBMISSION_PPTX else "presentation"
+                for rid, pages in requirement_page_map(data, ctx.requirements).items():
+                    ctx.page_map.setdefault(rid, {})[purpose] = pages  # 추적표 '대응 제안서 페이지'
+                result.deliverables.append(self._store(project, dk, data, ctx))
+            except Exception as exc:  # noqa: BLE001
+                log.exception("생성 실패 %s", dk)
+                result.errors.append(f"{dk.value} 생성 실패: {type(exc).__name__}: {exc}")
+        # Excel (덱 뒤에 생성: 추적표가 요구사항 ↔ 슬라이드 번호를 쓴다)
+        traces = self._repos.traces.find(project.id)
+        builders = (
+            (DeliverableKind.REQUIREMENT_SPEC_XLSX, lambda: build_requirement_spec(ctx)),
+            (
+                DeliverableKind.TRACE_MATRIX_XLSX,
+                lambda: build_trace_matrix(
+                    ctx,
+                    traces,
+                    self._repos.screens.find(project.id),
+                    self._repos.unit_tests.find(project.id),
+                    self._repos.integration_tests.find(project.id),
+                ),
+            ),
+            (DeliverableKind.WBS_GANTT_XLSX, lambda: build_wbs_gantt(ctx)),
+            (DeliverableKind.STAFFING_PLAN_XLSX, lambda: build_staffing_plan(ctx)),
+        )
+        for dk, fn in builders:
             try:
                 result.deliverables.append(self._store(project, dk, fn(), ctx))
             except Exception as exc:  # noqa: BLE001

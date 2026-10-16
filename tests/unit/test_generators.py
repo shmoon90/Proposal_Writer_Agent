@@ -202,7 +202,7 @@ def test_trace_matrix_marks_pending_and_not_run(services: Services, ready: Proje
     ):
         assert col in headers
     groups = [c.value for c in ws[1] if c.value]
-    assert groups[:3] == ["요구사항", "수용", "설계"] and "검사 기준" in groups
+    assert groups[:3] == ["요구사항", "수용·대응", "설계"] and "검사 기준" in groups
     row = dict(zip(headers, [c.value for c in ws[3]], strict=True))
     assert (
         row["화면 ID"] == "미정"

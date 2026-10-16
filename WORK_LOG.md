@@ -3,6 +3,7 @@
 작업 순서 기록. 상태 요약은 `workspace/DEVELOPMENT_STATUS.md`, 단계별 상세는 `docs/PHASE*_REPORT.md`.
 
 ## 2026-10-16
+- Phase 17 완료: RfpAnalysis 항목 확장·프롬프트, 페이지 제한/규격 파싱, 근거 구분·대응 전략, 덱→Excel 순서와 제안서 페이지 역산(추적표 29열·정의서 33열). pytest 262 passed, 실샘플 QA 0 실패. → `docs/PHASE17_REPORT.md`
 - Phase 16 완료: manifest.json(생성 run 누적·QA 첨부), 그림 정책(허용 태그·QA-FILE-12 개정), 라이브러리 검토 문서, 상태 기록 스크립트. pytest 257 passed, 실샘플 재검증 QA 0 실패. → `docs/PHASE16_REPORT.md`
 - Phase 15 완료·main 병합·origin push (`ab75fba`): WBS 상세/약식·주 간트·마일스톤, 투입계획 구성원별 월별 공수, planner team/milestones, ID 없는 고객 WBS 재적재. pytest 253 passed.
 - 품질 고도화·편집 가능 산출물 요청 분석: 요청 19개 절 ↔ 현재 구현 차이 정리, 6단계(16~21) 계획 작성 → `docs/IMPROVEMENT_PLAN_2026-10.md`. 환경 점검(PowerPoint COM 가능, LibreOffice 없음). 진행 기록 파일 신설. **사용자 승인 대기** — 코드 변경 없음.

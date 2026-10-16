@@ -439,6 +439,7 @@ class RequirementService:
                 req = Requirement.from_draft(
                     draft, id=req_id, project_id=project.id, created_by=actor, source_refs=refs
                 )
+                req.evidence_class = "rfp"  # Phase 17: 근거 구분 — RFP 원문에서 추출
                 if not req.rfp_requirement_id:
                     req.rfp_requirement_id = next(
                         (
@@ -781,6 +782,11 @@ class RequirementService:
         req_id = policy.allocate(project.id, draft.type)  # 검증 통과 후에만 ID 소비
         req = Requirement.from_draft(draft, id=req_id, project_id=project.id, created_by=actor)
         req.scope_class = effective_scope
+        req.evidence_class = (
+            "rfp"
+            if (draft.rfp_quote and effective_scope == ScopeClass.MANDATORY)
+            else "design_proposal"
+        )
         req.review_status = ReviewStatus.MODIFIED
         req.add_history(actor, "added_manually")
         self._repos.requirements.insert(req)

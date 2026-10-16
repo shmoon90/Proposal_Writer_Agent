@@ -27,6 +27,7 @@ from proposal_agent.generators.excel.style import (
     write_grouped_table,
     write_table,
 )
+from proposal_agent.generators.pptx.pagemap import format_pages
 from proposal_agent.models import (
     IntegrationTest,
     Requirement,
@@ -35,6 +36,11 @@ from proposal_agent.models import (
     Screen,
     TestResult,
     UnitTest,
+)
+from proposal_agent.requirements.evidence import (
+    EVIDENCE_LABELS,
+    default_response_strategy,
+    evidence_label,
 )
 
 SHEET_MAIN = "추적표"
@@ -45,9 +51,10 @@ DOC_TITLE = "요구사항 추적표"
 RESULT_OPTIONS = tuple(t.value for t in TestResult)
 COMPLETION_OPTIONS = ("미착수", "진행중", "완료", "대상제외")
 REVIEW_OPTIONS = ("유효", "재검토 필요", "무효")
+EVIDENCE_OPTIONS = tuple(EVIDENCE_LABELS.values())
 GROUP_TITLES = {
     "content": "요구사항",
-    "accept": "수용",
+    "accept": "수용·대응",
     "design": "설계",
     "impl": "구현",
     "test": "테스트",
@@ -62,6 +69,10 @@ COLUMNS: tuple[Column, ...] = (
     Column("요구사항 명", 28, "left", "content"),
     Column("유형", 9, "center", "content"),
     Column("수용여부", 11, "center", "accept"),
+    Column("대응 전략", 34, "left", "accept"),
+    Column("근거 구분", 10, "center", "accept", EVIDENCE_OPTIONS),
+    Column("제안서 페이지(제출용)", 12, "center", "accept"),
+    Column("제안서 페이지(발표용)", 12, "center", "accept"),
     Column("생성/변경일자", 12, "center", "accept"),
     Column("화면 ID", 14, "center", "design"),
     Column("화면명", 22, "left", "design"),
@@ -99,6 +110,18 @@ GUIDE_ROWS: tuple[tuple[str, str, str, str], ...] = (
         "요구사항 ID / 명",
         "요구사항 정의서의 ID와 이름을 그대로 적는다 (정의서에 없는 ID 금지).",
         "FR-001",
+        "필수",
+    ),
+    (
+        "대응 전략 / 근거 구분",
+        "수용 방식·핵심 대응 한 줄과 근거 구분(RFP 명시 / 참고 문서 / 외부 조사 / 설계 제안).",
+        "수용 — 표준 공통컴포넌트 재사용 / RFP 명시",
+        "필수",
+    ),
+    (
+        "제안서 페이지(제출용/발표용)",
+        "요구사항 ID가 실제로 나타난 제안서 슬라이드 번호(코드가 생성 파일에서 역산). '—'는 미언급.",
+        "12-14, 20",
         "필수",
     ),
     (
@@ -203,6 +226,10 @@ def build_trace_matrix(
                 r.name,
                 r.type.label,
                 acceptance_label(r),
+                default_response_strategy(r),
+                evidence_label(r),
+                format_pages(ctx.page_map.get(r.id, {}).get("submission")),
+                format_pages(ctx.page_map.get(r.id, {}).get("presentation")),
                 _changed_on(r),
                 ", ".join(scr) or PENDING_ID,
                 "\n".join(screen_names[s] for s in scr),

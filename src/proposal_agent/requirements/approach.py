@@ -485,6 +485,8 @@ class ApproachService:
             req.acceptance_criteria
             or default_acceptance_criteria(req, req.verification_method or "")
         )
+        if item.response_strategy:
+            req.response_strategy = item.response_strategy[:120]
         if item.notes:
             req.review_notes = (
                 req.review_notes + "\n" if req.review_notes else ""

@@ -216,7 +216,7 @@ def test_trace_matrix_groups_and_nfr_sheet(services: Services) -> None:
     wb = load_workbook(io.BytesIO(build_trace_matrix(ctx, [], [], [], [])))
     ws = wb[SHEET_MAIN]
     groups = [c.value for c in ws[1] if c.value]
-    assert groups == ["요구사항", "수용", "설계", "구현", "테스트", "검사 기준", "검토"]
+    assert groups == ["요구사항", "수용·대응", "설계", "구현", "테스트", "검사 기준", "검토"]
     headers = [c.value for c in ws[HEADER_ROW]]
     assert (
         _fill(ws.cell(row=HEADER_ROW, column=headers.index("통합테스트 ID") + 1))

@@ -114,6 +114,13 @@ class Requirement(ProjectScoped):
     related_requirement_ids: list[str] = Field(
         default_factory=list, description="관련 요구사항 ID (추적성)"
     )
+    evidence_class: str = Field(
+        default="",
+        description="근거 구분 (Phase 17): rfp(RFP 명시) | reference_doc(참고 문서) | research(외부 조사) | design_proposal(설계 제안). 빈값이면 코드가 추정",
+    )
+    response_strategy: str = Field(
+        default="", description="추적표 '대응 전략' 한 줄 (에이전트 또는 코드 기본값)"
+    )
     acceptance_status: AcceptanceStatus = AcceptanceStatus.PROPOSED
     status: RequirementStatus = RequirementStatus.DRAFT
     verification_status: VerificationStatus = VerificationStatus.UNVERIFIED

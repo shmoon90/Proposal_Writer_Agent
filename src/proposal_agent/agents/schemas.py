@@ -45,6 +45,37 @@ class RfpAnalysis(_Strict):
     uncertainties: list[str] = Field(
         default_factory=list, description="원문만으로 판단할 수 없는 항목"
     )
+    # Phase 17: 제안서 작성에 필요한 RFP 항목 (요청서 §3). 원문에 없으면 빈 목록으로 둔다.
+    current_issues: list[str] = Field(
+        default_factory=list, description="현행 시스템의 문제점·개선 필요 사항"
+    )
+    security_privacy: list[str] = Field(
+        default_factory=list, description="정보보호·개인정보보호·준수해야 할 규정·인증"
+    )
+    data_migration_operation: list[str] = Field(
+        default_factory=list, description="데이터 이관·전환·운영(백업·모니터링·운영 이관) 요구"
+    )
+    dev_environment: list[str] = Field(
+        default_factory=list, description="개발 환경·기술 제약(프레임워크·DB·OS·표준·형상관리)"
+    )
+    deliverables_schedule: list[str] = Field(
+        default_factory=list, description="프로젝트 단계와 단계별 산출물"
+    )
+    test_acceptance_training: list[str] = Field(
+        default_factory=list, description="시험·검수·교육·안정화·유지관리(하자보수) 요구"
+    )
+    proposal_guidelines: list[str] = Field(
+        default_factory=list, description="제안서 목차·작성 지침(장별 작성 요령)"
+    )
+    page_limit: str = Field(
+        default="", description="페이지 제한 원문 문구 (예: '제안서는 100쪽 이내')"
+    )
+    document_format: list[str] = Field(
+        default_factory=list, description="문서 규격·제출 형식(용지·글꼴·부수·파일 형식·제출 방법)"
+    )
+    required_submissions: list[str] = Field(
+        default_factory=list, description="필수 제출 자료·별첨 서식 목록"
+    )
 
 
 # --- 2·3. 요구사항 추출·검증 --------------------------------------------------------------------
@@ -350,6 +381,10 @@ class ApproachItem(_Strict):
         default=FeasibilityVerdict.UNKNOWN, description="근거 기준 구현 가능성"
     )
     notes: str = Field(default="", description="가정·확인 필요 사항")
+    response_strategy: str = Field(
+        default="",
+        description="추적표 '대응 전략' 한 줄: 수용 방식·핵심 대응(예: '표준 공통컴포넌트 재사용으로 수용')",
+    )
 
 
 class ApproachReport(_Strict):

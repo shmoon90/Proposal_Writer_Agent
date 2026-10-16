@@ -2,42 +2,42 @@
   "updated": "2026-10-16",
   "main_commit": "ab75fba",
   "plan": "docs/IMPROVEMENT_PLAN_2026-10.md",
-  "status": "step16_done",
+  "status": "step17_done",
   "analysis_done": [
     "existing project structure, agents, MCP, outputs, tests (Phase 1-15)",
     "gap analysis against the quality/editability directive (19 sections)",
     "environment: PowerPoint COM registered, pywin32 installed, LibreOffice absent, no API credit"
   ],
   "implemented": [
-    "step16: manifest.json (runs + QA), picture policy (allowed tags, QA-FILE-12), library review doc, record_test_status script"
+    "step16: manifest.json (runs + QA), picture policy (allowed tags, QA-FILE-12), library review doc, record_test_status script",
+    "step17: RfpAnalysis directive fields, page-limit parsing, evidence_class/response_strategy, deck-first generation with slide page map, trace matrix 29 cols / spec 33 cols"
   ],
   "changed_files": [
-    "src/proposal_agent/storage/manifest.py",
+    "src/proposal_agent/requirements/evidence.py",
+    "src/proposal_agent/generators/pptx/pagemap.py",
+    "src/proposal_agent/agents/schemas.py",
+    "src/proposal_agent/agents/prompts/rfp_analyst.md",
+    "src/proposal_agent/ingest/rfp_profile.py",
+    "src/proposal_agent/ingest/excel_reader.py",
+    "src/proposal_agent/models/requirement.py",
+    "src/proposal_agent/requirements/service.py",
+    "src/proposal_agent/requirements/approach.py",
+    "src/proposal_agent/changes/baseline_service.py",
+    "src/proposal_agent/changes/service.py",
     "src/proposal_agent/generators/base.py",
     "src/proposal_agent/generators/service.py",
-    "src/proposal_agent/generators/pptx/builder.py",
-    "src/proposal_agent/generators/pptx/template.py",
-    "src/proposal_agent/validation/deliverables.py",
-    "src/proposal_agent/validation/independent_qa.py",
-    "src/proposal_agent/validation/qa_service.py",
-    "src/proposal_agent/changes/service.py",
-    "scripts/record_test_status.py",
-    "tests/unit/test_phase16_manifest_pictures.py",
-    "docs/LIBRARY_REVIEW.md",
-    "docs/PHASE16_REPORT.md",
+    "src/proposal_agent/generators/excel/trace_matrix.py",
+    "src/proposal_agent/generators/excel/requirement_spec.py",
+    "tests/unit/test_phase17_rfp_trace.py",
+    "docs/PHASE17_REPORT.md",
+    "docs/AGENT_DESIGN.md",
     "docs/OUTPUT_STRUCTURE.md",
-    "docs/USER_GUIDE.md",
-    "docs/TEST_RESULTS.md",
-    "README.md",
-    ".gitignore",
-    "workspace/DEVELOPMENT_STATUS.md",
-    "workspace/DEVELOPMENT_STATUS.json",
-    "WORK_LOG.md"
+    "docs/TEST_RESULTS.md"
   ],
   "tests": {
     "last_run": "2026-10-16",
     "command": "pytest -q -p no:cacheprovider",
-    "passed": 257,
+    "passed": 262,
     "failed": 0,
     "skipped": 1,
     "deselected": 2
@@ -52,7 +52,8 @@
     "outline/strategy approval gate not implemented (step 18)",
     "native charts and UI mockup components not implemented (step 20)",
     "deck generation does not yet place tagged photos (step 19)",
-    "manifest does not record finalization (step 21)"
+    "manifest does not record finalization (step 21)",
+    "proposal page map only finds requirement IDs printed in slide text (agent sections must list requirement_ids)"
   ],
   "connections": {
     "claude_api": "not configured",
@@ -68,6 +69,6 @@
     "check": "QA-FILE-12 (tagged photos allowed)"
   },
   "next": [
-    "step 17: RFP analysis fields, trace matrix response page/strategy/evidence class"
+    "step 18: strategy/outline brief role, Gate P approval gate and UI, block full writing before approval (user confirmation after implementation)"
   ]
 }

@@ -126,6 +126,13 @@ class RfpProfile(BaseModel):
         default_factory=list, description="[{name, points}]"
     )
     submission_items: list[str] = Field(default_factory=list)
+    page_limit: int | None = Field(
+        default=None, description="제안서 페이지 제한(쪽). 원문에 없으면 None"
+    )
+    page_limit_text: str = Field(default="", description="페이지 제한 원문 문구")
+    format_notes: list[str] = Field(
+        default_factory=list, description="문서 규격·제출 형식 문구(용지·글꼴·부수·파일 형식)"
+    )
     block_kinds: dict[str, str] = Field(default_factory=dict, description="block_id → section kind")
     block_rfp_ids: dict[str, str] = Field(
         default_factory=dict, description="block_id → RFP 요구사항 ID"
@@ -167,6 +174,10 @@ class RfpProfile(BaseModel):
             )
         if self.submission_items:
             parts.append(f"제출 서류·조건 {len(self.submission_items)}건")
+        if self.page_limit:
+            parts.append(f"페이지 제한: {self.page_limit}쪽 ({self.page_limit_text})")
+        if self.format_notes:
+            parts.append("문서 규격: " + " / ".join(self.format_notes[:4]))
         return "\n".join(parts)
 
 
@@ -333,6 +344,9 @@ def profile_blocks(blocks: list[ExtractedBlock], *, apply: bool = True) -> RfpPr
     prof.proposal_toc_tree = _proposal_toc_tree(ordered, prof.block_kinds)
     prof.evaluation_items = _evaluation_items(ordered, prof.block_kinds)
     prof.submission_items = _submission_items(ordered, prof.block_kinds)
+    prof.page_limit, prof.page_limit_text, prof.format_notes = _page_limit(
+        ordered, prof.block_kinds
+    )
     if apply:
         for b in ordered:
             b.section_kind = prof.block_kinds.get(b.id)
@@ -492,6 +506,43 @@ def _evaluation_items(ordered: list[ExtractedBlock], kinds: dict[str, str]) -> l
             seen.add(key)
             out.append(it)
     return out[:60]
+
+
+PAGE_LIMIT_RE = re.compile(
+    r"(?P<n>\d{1,3})\s*(?:페이지|쪽|page|p\.?|매)\s*(?:이내|이하|내외|미만|까지|범위)",
+    re.IGNORECASE,
+)
+FORMAT_NOTE_RE = re.compile(
+    r"(A4|A3|B4|용지|글꼴|폰트|포인트|\d+\s*pt|줄\s*간격|여백|분량|부\s*제출|PDF|한글\s*파일|hwp|docx|pptx|CD|USB|이메일|전자\s*제출)",
+    re.IGNORECASE,
+)
+
+
+def _page_limit(
+    ordered: list[ExtractedBlock], kinds: dict[str, str]
+) -> tuple[int | None, str, list[str]]:
+    """제출·작성요령 절에서 페이지 제한(쪽 수)과 문서 규격·제출 형식 문구를 찾는다. 없으면 (None, '', [])."""
+    limit: int | None = None
+    limit_text = ""
+    notes: list[str] = []
+    scoped = [b for b in ordered if kinds.get(b.id) in ("submission", "proposal_guide")]
+    for b in scoped or ordered:
+        for line in b.text.splitlines():
+            t = line.strip()
+            if not t or len(t) > 200:
+                continue
+            m = PAGE_LIMIT_RE.search(t)
+            if m and limit is None and ("제안서" in t or "분량" in t or scoped):
+                limit = int(m.group("n"))
+                limit_text = t[:120]
+            if (
+                FORMAT_NOTE_RE.search(t)
+                and len(notes) < 10
+                and t not in notes
+                and (scoped or "제안서" in t)
+            ):
+                notes.append(t[:120])
+    return limit, limit_text, notes
 
 
 def _submission_items(ordered: list[ExtractedBlock], kinds: dict[str, str]) -> list[str]:

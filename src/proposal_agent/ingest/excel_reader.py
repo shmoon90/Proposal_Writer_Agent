@@ -85,6 +85,8 @@ FIELD_SYNONYMS: dict[DocumentKind, dict[str, tuple[str, ...]]] = {
         "change_state": ("요구사항 변경여부", "요구사항변경여부", "변경 상태", "변경여부"),
         "change_summary": ("변경 내용", "변경내용"),
         "review_notes": ("검토 및 협의 내용", "협의 내용", "검토 의견"),
+        "evidence_class": ("근거 구분", "근거구분"),
+        "response_strategy": ("대응 전략", "대응전략"),
         "source": ("원본 출처", "출처", "관련 근거"),
         "scope": ("범위 분류", "범위"),
         "mandatory": ("필수 여부", "필수"),

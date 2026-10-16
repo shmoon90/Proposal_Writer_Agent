@@ -786,6 +786,7 @@ class ChangeService:
                         f"- [자동 초안] 변경 관점: {', '.join(aspect_labels(cand.change_aspects)) or '신규'}"
                     ),
                     approach_source="rule",
+                    evidence_class="design_proposal",
                     created_by=actor,
                 )
                 req.add_history(actor, "change.add", changes={"cr": cr.id}, note=cr.reason)

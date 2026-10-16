@@ -10,7 +10,7 @@
 
 명령: `python -m pytest -q -rs` (기본 `-m 'not llm'`)
 
-결과: **257 passed, 1 skipped, 2 deselected** (65.1s, 2026-10-16 Phase 16 반영. Phase 15 253, Phase 14 249, Phase 13 243, Phase 12 238, Phase 11 231, Phase 8 215)
+결과: **262 passed, 1 skipped, 2 deselected** (86.7s, 2026-10-16 Phase 17 반영. Phase 16 257, Phase 15 253, Phase 14 249, Phase 13 243, Phase 12 238, Phase 11 231, Phase 8 215)
 
 - skipped 1: `tests/unit/test_paths.py::test_ensure_within_blocks_symlink` — 이 PC 계정에 심볼릭 링크 생성 권한이 없음(WinError 1314). 코드 결함이 아니라 환경 제약.
 - deselected 2: `tests/integration/llm/` — 실제 Claude API 호출이 필요한 LLM 계약 테스트. **크레딧 부족으로 실행하지 않음.**
@@ -57,6 +57,8 @@
 **Phase 15 실샘플 점검 (저장소 밖 고객 WBS 2건·월별 투입계획 1건, 커밋·공개 금지, 2026-10-16)**: 샘플 구조([WBS_STAFFING_ANALYSIS.md](WBS_STAFFING_ANALYSIS.md))를 WBS(상세 25열 + 주 단위 간트)·약식WBS(보고용, 마일스톤 행)·투입계획(구성원별 월별 MM·계/합계 수식)·역할요약 양식과 재적재(WBS ID 없는 양식 코드 발급)에 반영했다. 계산기 RFP + 고객 템플릿 2종 전체 흐름(API 키 없이 대행 응답, planner 초안에 team·milestones 포함): WBS 30행(마일스톤 6 + 항목 24)·간트 13주, 약식WBS 14행, 투입계획 구성원 4행 + 합계 행, 통합 QA **35항목 중 34 실행·30 통과·0 실패·4 검토 필요**(QA-TECH-01/02/05/07)·1 미실행(QA-RFP-07), gate3·gate4 PASS, QA-FILE-08(간트 ↔ 일정) 통과. pytest 253 passed(신규 Phase 15 테스트 4건 포함). 실제 모델 호출(`planner` team·milestones)은 미검증.
 
 **Phase 16 점검 (2026-10-16)**: 같은 흐름 재실행 후 `Output/<프로젝트>/manifest.json`에 run 1건(산출물 9·보조 파일 5)과 QA 결과(35항목 중 34 실행·30 통과·0 실패·4 검토·1 미실행, gate3·gate4 PASS, 그림 예외 0) 첨부 확인. pytest 257 passed(신규 Phase 16 테스트 4건: manifest·그림 정책·태그 거부·상태 기록 해석). 슬라이드 렌더링 검증은 미구현(미실행).
+
+**Phase 17 점검 (2026-10-16)**: 같은 흐름 재실행 — 추적표 29열(대응 전략·근거 구분·제안서 페이지 제출용/발표용), 정의서 33열(근거 구분·대응 전략), 덱 → Excel 생성 순서, 제안서 페이지 역산(제출용 5·발표용 7: 대행 응답 소절에 requirement_ids가 없어 대응표 슬라이드만). QA 35항목 중 34 실행·30 통과·0 실패·4 검토·1 미실행. pytest 262 passed(신규 Phase 17 테스트 5건). RFP 분석 새 필드와 페이지 제한은 픽스처로만 확인(실제 모델·고객 RFP에는 해당 문구 없음).
 
 ## 2. 정적 검사
 
