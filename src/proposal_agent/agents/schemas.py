@@ -263,6 +263,11 @@ class VisualItem(_Strict):
         default="",
         description="열·그룹 (two_column: left/right, screen: nav/본문, dataflow: 시스템명)",
     )
+    kind: str = Field(
+        default="",
+        description="screen 전용 컴포넌트 종류: section(구획) | input(입력 필드) | button | menu(좌측 메뉴) | tab | "
+        "message(안내·오류) | table(목록 표, text='열1|열2') | list | chart(차트 영역)",
+    )
 
 
 class VisualEdge(_Strict):
@@ -282,7 +287,12 @@ class VisualSpec(_Strict):
         "data_model(데이터 모델: items=엔티티(title=이름, text=주요 속성 줄바꿈), edges=관계(label=1:N 등)) | "
         "procedure(운영·장애 대응 절차: items=단계(group=담당 조직·역할), 순서대로) | "
         "security_layers(보안 통제: items=통제(group=영역: 네트워크/서버/응용/데이터/관리), title=통제명, text=방식) | "
-        "layers(계층 구성: items=요소(group=계층명), 위에서 아래로)"
+        "layers(계층 구성: items=요소(group=계층명), 위에서 아래로) | "
+        "chart(네이티브 차트: headers=[범주 이름, 계열1, 계열2…], rows=[[범주, 값…]], chart_type)"
+    )
+    chart_type: str = Field(
+        default="",
+        description="kind=chart 일 때: bar | column | stacked_bar | stacked_column | line | pie | doughnut",
     )
     title: str = ""
     items: list[VisualItem] = Field(default_factory=list)
@@ -420,6 +430,10 @@ class ProposalSection(_Strict):
     terms: list[str] = Field(
         default_factory=list,
         description="이 소절에서 처음 쓰는 약어·전문 용어 (glossary에 설명이 있어야 함)",
+    )
+    picture: str = Field(
+        default="",
+        description="이 소절 뒤에 넣을 등록된 참고 그림(사진·일러스트)의 파일명 또는 설명 (Phase 20, 없으면 빈값)",
     )
 
 

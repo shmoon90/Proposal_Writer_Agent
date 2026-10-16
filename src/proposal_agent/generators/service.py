@@ -11,11 +11,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from proposal_agent.config.errors import PWAError, ValidationError
+from proposal_agent.config.errors import PathSecurityError, PWAError, ValidationError
 from proposal_agent.config.logging import get_logger
 from proposal_agent.config.paths import ProjectPaths
 from proposal_agent.config.settings import Settings
-from proposal_agent.generators.base import GenerationContext
+from proposal_agent.generators.base import GenerationContext, parse_picture_name
 from proposal_agent.generators.diagrams import (
     build_architecture_diagram,
     build_gantt_chart,
@@ -46,6 +46,7 @@ from proposal_agent.models import (
     ArchitectureComponent,
     Deliverable,
     DeliverableKind,
+    DocumentKind,
     IntegrityStatus,
     Project,
     QaStatus,
@@ -160,8 +161,27 @@ class GenerationService:
             review_notes=review,
         )
         ctx.components = self._ensure_components(project, ctx, actor)
+        ctx.pictures = self._pictures(project)
         ctx.review_notes.extend(self.review_items(ctx))
         return ctx
+
+    def _pictures(self, project: Project) -> list[dict[str, Any]]:
+        """등록된 참고 그림(DocumentKind.PICTURE) → 덱에 태그 달린 그림으로 넣을 목록 (Phase 20)."""
+        out: list[dict[str, Any]] = []
+        for d in self._repos.documents.find(project.id, order_by="created_at"):
+            if d.kind != DocumentKind.PICTURE:
+                continue
+            try:
+                path = self._paths.resolve_output(d.stored_path)
+            except PathSecurityError:
+                continue
+            if not path.exists():
+                continue
+            tag, caption = parse_picture_name(d.file_name)
+            out.append(
+                {"file_name": d.file_name, "path": str(path), "tag": tag, "caption": caption}
+            )
+        return out
 
     def _ensure_components(
         self, project: Project, ctx: GenerationContext, actor: str
@@ -532,6 +552,10 @@ class GenerationService:
                 for w in ctx.wbs
                 if w.parent_id is None
             ][:30],
+            "pictures": [
+                {"file_name": x["file_name"], "tag": x["tag"], "caption": x["caption"]}
+                for x in ctx.pictures[:20]
+            ],
         }
         parts.append("<feasibility>\n" + self.feasibility_brief(ctx) + "\n</feasibility>")
         parts.append("<data>\n" + json.dumps(data, ensure_ascii=False)[:24000] + "\n</data>")

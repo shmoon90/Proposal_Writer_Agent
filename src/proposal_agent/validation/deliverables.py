@@ -172,6 +172,18 @@ def _first_font_pt(shape: Any) -> float | None:
     return None
 
 
+def _flatten(shapes: Any, depth: int = 0) -> list[Any]:
+    """그룹 안 도형까지 평탄화 (Phase 20: 그룹으로 묶인 목업·카드도 넘침·겹침 검사 대상)."""
+    out: list[Any] = []
+    for sh in shapes:
+        st = str(getattr(sh, "shape_type", "") or "")
+        if "GROUP" in st and depth < 4:
+            out.extend(_flatten(sh.shapes, depth + 1))
+        else:
+            out.append(sh)
+    return out
+
+
 def check_pptx(
     path: Path,
     outcome: QaOutcome,
@@ -241,7 +253,7 @@ def check_pptx(
                     pictures.append(idx)
             else:
                 photos.append((idx, tag, name))
-        for shape in slide.shapes:
+        for shape in _flatten(slide.shapes):
             if shape.left is None or shape.top is None:
                 continue
             left, top, width, height = (

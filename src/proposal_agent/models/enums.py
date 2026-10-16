@@ -34,6 +34,7 @@ class DocumentKind(StrEnum):
     WBS = "wbs"
     STAFFING_PLAN = "staffing_plan"
     PROPOSAL_TEMPLATE = "proposal_template"
+    PICTURE = "picture"  # Phase 20: 참고 그림(사진·일러스트·장식·참고 이미지) — 추출 대상 아님
     OTHER = "other"
 
     @property
@@ -46,6 +47,7 @@ class DocumentKind(StrEnum):
             "wbs": "WBS",
             "staffing_plan": "인력 투입계획서",
             "proposal_template": "제안서 템플릿(PPT)",
+            "picture": "참고 그림(사진·일러스트)",
             "other": "기타",
         }[self.value]
 

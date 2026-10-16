@@ -21,7 +21,7 @@
 |---|---|---|
 | `00_Project_Summary` | (예약) 프로젝트 요약 | — |
 | `manifest.json` (프로젝트 폴더 루트, Phase 16) | 생성 실행(run)마다 산출물 목록(종류·category(submission/presentation/excel/qa/source)·경로·버전·sha256·크기)·보조 파일·오류·시각을 **누적**하고, 통합 QA 완료 시 그 run에 판정·건수·게이트·보고서 경로·그림 예외를 첨부. 과거 run은 지우지 않음 | 덮어쓰되 run 누적 |
-| `01_RFP_Original` | 업로드 원본(제안: RFP·첨부·**제안서 템플릿 PPTX**, 구축: 정의서·추적표·WBS·투입계획·기타, 변경 요청 첨부). **수정하지 않음** | 원본 파일명, 충돌 시 `name_1.ext` |
+| `01_RFP_Original` | 업로드 원본(제안: RFP·첨부·**제안서 템플릿 PPTX**·**참고 그림**(Phase 20, `<태그>__<설명>.png|jpg`), 구축: 정의서·추적표·WBS·투입계획·기타, 변경 요청 첨부). **수정하지 않음** | 원본 파일명, 충돌 시 `name_1.ext` |
 | `02_RFP_Analysis` | RFP 분석 에이전트 결과 | `rfp_analysis_vX.Y.json` |
 | `03_Requirements` | 요구사항 추출·검증 에이전트 결과 | `requirement_extraction_vX.Y.json`, `verification_vX.Y.json` |
 | `04_Technology_Research` | 기술 조사 결과 | `research_vX.Y.json` |

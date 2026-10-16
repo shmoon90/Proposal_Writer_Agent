@@ -42,6 +42,26 @@ with tab_input:
         template_purpose = {"제출용 제안서": "submission", "발표용 제안서": "presentation"}.get(
             purpose_label
         )
+    picture_tag_sel: str | None = None
+    picture_caption = ""
+    if kind == DocumentKind.PICTURE:
+        tag_labels = {
+            "사진 (photo)": "photo",
+            "일러스트 (illustration)": "illustration",
+            "장식·배경 (decoration)": "decoration",
+            "참고 이미지 (reference)": "reference",
+        }
+        picture_tag_sel = tag_labels[
+            st.selectbox(
+                "그림 종류 (허용 태그)",
+                options=list(tag_labels),
+                key="upload_picture_tag",
+                help="사진·일러스트·장식·참고 이미지만 그림으로 넣습니다. 표·구조도·차트·화면은 이미지가 아니라 편집 가능한 도형으로 생성됩니다(QA-FILE-12).",
+            )
+        ]
+        picture_caption = st.text_input(
+            "그림 설명 (캡션, 제안 문안의 picture 참조 이름)", key="upload_picture_caption"
+        )
     uploaded = st.file_uploader("파일 선택", key="upload_file")
     if (
         st.button(
@@ -54,10 +74,14 @@ with tab_input:
         and uploaded is not None
     ):
         try:
+            file_name = uploaded.name
+            if picture_tag_sel and "__" not in file_name:
+                stem, _dot, ext = file_name.rpartition(".")
+                file_name = f"{picture_tag_sel}__{picture_caption.strip() or stem}.{ext}"
             doc = services.documents.register_upload(
                 project,
                 kind=kind,
-                file_name=uploaded.name,
+                file_name=file_name,
                 data=uploaded.getvalue(),
                 actor=actor_name(),
                 template_purpose=template_purpose,

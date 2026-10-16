@@ -41,6 +41,7 @@ ALLOWED_SUFFIXES: dict[DocumentKind, tuple[str, ...]] = {
     DocumentKind.WBS: (".xlsx",),
     DocumentKind.STAFFING_PLAN: (".xlsx",),
     DocumentKind.PROPOSAL_TEMPLATE: (".pptx",),
+    DocumentKind.PICTURE: (".png", ".jpg", ".jpeg"),
     DocumentKind.OTHER: (".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".md", ".hwp", ".zip"),
 }
 
@@ -52,6 +53,7 @@ OPTIONAL_KINDS: dict[ProjectMode, tuple[DocumentKind, ...]] = {
     ProjectMode.PROPOSAL: (
         DocumentKind.RFP_ATTACHMENT,
         DocumentKind.PROPOSAL_TEMPLATE,
+        DocumentKind.PICTURE,
         DocumentKind.OTHER,
     ),
     ProjectMode.BUILD: (DocumentKind.STAFFING_PLAN, DocumentKind.OTHER),

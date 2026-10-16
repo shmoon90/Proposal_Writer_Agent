@@ -50,8 +50,9 @@ VISUAL_KINDS = (
     "procedure",
     "security_layers",
     "layers",
+    "chart",  # Phase 20: 네이티브 차트 (charts.py)
 )
-# 에이전트(proposal_writer)가 VisualSpec.kind 로 고를 수 있는 종류 13종. architecture/timeline/bars 는 코드가 데이터로 그린다.
+# 에이전트(proposal_writer)가 VisualSpec.kind 로 고를 수 있는 종류 14종(Phase 20: chart 추가). architecture/timeline/bars 는 코드가 데이터로 그린다.
 AGENT_VISUAL_KINDS = (
     "cards",
     "flow",
@@ -66,7 +67,10 @@ AGENT_VISUAL_KINDS = (
     "procedure",
     "security_layers",
     "layers",
+    "chart",
 )
+# 화면 목업(screen) 항목 종류 (VisualItem.kind, Phase 20). 모두 개별 도형이며 목업 전체는 그룹(해제 가능).
+SCREEN_KINDS = ("section", "input", "button", "menu", "tab", "message", "table", "list", "chart")
 RACI_FILLS = {"R": "1F4E78", "A": "C00000", "C": "5B9BD5", "I": "A6A6A6"}
 RACI_LABEL = {"R": "R 실행", "A": "A 책임", "C": "C 협의", "I": "I 통보"}
 SECURITY_ZONE_ORDER = ("네트워크", "서버", "응용", "데이터", "관리")
@@ -281,6 +285,15 @@ def _grid(
     return cells
 
 
+def group(slide: Any, name: str = "") -> Any:
+    """그룹 도형(Phase 20). 돌려준 그룹을 ``rect``/``label``/``arrow``의 첫 인자로 넘기면 그 안에 그려지고,
+    PowerPoint에서 '그룹 해제'로 개별 도형으로 되돌릴 수 있다. 표·차트·그림은 그룹에 넣을 수 없다."""
+    g = slide.shapes.add_group_shape()
+    if name:
+        g.name = name[:60]
+    return g
+
+
 def draw_cards(
     slide: Any,
     box: Box,
@@ -290,16 +303,17 @@ def draw_cards(
     numbered: bool = True,
     max_cols: int = 4,
 ) -> None:
-    """번호 카드: 제목 띠 + 설명. 배경·목표·핵심 성공 요소·전략에 쓴다."""
+    """번호 카드: 제목 띠 + 설명. 배경·목표·핵심 성공 요소·전략에 쓴다. 카드마다 그룹(해제 가능)."""
     items = items[:8]
     if not items:
         return
     for i, (left, top, w, h) in enumerate(_grid(len(items), box, max_cols=max_cols)):
         it = items[i]
-        rect(slide, left, top, w, h, style=style, fill="FFFFFF", line=style.accent)
+        card = group(slide, f"카드 {i + 1}: {str(it.get('title', ''))[:20]}")
+        rect(card, left, top, w, h, style=style, fill="FFFFFF", line=style.accent)
         head_h = min(1.1, h * 0.3)
         rect(
-            slide,
+            card,
             left,
             top,
             w,
@@ -316,7 +330,7 @@ def draw_cards(
         text = str(it.get("text", ""))
         if text:
             label(
-                slide,
+                card,
                 left + 0.15,
                 top + head_h + 0.1,
                 w - 0.3,
@@ -515,10 +529,16 @@ def draw_screen(
     regions: list[dict[str, Any]],
     *,
     style: ShapeStyle,
-) -> None:
-    """화면 설계(와이어프레임): 창 틀 + 상단 바 + 좌측 메뉴 + 콘텐츠 영역 격자. 영역 상자는 모두 편집 가능."""
+) -> Any:
+    """화면 설계(와이어프레임, Phase 20): 창 틀 + 상단 바 + 탭 + 좌측 메뉴 + 본문 컴포넌트.
+
+    항목 ``kind``(SCREEN_KINDS): section(구획) · input(입력 필드) · button(버튼) · menu(좌측 메뉴, group=nav 와 같음) ·
+    tab(상단 탭) · message(안내·오류 메시지) · table(목록 표) · list(목록) · chart(차트 영역). 모두 개별 도형이며
+    목업 전체는 그룹 하나로 묶는다(그룹 해제 가능). 돌려주는 값은 그룹 도형.
+    """
+    grp = group(slide, f"화면 목업: {title[:24] or '화면'}")
     rect(
-        slide,
+        grp,
         box.left,
         box.top,
         box.width,
@@ -528,9 +548,10 @@ def draw_screen(
         line=style.text,
         shape=MSO_SHAPE.RECTANGLE,
     )
+    small = max(style.base_pt - 2, 7)
     bar_h = 0.9
     rect(
-        slide,
+        grp,
         box.left,
         box.top,
         box.width,
@@ -544,66 +565,269 @@ def draw_screen(
         align=PP_ALIGN.LEFT,
         heading=True,
     )
-    nav = [r for r in regions if str(r.get("group", "")) == "nav"]
-    body = [r for r in regions if str(r.get("group", "")) != "nav"][:8]
+    kinds = {id(r): str(r.get("kind", "") or "") for r in regions}
+    tabs = [r for r in regions if kinds[id(r)] == "tab"][:6]
+    nav = [r for r in regions if str(r.get("group", "")) == "nav" or kinds[id(r)] == "menu"][:10]
+    body = [r for r in regions if r not in tabs and r not in nav][:8]
+    y = box.top + bar_h
+    if tabs:
+        tab_h = 0.7
+        tab_w = min(3.6, (box.width - 0.2) / len(tabs))
+        for i, t in enumerate(tabs):
+            rect(
+                grp,
+                box.left + 0.1 + i * tab_w,
+                y + 0.05,
+                tab_w - 0.1,
+                tab_h - 0.1,
+                str(t.get("title", ""))[:14],
+                style=style,
+                fill=style.accent if i == 0 else style.light,
+                line=style.accent,
+                shape=MSO_SHAPE.ROUND_2_SAME_RECTANGLE,
+                pt=small,
+                bold=i == 0,
+                color="FFFFFF" if i == 0 else style.text,
+            )
+        y += tab_h
     nav_w = min(4.0, box.width * 0.22) if nav else 0.0
     if nav:
         rect(
-            slide,
+            grp,
             box.left,
-            box.top + bar_h,
+            y,
             nav_w,
-            box.height - bar_h,
-            "\n".join(f"▸ {str(r.get('title', ''))[:16]}" for r in nav[:10]),
+            box.top + box.height - y,
             style=style,
             fill=style.light,
             shape=MSO_SHAPE.RECTANGLE,
-            align=PP_ALIGN.LEFT,
-            anchor=MSO_ANCHOR.TOP,
-            pt=max(style.base_pt - 1, 7),
         )
+        item_h = min(0.75, (box.top + box.height - y - 0.2) / max(len(nav), 1))
+        for i, r in enumerate(nav):
+            rect(
+                grp,
+                box.left + 0.15,
+                y + 0.1 + i * item_h,
+                nav_w - 0.3,
+                item_h - 0.1,
+                f"▸ {str(r.get('title', ''))[:16]}",
+                style=style,
+                fill=style.accent if i == 0 else "FFFFFF",
+                line=style.accent,
+                shape=MSO_SHAPE.RECTANGLE,
+                align=PP_ALIGN.LEFT,
+                pt=small,
+                color="FFFFFF" if i == 0 else style.text,
+            )
     inner = Box(
         left=box.left + nav_w + 0.3,
-        top=box.top + bar_h + 0.3,
+        top=y + 0.3,
         width=box.width - nav_w - 0.6,
-        height=box.height - bar_h - 0.6,
+        height=box.top + box.height - y - 0.6,
     )
     for i, (left, top, w, h) in enumerate(_grid(len(body), inner, max_cols=2, gap=0.3)):
         r = body[i]
-        rect(
-            slide,
-            left,
-            top,
-            w,
-            h,
-            style=style,
-            fill="FFFFFF",
-            line=style.accent,
-            shape=MSO_SHAPE.RECTANGLE,
-        )
-        label(
-            slide,
-            left + 0.1,
-            top + 0.05,
-            w - 0.2,
-            0.5,
-            str(r.get("title", ""))[:30],
-            style=style,
-            bold=True,
-            color=style.primary,
-            pt=max(style.base_pt - 1, 7),
-        )
-        if r.get("text"):
+        kind = kinds[id(r)]
+        ttl = str(r.get("title", ""))[:30]
+        txt = str(r.get("text", "") or "")
+        if kind == "input":
             label(
-                slide,
-                left + 0.1,
-                top + 0.55,
-                w - 0.2,
-                max(h - 0.6, 0.3),
-                str(r["text"])[:120],
-                style=style,
-                pt=max(style.base_pt - 2, 7),
+                grp, left, top, w, 0.45, ttl, style=style, bold=True, pt=small, color=style.primary
             )
+            rect(
+                grp,
+                left,
+                top + 0.5,
+                w,
+                min(0.8, max(h - 0.5, 0.5)),
+                txt[:40] or "입력",
+                style=style,
+                fill="FFFFFF",
+                line="A6A6A6",
+                align=PP_ALIGN.LEFT,
+                pt=small,
+                color="7F7F7F",
+            )
+        elif kind == "button":
+            rect(
+                grp,
+                left,
+                top,
+                min(w, 4.0),
+                min(h, 0.9),
+                ttl or "확인",
+                style=style,
+                fill=style.primary,
+                pt=small,
+                bold=True,
+                color="FFFFFF",
+            )
+            if txt:
+                label(
+                    grp,
+                    left,
+                    top + min(h, 0.9) + 0.05,
+                    w,
+                    max(h - 1.0, 0.3),
+                    txt[:80],
+                    style=style,
+                    pt=small,
+                )
+        elif kind == "message":
+            rect(
+                grp,
+                left,
+                top,
+                w,
+                min(h, 1.0),
+                f"ⓘ {txt or ttl}"[:90],
+                style=style,
+                fill="FFF4CE",
+                line="F0C36D",
+                shape=MSO_SHAPE.RECTANGLE,
+                align=PP_ALIGN.LEFT,
+                pt=small,
+            )
+        elif kind == "table":
+            cols = [c.strip() for c in txt.split("|") if c.strip()][:6] or ["항목", "내용"]
+            col_w = w / len(cols)
+            head_h = 0.55
+            for ci, c in enumerate(cols):
+                rect(
+                    grp,
+                    left + ci * col_w,
+                    top,
+                    col_w,
+                    head_h,
+                    c[:12],
+                    style=style,
+                    fill=style.accent,
+                    line="FFFFFF",
+                    shape=MSO_SHAPE.RECTANGLE,
+                    pt=small,
+                    bold=True,
+                    color="FFFFFF",
+                )
+            rows = max(1, min(4, int((h - head_h) // 0.5)))
+            for ri in range(rows):
+                rect(
+                    grp,
+                    left,
+                    top + head_h + ri * 0.5,
+                    w,
+                    0.5,
+                    style=style,
+                    fill="FFFFFF" if ri % 2 == 0 else "F2F2F2",
+                    line="D9D9D9",
+                    shape=MSO_SHAPE.RECTANGLE,
+                )
+            label(
+                grp,
+                left + 0.1,
+                top - 0.45,
+                w,
+                0.45,
+                ttl,
+                style=style,
+                bold=True,
+                pt=small,
+                color=style.primary,
+            )
+        elif kind == "list":
+            rect(
+                grp,
+                left,
+                top,
+                w,
+                h,
+                style=style,
+                fill="FFFFFF",
+                line=style.accent,
+                shape=MSO_SHAPE.RECTANGLE,
+            )
+            lines = [x.strip() for x in txt.split("\n") if x.strip()][:6]
+            label(
+                grp,
+                left + 0.1,
+                top + 0.05,
+                w - 0.2,
+                h - 0.1,
+                ttl + ("\n" + "\n".join(f"• {x[:30]}" for x in lines) if lines else ""),
+                style=style,
+                pt=small,
+            )
+        elif kind == "chart":
+            rect(
+                grp,
+                left,
+                top,
+                w,
+                h,
+                style=style,
+                fill=style.light2,
+                line=style.accent,
+                shape=MSO_SHAPE.RECTANGLE,
+            )
+            label(
+                grp,
+                left + 0.1,
+                top + 0.05,
+                w - 0.2,
+                0.5,
+                ttl,
+                style=style,
+                bold=True,
+                pt=small,
+                color=style.primary,
+            )
+            for bi in range(4):
+                bh = (h - 1.0) * (0.35 + 0.15 * bi)
+                rect(
+                    grp,
+                    left + 0.4 + bi * ((w - 0.8) / 4),
+                    top + h - 0.2 - bh,
+                    (w - 0.8) / 4 - 0.2,
+                    bh,
+                    style=style,
+                    fill=style.accent,
+                    shape=MSO_SHAPE.RECTANGLE,
+                )
+        else:  # section
+            rect(
+                grp,
+                left,
+                top,
+                w,
+                h,
+                style=style,
+                fill="FFFFFF",
+                line=style.accent,
+                shape=MSO_SHAPE.RECTANGLE,
+            )
+            label(
+                grp,
+                left + 0.1,
+                top + 0.05,
+                w - 0.2,
+                0.5,
+                ttl,
+                style=style,
+                bold=True,
+                color=style.primary,
+                pt=small,
+            )
+            if txt:
+                label(
+                    grp,
+                    left + 0.1,
+                    top + 0.55,
+                    w - 0.2,
+                    max(h - 0.6, 0.3),
+                    txt[:120],
+                    style=style,
+                    pt=small,
+                )
+    return grp
 
 
 def draw_architecture(
@@ -868,8 +1092,9 @@ def draw_kpis(slide: Any, box: Box, items: list[tuple[str, str]], *, style: Shap
         return
     for i, (left, top, w, h) in enumerate(_grid(len(items), box, max_cols=5)):
         lab, val = items[i]
+        card = group(slide, f"수치 카드: {str(lab)[:20]}")
         rect(
-            slide,
+            card,
             left,
             top,
             w,
@@ -879,7 +1104,7 @@ def draw_kpis(slide: Any, box: Box, items: list[tuple[str, str]], *, style: Shap
             line=style.accent,
         )
         label(
-            slide,
+            card,
             left,
             top + 0.1,
             w,
@@ -894,7 +1119,7 @@ def draw_kpis(slide: Any, box: Box, items: list[tuple[str, str]], *, style: Shap
             heading=True,
         )
         label(
-            slide,
+            card,
             left,
             top + h * 0.68,
             w,
@@ -1016,8 +1241,9 @@ def draw_data_model(
         ent = entities[i]
         eid = str(ent.get("id") or ent.get("title") or i)
         pos[eid] = (left, top, w, h)
+        box_g = group(slide, f"엔티티: {str(ent.get('title', ''))[:20]}")
         rect(
-            slide,
+            box_g,
             left,
             top,
             w,
@@ -1029,7 +1255,7 @@ def draw_data_model(
         )
         head_h = min(0.8, h * 0.3)
         rect(
-            slide,
+            box_g,
             left,
             top,
             w,
@@ -1045,7 +1271,7 @@ def draw_data_model(
         attrs = str(ent.get("text", "") or "")
         if attrs:
             label(
-                slide,
+                box_g,
                 left + 0.1,
                 top + head_h + 0.05,
                 w - 0.2,
@@ -1298,6 +1524,18 @@ def draw_visual(slide: Any, box: Box, spec: dict[str, Any], *, style: ShapeStyle
         draw_security_layers(slide, box, items, style=style)
     elif kind == "layers":
         draw_layers(slide, box, items, style=style)
+    elif kind == "chart":
+        from proposal_agent.generators.pptx.charts import chart_from_spec
+
+        if chart_from_spec(slide, box, spec, style=style) is None:
+            kind = "compare"
+            draw_compare(
+                slide,
+                box,
+                [str(h) for h in spec.get("headers", []) or []],
+                [[str(c) for c in r] for r in spec.get("rows", []) or []],
+                style=style,
+            )
     else:
         kind = "cards"
         draw_cards(slide, box, items, style=style)
@@ -1314,6 +1552,7 @@ def visual_summary_text(spec: dict[str, Any]) -> str:
 
 __all__ = [
     "AGENT_VISUAL_KINDS",
+    "SCREEN_KINDS",
     "LAYER_LABEL",
     "LAYER_ORDER",
     "VISUAL_KINDS",
@@ -1335,6 +1574,7 @@ __all__ = [
     "draw_timeline",
     "draw_two_column",
     "draw_visual",
+    "group",
     "label",
     "rect",
     "visual_summary_text",

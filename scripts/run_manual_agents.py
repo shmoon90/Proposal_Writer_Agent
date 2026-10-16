@@ -999,6 +999,7 @@ PROPOSAL: dict[str, Any] = {
         {
             "slide_group": "understanding",
             "title": "사업 이해",
+            "picture": "photo__사업 수행 환경 사진(자리표시).png",
             "bullets": [
                 "Windows 공학용 계산기 수준의 연산을 PC 웹에서 제공",
                 "프론트 유효성 검사 + 서버 고정밀 계산의 역할 분담",
@@ -1277,6 +1278,21 @@ def main() -> int:
             actor=ACTOR,
         )
         log.append(f"템플릿 등록: {doc.file_name} → {doc.stored_path}")
+    # 참고 그림(사진 태그, Phase 20): 실제 사진 대신 Pillow로 만든 자리표시 이미지 — 덱에 태그 달린 그림으로 들어간다
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (640, 360), (120, 140, 160)).save(buf, format="PNG")
+    pic = s.documents.register_upload(
+        p,
+        kind=DocumentKind.PICTURE,
+        file_name="photo__사업 수행 환경 사진(자리표시).png",
+        data=buf.getvalue(),
+        actor=ACTOR,
+    )
+    log.append(f"참고 그림 등록: {pic.file_name} → {pic.stored_path}")
     r = StepRunner(s)
     r.run_extraction(p, actor=ACTOR)
     log.append(approve_if_needed(s, p, "gate0"))

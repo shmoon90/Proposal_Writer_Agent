@@ -2,7 +2,7 @@
   "updated": "2026-10-16",
   "main_commit": "ab75fba",
   "plan": "docs/IMPROVEMENT_PLAN_2026-10.md",
-  "status": "step19_done",
+  "status": "step20_done",
   "analysis_done": [
     "existing project structure, agents, MCP, outputs, tests (Phase 1-15)",
     "gap analysis against the quality/editability directive (19 sections)",
@@ -12,33 +12,40 @@
     "step16: manifest.json (runs + QA), picture policy (allowed tags, QA-FILE-12), library review doc, record_test_status script",
     "step17: RfpAnalysis directive fields, page-limit parsing, evidence_class/response_strategy, deck-first generation with slide page map, trace matrix 29 cols / spec 33 cols",
     "step18: strategy_planner brief (10 items), Gate P human approval/reject/rewrite, writing/finalize blocked before approval, QA-RFP-08, approval UI panel, brief toc as submission deck skeleton",
-    "step19: ProposalSection slide spec (key_message/purpose/audience/evidence/links/layout_type/tech_detail/terms) + glossary, slide spec JSON per deck (manifest extra_files), 13 agent visual kinds (raci/data_model/procedure/security_layers/layers), tech detail cards + alternatives table (commercial/open_source/in_house), glossary slide, prompt rules 12-16, QA-CON-10/11 (38 checks), slide spec UI panel"
+    "step19: ProposalSection slide spec (key_message/purpose/audience/evidence/links/layout_type/tech_detail/terms) + glossary, slide spec JSON per deck (manifest extra_files), 13 agent visual kinds (raci/data_model/procedure/security_layers/layers), tech detail cards + alternatives table (commercial/open_source/in_house), glossary slide, prompt rules 12-16, QA-CON-10/11 (38 checks), slide spec UI panel",
+    "step20: native charts (charts.py: staffing bar, requirement stats stacked column, submission gantt stacked bar, VisualSpec chart), screen mockup components (VisualItem.kind) + grouping (mockup/cards/kpis/entities), 14 visual kinds, DocumentKind.PICTURE tagged picture insertion path (section picture ref + appendix), QA group flattening, slide spec chart counts"
   ],
   "changed_files": [
-    "src/proposal_agent/generators/pptx/slide_spec.py",
-    "src/proposal_agent/agents/schemas.py",
-    "src/proposal_agent/agents/prompts/proposal_writer.md",
-    "src/proposal_agent/generators/base.py",
+    "src/proposal_agent/generators/pptx/charts.py",
     "src/proposal_agent/generators/pptx/shapes.py",
     "src/proposal_agent/generators/pptx/decks.py",
+    "src/proposal_agent/generators/pptx/slide_spec.py",
+    "src/proposal_agent/generators/base.py",
     "src/proposal_agent/generators/service.py",
-    "src/proposal_agent/validation/independent_qa.py",
-    "src/proposal_agent/ui/app_pages/deliverables.py",
+    "src/proposal_agent/agents/schemas.py",
+    "src/proposal_agent/agents/prompts/proposal_writer.md",
+    "src/proposal_agent/models/enums.py",
+    "src/proposal_agent/services/document_service.py",
+    "src/proposal_agent/ingest/service.py",
+    "src/proposal_agent/validation/deliverables.py",
+    "src/proposal_agent/ui/app_pages/project.py",
     "scripts/run_manual_agents.py",
+    "tests/unit/test_phase20_editable_objects.py",
     "tests/unit/test_phase19_slide_spec.py",
-    "tests/integration/test_phase7_qa.py",
-    "docs/PHASE19_REPORT.md",
-    "docs/AGENT_DESIGN.md",
+    "tests/unit/test_shapes_presentation.py",
+    "docs/PHASE20_REPORT.md",
     "docs/USER_GUIDE.md",
+    "docs/AGENT_DESIGN.md",
+    "docs/LIBRARY_REVIEW.md",
+    "docs/LIMITATIONS.md",
     "docs/OUTPUT_STRUCTURE.md",
     "docs/TEST_RESULTS.md",
-    "docs/LIMITATIONS.md",
     "README.md"
   ],
   "tests": {
     "last_run": "2026-10-16",
     "command": "pytest -q -p no:cacheprovider",
-    "passed": 270,
+    "passed": 274,
     "failed": 0,
     "skipped": 1,
     "deselected": 2
@@ -51,17 +58,19 @@
     "QA-CON-10 flagged scope counts ('optional 2') as unsupported numbers (counts added to corpus)",
     "presentation alternatives slide footnotes overflowed the template footnote box (compact: 1 evidence line, no table footnotes)",
     "slide spec title picked template chapter label/running header (subsection title box preferred)",
-    "manual script crashed printing em dash on cp949 console (utf-8 reconfigure)"
+    "manual script crashed printing em dash on cp949 console (utf-8 reconfigure)",
+    "grouped mockups/cards broke top-level shape counts in visual tests and QA (flattened groups)"
   ],
   "open_issues": [
     "real Claude model calls unverified (no credit)",
     "slide rendering verification not implemented (step 21)",
-    "native charts and UI mockup components not implemented (step 20)",
     "manifest does not record finalization (step 21)",
     "proposal page map only finds requirement IDs printed in slide text (agent sections must list requirement_ids)",
     "brief toc cannot be edited in the UI (rewrite via rejection comments)",
-    "deck generation does not yet place tagged photos (step 20)",
-    "slide spec fields (key_message/evidence/tech_detail/glossary) unverified with the real model; QA-CON-10 compares number tokens only, QA-CON-11 checks Latin acronyms only (review-level)"
+    "slide spec fields (key_message/evidence/tech_detail/glossary) unverified with the real model; QA-CON-10 compares number tokens only, QA-CON-11 checks Latin acronyms only (review-level)",
+    "native gantt value axis is elapsed days (not a date axis); chart colors/fonts are code values, not theme colors",
+    "reference pictures depend on the '<tag>__<caption>' file-name rule (UI applies it); no crop/placement control",
+    "screen components, chart visuals and picture references unverified with the real model"
   ],
   "connections": {
     "claude_api": "not configured",
@@ -70,15 +79,15 @@
     "web_search": "tool exposed, not executed"
   },
   "editability_qa": {
-    "pictures_in_decks": 0,
-    "picture_exceptions": 0,
-    "charts": "shape bars (not native)",
-    "ui_mockup": "region level",
-    "check": "QA-FILE-12 (tagged photos allowed)"
+    "pictures_in_decks": 1,
+    "picture_exceptions": 2,
+    "charts": "native (add_chart): staffing bar, requirement stats, submission gantt; VisualSpec chart",
+    "ui_mockup": "component level (input/button/menu/tab/message/table/list/chart), grouped",
+    "groups": "mockup, cards, kpi cards, entities (ungroupable)",
+    "check": "QA-FILE-12 (tagged photos allowed), QA-FILE-03/04 flatten groups"
   },
   "next": [
-    "step 20: native charts (add_chart), UI mockup components, grouping, diagram refinement (RACI/data model/ops/security), tagged photo insertion",
-    "step 21: PowerPoint COM rendering QA, QA-EDIT-01~10, QA-FILE-13 page limit, regression tests, final report (directive §18)"
+    "step 21: PowerPoint COM rendering QA (PNG export, reopen; skip=not run without COM), QA-EDIT-01~10, QA-FILE-13 page limit, regression tests (mockup/photo/chart/render/approval flow), final report (directive §18, 13 items)"
   ],
   "qa_checks": {
     "total": 38,

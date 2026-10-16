@@ -7,6 +7,7 @@ from typing import Any
 
 from proposal_agent.generators.base import GenerationContext, acceptance_label
 from proposal_agent.generators.pptx.builder import DeckBuilder
+from proposal_agent.generators.pptx.charts import add_category_chart, add_gantt_chart
 from proposal_agent.generators.pptx.outline import (
     ChapterPlan,
     OutlineSection,
@@ -180,6 +181,48 @@ def _staff_bars(ctx: GenerationContext) -> list[tuple[str, float, str]]:
     ]
 
 
+def _requirement_stats(ctx: GenerationContext) -> tuple[list[str], list[float], list[float]]:
+    """유형별 (필수, 선택·부가) 건수. 네이티브 차트 데이터."""
+    cats: list[str] = []
+    mand: list[float] = []
+    opt: list[float] = []
+    for t in RequirementType:
+        rows = [r for r in ctx.requirements if r.type == t]
+        if not rows:
+            continue
+        cats.append(t.label)
+        m = len([r for r in rows if r.scope_class.value == "mandatory"])
+        mand.append(float(m))
+        opt.append(float(len(rows) - m))
+    return cats, mand, opt
+
+
+def _find_picture(ctx: GenerationContext, ref: str) -> dict[str, Any] | None:
+    key = str(ref or "").strip().lower()
+    if not key:
+        return None
+    for pic in ctx.pictures:
+        names = (str(pic.get("file_name", "")).lower(), str(pic.get("caption", "")).lower())
+        if key in names or any(key in n for n in names if n):
+            return pic
+    return None
+
+
+def _render_picture(b: Builder, title: str, pic: dict[str, Any], footer: str) -> bool:
+    """등록된 참고 그림을 태그 달린 그림 슬라이드로 (Phase 20). 실패하면 False."""
+    try:
+        b.image_slide(
+            title,
+            str(pic["path"]),
+            footer,
+            caption=str(pic.get("caption", "") or ""),
+            tag=str(pic.get("tag", "") or "reference"),
+        )
+    except Exception:  # noqa: BLE001  그림 파일 문제는 덱 생성을 막지 않는다 (QA가 검출)
+        return False
+    return True
+
+
 def _card_title(text: str) -> str:
     head = text.split("(")[0].split(":")[0].split("—")[0].strip()
     return head[:18] if head else text[:18]
@@ -327,6 +370,10 @@ def _render_section(
     _render_section_body(b, ctx, sec, profile, compact=compact)
     if agent and agent.get("tech_detail"):
         _render_tech_detail(b, sec, agent, _footer(ctx, profile), compact=compact)
+    pic = _find_picture(ctx, str((agent or {}).get("picture", "") or ""))
+    if pic is not None:
+        if _render_picture(b, f"{sec.title} — 참고 그림", pic, _footer(ctx, profile)):
+            ctx.used_pictures.add(str(pic.get("file_name", "")))
     last = len(b.prs.slides)
     if last >= first:
         _log_slides(ctx, _spec_profile(compact), section_entry(sec, agent, first, last))
@@ -522,6 +569,20 @@ def _render_section_body(
                 lead=lead or f"{figs['requirements']} ({figs['mandatory']}) 전수 대응",
                 footnotes=footnotes,
             )
+            # 요구사항 통계: 유형별 필수/선택 건수 (네이티브 누적 차트, Phase 20)
+            cats, mand, opt = _requirement_stats(ctx)
+            if cats:
+                slide, box = b.canvas_slide("요구사항 통계", lead=lead_default)
+                add_category_chart(
+                    slide,
+                    box,
+                    cats,
+                    [("필수", mand), ("선택·부가", opt)],
+                    style=b.style,
+                    chart_type="stacked_column",
+                    title="유형별 요구사항 건수",
+                    number_format="0",
+                )
     elif key == "strategy":
         bullets = (agent or {}).get("bullets") or [
             "RFP 필수 요구사항 전수 대응 및 추적성 확보 (요구사항 정의서·추적표)",
@@ -625,9 +686,26 @@ def _render_section_body(
                 notes=notes or lead,
             )
             slide, box = b.canvas_slide("일정 (간트)", lead=lead)
-            draw_timeline(
-                slide, box, _timeline_items(ctx), ctx.period_start, ctx.period_end, style=b.style
-            )
+            if (
+                add_gantt_chart(
+                    slide,
+                    box,
+                    _timeline_items(ctx),
+                    ctx.period_start,
+                    ctx.period_end,
+                    style=b.style,
+                    title="단계별 일정 (착수일 기준 경과 일수)",
+                )
+                is None
+            ):
+                draw_timeline(
+                    slide,
+                    box,
+                    _timeline_items(ctx),
+                    ctx.period_start,
+                    ctx.period_end,
+                    style=b.style,
+                )
     elif key == "organization":
         lead = f"{figs['headcount']} · 총 {figs['total_mm']}"
         b.table_slides(
@@ -639,7 +717,20 @@ def _render_section_body(
             notes=notes or lead,
         )
         slide, box = b.canvas_slide("역할별 공수", lead=lead)
-        draw_bars(slide, box, _staff_bars(ctx), style=b.style)
+        bars = _staff_bars(ctx)
+        if (
+            add_category_chart(
+                slide,
+                box,
+                [n for n, _v, _u in bars],
+                [("공수(MM)", [v for _n, v, _u in bars])],
+                style=b.style,
+                chart_type="bar",
+                title="역할별 공수 (MM)",
+            )
+            is None
+        ):
+            draw_bars(slide, box, bars, style=b.style)
     elif key == "risk":
         risk_lines = list((agent or {}).get("bullets") or _risk_bullets(ctx))
         if compact:
@@ -701,6 +792,7 @@ def build_submission_deck(
         )
     )
     ctx.slide_specs["submission"] = []
+    ctx.used_pictures = set()
     b.title_slide(
         f"{ctx.project.name} 제안서",
         f"{ctx.project.client_name or ''} · {ctx.generated_on}".strip(" ·"),
@@ -735,6 +827,18 @@ def build_submission_deck(
             b.bullet_slides(title, items, footer)
             _log_slides(ctx, "submission", code_entry("appendix", title, first, len(b.prs.slides)))
         _render_glossary(b, ctx, footer, compact=False)
+    rest = [p for p in ctx.pictures if str(p.get("file_name", "")) not in ctx.used_pictures]
+    if rest:
+        if not (tail_items or glossary):
+            b.begin_section("부록", len(plan[-1].sections) + 1 if plan else 1)
+        for pic in rest[:12]:
+            first = len(b.prs.slides) + 1
+            if _render_picture(b, "참고 그림", pic, footer):
+                _log_slides(
+                    ctx,
+                    "submission",
+                    code_entry("picture", str(pic.get("caption", "")), first, len(b.prs.slides)),
+                )
     return b.to_bytes()
 
 
@@ -818,6 +922,7 @@ def build_presentation_deck(
     ]
     plan = plan_chapters(pres_outline, skeleton, template_chapters)
     ctx.slide_specs["presentation"] = []
+    ctx.used_pictures = set()
     b.title_slide(f"{ctx.project.name}", f"제안 발표 · {ctx.generated_on}", footer)
     # 사업 필요성·목표 (카드)
     goals = [str(g) for g in a.get("client_goals", []) or [] if g][:3]

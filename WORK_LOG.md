@@ -3,6 +3,7 @@
 작업 순서 기록. 상태 요약은 `workspace/DEVELOPMENT_STATUS.md`, 단계별 상세는 `docs/PHASE*_REPORT.md`.
 
 ## 2026-10-16
+- Phase 20 완료: 네이티브 차트(charts.py: 공수·요구사항 통계·제출용 간트·VisualSpec chart), 화면 목업 컴포넌트(입력·버튼·메뉴·탭·메시지·표·목록·차트 영역)·그룹화(목업·카드·수치 카드·엔티티), 참고 그림 문서 종류(PICTURE)와 태그 삽입 경로, QA 그룹 평탄화. pytest 274 passed, 실샘플 QA 0 실패·gate4 PASS·QA-FILE-12 사진 예외 통과. → `docs/PHASE20_REPORT.md`
 - Phase 19 완료: ProposalSection 슬라이드 명세(결론형 제목·목적·독자·근거·연결·레이아웃·tech_detail·terms)·glossary, 슬라이드 명세 JSON 산출(07_/08_, manifest), 도식 13종(raci·data_model·procedure·security_layers·layers), 기술 상세·대안 비교(상용/공개/자체)·용어 설명 슬라이드, 프롬프트 규칙 12~16, QA-CON-10/11(총 38항목), 산출물 화면 명세 패널. pytest 270 passed, 실샘플 QA 0 실패·gate4 PASS. → `docs/PHASE19_REPORT.md`
 - Phase 18 완료: strategy_planner 브리프(10항목)·Gate P(목차·전략 승인) 게이트·승인 전 문안 작성/최종 확정 차단·반려 재작성·QA-RFP-08·산출물 화면 승인 패널. 브리프 프롬프트 부작용(기본 계획 선저장)과 장 라벨 넘침 수정. pytest 265 passed, 실샘플 QA 0 실패·gate4 PASS. → `docs/PHASE18_REPORT.md` (브리프 형식·승인 화면 사용자 확인 대기)
 - Phase 17 완료: RfpAnalysis 항목 확장·프롬프트, 페이지 제한/규격 파싱, 근거 구분·대응 전략, 덱→Excel 순서와 제안서 페이지 역산(추적표 29열·정의서 33열). pytest 262 passed, 실샘플 QA 0 실패. → `docs/PHASE17_REPORT.md`

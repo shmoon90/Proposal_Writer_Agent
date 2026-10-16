@@ -227,8 +227,8 @@ class ExtractionService:
         outcomes: list[ExtractionOutcome] = []
         latest = self._repos.extraction_runs.latest_by_document(project.id)
         for doc in self._repos.documents.find(project.id):
-            if doc.kind == DocumentKind.PROPOSAL_TEMPLATE:
-                continue  # 제안서 템플릿은 서식 입력이지 추출 대상 문서가 아니다
+            if doc.kind in (DocumentKind.PROPOSAL_TEMPLATE, DocumentKind.PICTURE):
+                continue  # 제안서 템플릿·참고 그림은 서식/그림 입력이지 추출 대상 문서가 아니다
             if only_missing and doc.id in latest and latest[doc.id].ok:
                 continue
             outcomes.append(self.extract_document(project, doc, actor=actor))

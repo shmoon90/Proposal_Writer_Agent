@@ -136,6 +136,8 @@ def _shape_counts(shapes: Any, depth: int = 0) -> Counter[str]:
         st = str(getattr(sh, "shape_type", "") or "")
         if getattr(sh, "has_table", False) and sh.has_table:
             c["table"] += 1
+        elif getattr(sh, "has_chart", False) and sh.has_chart:
+            c["chart"] += 1
         elif "PICTURE" in st:
             c["picture"] += 1
         elif "GROUP" in st:
@@ -156,6 +158,8 @@ def _shape_counts(shapes: Any, depth: int = 0) -> Counter[str]:
 def _rendered_layout(c: Counter[str]) -> str:
     if c.get("picture"):
         return "picture"
+    if c.get("chart"):
+        return "chart"
     if c.get("table") and (c.get("shape", 0) + c.get("connector", 0)) >= 3:
         return "visual_table"
     if c.get("table"):

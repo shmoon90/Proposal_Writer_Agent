@@ -10,7 +10,7 @@
 
 명령: `python -m pytest -q -rs` (기본 `-m 'not llm'`)
 
-결과: **270 passed, 1 skipped, 2 deselected** (2026-10-16 Phase 19 반영. Phase 18 265, Phase 17 262, Phase 16 257, Phase 15 253, Phase 14 249, Phase 13 243, Phase 12 238, Phase 11 231, Phase 8 215)
+결과: **274 passed, 1 skipped, 2 deselected** (2026-10-16 Phase 20 반영. Phase 19 270, Phase 18 265, Phase 17 262, Phase 16 257, Phase 15 253, Phase 14 249, Phase 13 243, Phase 12 238, Phase 11 231, Phase 8 215)
 
 - skipped 1: `tests/unit/test_paths.py::test_ensure_within_blocks_symlink` — 이 PC 계정에 심볼릭 링크 생성 권한이 없음(WinError 1314). 코드 결함이 아니라 환경 제약.
 - deselected 2: `tests/integration/llm/` — 실제 Claude API 호출이 필요한 LLM 계약 테스트. **크레딧 부족으로 실행하지 않음.**
@@ -64,13 +64,15 @@
 
 **Phase 19 점검 (2026-10-16)**: 같은 흐름(대행 fixture에 결론형 제목·근거·tech_detail·layers 도식·용어집 추가) 재실행 — 제출용 28장·발표용 21장·그림 0, 슬라이드 명세 2건(`슬라이드명세_제출용/발표용_v1.0.json`) 저장·manifest 기록, 기술 상세·대안 비교(상용/공개/자체)·용어 설명 슬라이드 생성. 통합 QA **38항목 중 37 실행·33 통과·0 실패·4 검토 필요**(QA-TECH-01/02/05/07)·1 미실행(QA-RFP-07), gate3·gate4 PASS, QA-CON-10·11 PASS. 첫 실행에서 QA-CON-10이 범위별 건수("부가 제안 2건")를 근거 없는 수치로 본 것, QA-CON-11의 HTTPS·JSON 검출(정상), 발표용 대안 비교 슬라이드 ※ 주석 넘침(QA-FILE-03), 명세 제목이 장 라벨을 집는 문제를 고쳤다. pytest 270 passed(신규 Phase 19 테스트 5건). 실제 모델 호출(`proposal_writer` 명세 필드)은 미검증.
 
+**Phase 20 점검 (2026-10-16)**: 같은 흐름(대행 fixture에 자리표시 사진 `photo__…png` 등록·'사업 이해' 소절 picture 참조) 재실행 — 제출용 30장(네이티브 차트 3: 요구사항 통계·간트·역할별 공수, 그룹 8, 태그 사진 1), 발표용 22장(차트 1, 그룹 10, 사진 1). 통합 QA **38항목 중 37 실행·33 통과·0 실패·4 검토 필요**(QA-TECH-01/02/05/07)·1 미실행(QA-RFP-07), gate3·gate4 PASS, QA-FILE-12 통과(사진 예외 2건 기록), 그룹 안 도형 포함 넘침·겹침(QA-FILE-03/04) 통과. pytest 274 passed(신규 Phase 20 테스트 4건). 실제 모델 호출(screen 컴포넌트·chart 도식·picture 참조)은 미검증.
+
 ## 2. 정적 검사
 
 | 명령 | 결과 |
 |---|---|
 | `python -m ruff check src tests scripts` | All checks passed |
 | `python -m ruff format --check src tests scripts` | 통과 |
-| `python -m mypy src` | Success: no issues found in 113 source files (2026-10-16) |
+| `python -m mypy src` | Success: no issues found in 114 source files (2026-10-16) |
 
 ## 3. 회귀 실행기 (`scripts/run_regression.py`)
 

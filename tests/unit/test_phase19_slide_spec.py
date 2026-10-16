@@ -37,9 +37,19 @@ def _blank() -> Any:
     return prs.slides.add_slide(prs.slide_layouts[6])
 
 
+def _flat(shapes: Any) -> list[Any]:
+    out: list[Any] = []
+    for sh in shapes:
+        if "GROUP" in str(sh.shape_type):
+            out.extend(_flat(sh.shapes))
+        else:
+            out.append(sh)
+    return out
+
+
 def _kinds(slide: Any) -> dict[str, int]:
     out: dict[str, int] = {}
-    for sh in slide.shapes:
+    for sh in _flat(slide.shapes):
         k = str(sh.shape_type).split(".")[-1].split(" ")[0]
         out[k] = out.get(k, 0) + 1
     return out
@@ -81,7 +91,7 @@ def test_new_visual_kinds_are_editable_shapes() -> None:
             "items": [{"title": "브라우저", "group": "사용자"}, {"title": "WAS", "group": "응용"}],
         },
     ]
-    assert len(shapes.AGENT_VISUAL_KINDS) == 13
+    assert len(shapes.AGENT_VISUAL_KINDS) == 14  # Phase 20: chart 추가
     for spec in cases:
         slide = _blank()
         drawn = shapes.draw_visual(slide, BOX, spec, style=STYLE)

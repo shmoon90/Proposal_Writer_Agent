@@ -50,6 +50,16 @@ def picture_name(tag: str, label: str) -> str:
     return f"{tag}:{label[:60]}"
 
 
+def parse_picture_name(file_name: str) -> tuple[str, str]:
+    """업로드 파일명 '<태그>__<설명>.png' → (태그, 설명). 태그가 없으면 reference."""
+    stem = str(file_name).rsplit("/", 1)[-1].rsplit(".", 1)[0]
+    if "__" in stem:
+        tag, caption = stem.split("__", 1)
+        if tag in PICTURE_TAGS:
+            return tag, caption.strip() or stem
+    return "reference", stem
+
+
 def picture_tag(shape_name: str | None) -> str | None:
     """도형 이름에서 허용 태그를 읽는다. 없으면 None (정보성 자료로 간주)."""
     head = (shape_name or "").split(":", 1)[0].strip().lower()
@@ -81,6 +91,10 @@ class GenerationContext:
     extra_paths: dict[str, str] = field(
         default_factory=dict
     )  # 보조 파일(슬라이드 명세 등) → 절대 경로
+    pictures: list[dict[str, Any]] = field(
+        default_factory=list
+    )  # 등록된 참고 그림 [{file_name, path, tag, caption}] (Phase 20, DocumentKind.PICTURE)
+    used_pictures: set[str] = field(default_factory=set)  # 덱 본문에 이미 넣은 그림 파일명
     page_map: dict[str, dict[str, list[int]]] = field(
         default_factory=dict
     )  # 요구사항 ID → {"submission": [슬라이드…], "presentation": [...]} (Phase 17, 덱 생성 후 채움)

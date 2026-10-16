@@ -41,9 +41,20 @@ def _blank() -> tuple[Any, Any]:
     return prs, prs.slides.add_slide(prs.slide_layouts[6])
 
 
+def _flat(shapes: Any) -> list[Any]:
+    """그룹(Phase 20) 안 도형까지 평탄화."""
+    out: list[Any] = []
+    for sh in shapes:
+        if "GROUP" in str(sh.shape_type):
+            out.extend(_flat(sh.shapes))
+        else:
+            out.append(sh)
+    return out
+
+
 def _kinds(slide: Any) -> dict[str, int]:
     out: dict[str, int] = {}
-    for sh in slide.shapes:
+    for sh in _flat(slide.shapes):
         k = str(sh.shape_type).split(".")[-1].split(" ")[0] if sh.shape_type is not None else "?"
         if getattr(sh, "has_table", False) and sh.has_table:
             k = "TABLE"
@@ -52,7 +63,7 @@ def _kinds(slide: Any) -> dict[str, int]:
 
 
 def _texts(slide: Any) -> str:
-    return "\n".join(sh.text_frame.text for sh in slide.shapes if sh.has_text_frame)
+    return "\n".join(sh.text_frame.text for sh in _flat(slide.shapes) if sh.has_text_frame)
 
 
 # --- 도식 -----------------------------------------------------------------------------------
