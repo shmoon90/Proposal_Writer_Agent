@@ -277,7 +277,12 @@ class VisualSpec(_Strict):
     kind: str = Field(
         description="cards(배경·목표·전략 카드) | flow(단계 흐름·절차) | process(호출 순서) | two_column(현황·이슈 ↔ 방안) | "
         "dataflow(데이터 흐름: items=노드(group=시스템), edges=연결) | screen(화면 설계: items=영역, group=nav는 좌측 메뉴) | "
-        "kpis(핵심 수치: title=라벨, text=값) | compare(비교 표: headers/rows)"
+        "kpis(핵심 수치: title=라벨, text=값) | compare(비교 표: headers/rows) | "
+        "raci(책임 분담표: headers=['활동', 역할…], rows=[활동, R/A/C/I…]) | "
+        "data_model(데이터 모델: items=엔티티(title=이름, text=주요 속성 줄바꿈), edges=관계(label=1:N 등)) | "
+        "procedure(운영·장애 대응 절차: items=단계(group=담당 조직·역할), 순서대로) | "
+        "security_layers(보안 통제: items=통제(group=영역: 네트워크/서버/응용/데이터/관리), title=통제명, text=방식) | "
+        "layers(계층 구성: items=요소(group=계층명), 위에서 아래로)"
     )
     title: str = ""
     items: list[VisualItem] = Field(default_factory=list)
@@ -286,6 +291,76 @@ class VisualSpec(_Strict):
     right_title: str = ""
     headers: list[str] = Field(default_factory=list)
     rows: list[list[str]] = Field(default_factory=list)
+
+
+class EvidenceRef(_Strict):
+    """소절 주장·수치의 근거 (Phase 19). 데이터에 없는 근거는 적지 않는다."""
+
+    kind: str = Field(
+        description="rfp(RFP 본문) | requirement(요구사항) | research(기술 조사) | architecture(구성 요소) | "
+        "wbs(WBS·일정) | staffing(인력) | reference_doc(참고 문서) | assumption(전제, 사람 확인 필요)"
+    )
+    ref: str = Field(
+        default="", description="참조 ID (요구사항 ID, 조사 주제, 구성 요소 코드, WBS 코드, RFP 절)"
+    )
+    text: str = Field(default="", description="근거 요지 1문장 (수치가 있으면 출처의 값 그대로)")
+
+
+class AlternativeOption(_Strict):
+    """기술 대안 (상용/공개/자체) 비교 항목."""
+
+    name: str
+    kind: str = Field(description="commercial(상용) | open_source(공개 SW) | in_house(자체 개발)")
+    pros: list[str] = Field(default_factory=list)
+    cons: list[str] = Field(default_factory=list)
+    cost_note: str = Field(
+        default="", description="라이선스·구축·운영 비용 관점 (데이터·조사에 있는 것만)"
+    )
+    selected: bool = False
+    basis: str = Field(default="", description="선정·배제 근거 (조사 주제·출처)")
+
+
+class TechDetail(_Strict):
+    """기술 소절 템플릿: 구성·연계·데이터·운영·보안 + 대안 비교 (Phase 19)."""
+
+    components: list[str] = Field(
+        default_factory=list, description="구성 요소·기술 (제품·버전은 조사 출처에 있는 것만)"
+    )
+    interfaces: list[str] = Field(
+        default_factory=list, description="연계·인터페이스 (프로토콜·방식)"
+    )
+    data: list[str] = Field(default_factory=list, description="데이터 구조·저장·이관")
+    operations: list[str] = Field(default_factory=list, description="운영·장애·백업·모니터링")
+    security: list[str] = Field(
+        default_factory=list, description="보안 통제 (인증·권한·암호화·감사)"
+    )
+    alternatives: list[AlternativeOption] = Field(
+        default_factory=list, description="상용/공개/자체 대안 비교 (2~4개), 선정 1개"
+    )
+    selection_reason: str = Field(
+        default="", description="선정 사유 1~2문장 (비전문가도 이해할 표현)"
+    )
+
+
+class GlossaryTerm(_Strict):
+    term: str = Field(description="용어 또는 약어 (예: SSO)")
+    full_form: str = Field(default="", description="약어 풀이 (예: Single Sign-On)")
+    meaning: str = Field(description="비전문가용 설명 1~2문장")
+    first_section: str = Field(default="", description="처음 나오는 소절 번호")
+
+
+LAYOUT_TYPES = (
+    "title_bullets",
+    "lead_bullets",
+    "table",
+    "visual",
+    "visual_bullets",
+    "two_column",
+    "tech_detail",
+    "compare",
+    "glossary",
+)
+AUDIENCES = ("evaluator", "business", "technical", "executive")
 
 
 class ProposalSection(_Strict):
@@ -320,6 +395,32 @@ class ProposalSection(_Strict):
         default_factory=list,
         description="이 소절 구현 방안의 근거 조사 주제 (tech_researcher 기록의 topic)",
     )
+    # Phase 19: 슬라이드 단위 명세 (모두 선택)
+    key_message: str = Field(
+        default="",
+        description="결론형 제목: 이 슬라이드가 말하는 결론 한 문장 (40자 내외, 명사형 제목이 아니라 주장)",
+    )
+    purpose: str = Field(default="", description="이 슬라이드의 목적 (무엇을 설득·설명하는가)")
+    audience: str = Field(
+        default="",
+        description="주 독자: evaluator(평가위원) | business(현업) | technical(기술 심사) | executive(경영진)",
+    )
+    evidence: list[EvidenceRef] = Field(
+        default_factory=list, description="주장·수치의 근거 (데이터에 있는 것만, 1개 이상 권장)"
+    )
+    links_prev: list[str] = Field(default_factory=list, description="앞에서 이어받는 소절 번호")
+    links_next: list[str] = Field(default_factory=list, description="뒤로 이어지는 소절 번호")
+    layout_type: str = Field(
+        default="",
+        description="title_bullets | lead_bullets | table | visual | visual_bullets | two_column | tech_detail | compare | glossary",
+    )
+    tech_detail: TechDetail | None = Field(
+        default=None, description="기술 소절(구성·연계·데이터·운영·보안·대안 비교). 기술 소절에만"
+    )
+    terms: list[str] = Field(
+        default_factory=list,
+        description="이 소절에서 처음 쓰는 약어·전문 용어 (glossary에 설명이 있어야 함)",
+    )
 
 
 class ProposalContent(_Strict):
@@ -328,6 +429,10 @@ class ProposalContent(_Strict):
     key_messages: list[str] = Field(default_factory=list)
     unverified_claims: list[str] = Field(
         default_factory=list, description="근거 데이터가 없어 사람 확인이 필요한 문구"
+    )
+    glossary: list[GlossaryTerm] = Field(
+        default_factory=list,
+        description="용어집: 본문에 쓴 약어·전문 용어의 풀이와 비전문가용 설명 (Phase 19, 부록 소절로 생성)",
     )
 
 
@@ -536,4 +641,10 @@ __all__ = [
     "VisualItem",
     "VisualSpec",
     "WBSDraft",
+    "AlternativeOption",
+    "EvidenceRef",
+    "GlossaryTerm",
+    "TechDetail",
+    "LAYOUT_TYPES",
+    "AUDIENCES",
 ]

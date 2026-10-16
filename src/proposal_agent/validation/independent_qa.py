@@ -97,6 +97,68 @@ EVALUATION_WORDS = (
     "심사 기준",
 )
 VERSION_RE = re.compile(r"\b(\d+(?:\.\d+){1,2})\b")
+# Phase 19: QA-CON-10 추상 표현(근거 없이 쓰이는 과장 표현) · 단위 붙은 수치
+ABSTRACT_WORDS = (
+    "최적의",
+    "최고의",
+    "최상의",
+    "완벽한",
+    "완벽하게",
+    "혁신적",
+    "획기적",
+    "세계적",
+    "압도적",
+    "탁월한",
+    "유일한",
+    "최첨단",
+    "업계 최고",
+    "검증된 역량",
+    "풍부한 경험",
+    "최고 수준",
+)
+NUMBER_CLAIM_RE = re.compile(
+    r"(\d[\d,]*(?:\.\d+)?)\s*(%|퍼센트|배|초|ms|밀리초|분|시간|건|명|년|개월|주|일|억|만|천|TPS|GB|TB|MB|회|대|식|자리|페이지|장|종|배 이상)"
+)
+# Phase 19: QA-CON-11 약어 — 대문자 2~8자(숫자·'/' 허용), ID(FR-001)·로마 숫자·일반 약어 제외
+ACRONYM_RE = re.compile(r"(?<![A-Za-z0-9/-])[A-Z][A-Z0-9]{1,7}(?:/[A-Z]{1,3})?(?![A-Za-z0-9/-])")
+ROMAN_RE = re.compile(r"^[IVX]+$")
+COMMON_ACRONYMS = frozenset(
+    {
+        "RFP",
+        "PPT",
+        "WBS",
+        "PM",
+        "PL",
+        "QA",
+        "IT",
+        "SI",
+        "ID",
+        "PC",
+        "OS",
+        "MM",
+        "MD",
+        "M/D",
+        "M/M",
+        "S/W",
+        "H/W",
+        "SW",
+        "HW",
+        "TOC",
+        "NO",
+        "OK",
+        "AS",
+        "TO",
+        "IS",
+        "BE",
+        "CR",
+        "TR",
+        "KPI",
+        "RACI",
+        "URL",
+        "WEB",
+        "CONTENTS",
+    }
+)
 ID_IN_TEXT_RE = re.compile(r"\b[A-Z]{2,5}-\d{2,5}\b")
 
 PROPOSAL_KINDS: tuple[DeliverableKind, ...] = (
@@ -740,6 +802,24 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
             gate="gate2",
             fix_suggestion="'구현 방안 작성(에이전트)'을 실행하거나 요구사항 화면에서 구현 방안·난이도를 확정한 뒤 재생성",
         ),
+        _check(
+            "QA-CON-10",
+            cat,
+            "제안 문안 추상 표현·근거 없는 수치",
+            "제안 문안(소절 제목·결론형 제목·리드·글머리·표)에 근거 없는 과장 표현(최적의·완벽한·세계적 등)이 없고, 단위가 붙은 수치가 기준 데이터(요구사항·조사·RFP 본문·WBS·인력)나 소절 근거(evidence)에 있는 값인가. 제안 문안이 없으면 제출용 PPT 본문의 추상 표현만 검사",
+            gate="gate5",
+            mandatory=False,
+            fix_suggestion="과장 표현은 근거 있는 사실로 바꾸고, 수치는 출처(요구사항·조사·RFP)를 evidence에 적거나 unverified_claims로 분리",
+        ),
+        _check(
+            "QA-CON-11",
+            cat,
+            "약어·전문 용어 설명",
+            "제안 문안(없으면 제출용 PPT 본문)에 쓴 영문 약어가 용어집(glossary)에 있거나 첫 등장 시 괄호로 풀어쓰여 있는가 (RFP·WBS·PM 등 일반 약어와 요구사항 ID 제외)",
+            gate="gate5",
+            mandatory=False,
+            fix_suggestion="glossary에 용어·풀이·비전문가용 설명을 추가하거나 본문 첫 등장 시 '약어(풀이)'로 표기",
+        ),
     ]
     f = art.outcome.findings
     by_rule: dict[str, list[tuple[ValidationLevel, str]]] = {}
@@ -973,7 +1053,164 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
         req_ids=[x.split(":")[0] for x in f09 + r09],
         files=_kind_files(inp, DeliverableKind.REQUIREMENT_SPEC_XLSX),
     )
+    # 10·11: 제안 문안 추상 표현·근거 없는 수치, 약어 미설명 (Phase 19)
+    if inp.mode != ProjectMode.PROPOSAL:
+        _not_run(checks[9], "구축 단계는 PPT를 생성하지 않음")
+        _not_run(checks[10], "구축 단계는 PPT를 생성하지 않음")
+        return checks
+    content = inp.ctx.proposal_content or {}
+    sections = [x for x in content.get("sections") or [] if isinstance(x, dict)]
+    ppt_files = _kind_files(inp, DeliverableKind.SUBMISSION_PPTX)
+    _finish(
+        checks[9],
+        review=_cap(_abstract_and_number_issues(inp, sections, sub_text), 12),
+        files=ppt_files,
+    )
+    _finish(
+        checks[10],
+        review=_cap(_unexplained_acronyms(content, sections, sub_text), 6),
+        files=ppt_files,
+    )
     return checks
+
+
+def _section_texts(sec: dict[str, Any]) -> list[str]:
+    out = [
+        str(sec.get("title", "") or ""),
+        str(sec.get("key_message", "") or ""),
+        str(sec.get("lead_message", "") or ""),
+        str(sec.get("body", "") or ""),
+        *[str(x) for x in sec.get("bullets", []) or []],
+        *[str(c) for r in sec.get("table_rows", []) or [] for c in r],
+    ]
+    vis = sec.get("visual")
+    if isinstance(vis, dict):
+        out.append(str(vis.get("title", "") or ""))
+        out.extend(f"{x.get('title', '')} {x.get('text', '')}" for x in vis.get("items", []) or [])
+        out.extend(str(c) for r in vis.get("rows", []) or [] for c in r)
+    td = sec.get("tech_detail")
+    if isinstance(td, dict):
+        for k in ("components", "interfaces", "data", "operations", "security"):
+            out.extend(str(x) for x in td.get(k, []) or [])
+        out.append(str(td.get("selection_reason", "") or ""))
+        for a in td.get("alternatives", []) or []:
+            out.append(f"{a.get('name', '')} {a.get('cost_note', '')} {a.get('basis', '')}")
+            out.extend(str(x) for x in (a.get("pros") or []) + (a.get("cons") or []))
+    return [x for x in out if x]
+
+
+def _section_label(sec: dict[str, Any]) -> str:
+    return str(sec.get("number") or "").strip() or str(sec.get("title", ""))[:20]
+
+
+def _base_number_tokens(inp: QaInputs) -> set[str]:
+    """기준 데이터 안의 숫자 토큰(쉼표 제거). 제안 문안의 수치가 여기 없으면 '근거 없는 수치'."""
+    parts: list[str] = []
+    for r in inp.all_requirements or inp.requirements:
+        parts.extend(
+            (
+                r.name,
+                r.description,
+                r.implementation_approach or "",
+                r.acceptance_criteria,
+                r.difficulty_basis,
+            )
+        )
+    for t in inp.research:
+        parts.extend((t.topic, t.summary, *t.unverified_items, *t.recommended_stack))
+        parts.extend(f"{src.title} {src.url}" for src in t.sources)
+    parts.extend(b.text for b in inp.blocks)
+    parts.extend(w.name for w in inp.ctx.wbs)
+    parts.extend(str(w.effort_md) for w in inp.ctx.wbs)
+    parts.append(str(inp.ctx.total_effort_md))
+    parts.extend(f"{r.role_name} {r.headcount_planned}" for r in inp.ctx.roles)
+    parts.append(str(len(inp.ctx.requirements)))
+    parts.append(str(len(inp.ctx.mandatory_requirements())))
+    # 범위 분류·유형·수용 상태별 건수 ("부가 제안 2건" 같은 집계 수치의 근거)
+    for attr in ("scope_class", "type", "acceptance_status", "category"):
+        cnt: dict[str, int] = {}
+        for r in inp.ctx.requirements:
+            cnt[str(getattr(r, attr, ""))] = cnt.get(str(getattr(r, attr, "")), 0) + 1
+        parts.extend(str(v) for v in cnt.values())
+    parts.append(str(len(inp.ctx.roles)))
+    parts.append(str(sum(r.headcount_planned for r in inp.ctx.roles)))
+    if inp.ctx.period_start and inp.ctx.period_end:
+        days = (inp.ctx.period_end - inp.ctx.period_start).days
+        parts.extend((str(days), str(round(days / 30)), str(round(days / 30.4)), str(days // 7)))
+    analysis = inp.ctx.analysis or {}
+    parts.append(str(analysis))
+    corpus = " ".join(parts)
+    return {m.replace(",", "") for m in re.findall(r"\d[\d,]*(?:\.\d+)?", corpus)}
+
+
+def _abstract_and_number_issues(
+    inp: QaInputs, sections: list[dict[str, Any]], ppt_text: str
+) -> list[str]:
+    issues: list[str] = []
+    if not sections:
+        found = sorted({w for w in ABSTRACT_WORDS if w in ppt_text})
+        if found:
+            issues.append("제출용 PPT 본문의 추상 표현 (제안 문안 없음): " + ", ".join(found[:8]))
+        return issues
+    base = _base_number_tokens(inp)
+    for sec in sections:
+        text = "\n".join(_section_texts(sec))
+        label_ = _section_label(sec)
+        words = [w for w in ABSTRACT_WORDS if w in text]
+        if words:
+            issues.append(f"[{label_}] 추상 표현: {', '.join(words[:4])}")
+        evidence_text = " ".join(
+            f"{e.get('ref', '')} {e.get('text', '')}"
+            for e in sec.get("evidence", []) or []
+            if isinstance(e, dict)
+        )
+        ev_tokens = {m.replace(",", "") for m in re.findall(r"\d[\d,]*(?:\.\d+)?", evidence_text)}
+        unsupported: list[str] = []
+        for num, unit in NUMBER_CLAIM_RE.findall(text):
+            tok = num.replace(",", "")
+            if tok in base or tok in ev_tokens or tok in unsupported:
+                continue
+            unsupported.append(f"{num}{unit}")
+        if unsupported:
+            issues.append(
+                f"[{label_}] 근거 없는 수치: {', '.join(dict.fromkeys(unsupported).keys())}"
+                + ("" if sec.get("evidence") else " (evidence 없음)")
+            )
+    return issues
+
+
+def _unexplained_acronyms(
+    content: dict[str, Any], sections: list[dict[str, Any]], ppt_text: str
+) -> list[str]:
+    glossary = {
+        str(g.get("term", "")).upper() for g in content.get("glossary") or [] if isinstance(g, dict)
+    } | {
+        str(g.get("full_form", "")).upper()
+        for g in content.get("glossary") or []
+        if isinstance(g, dict)
+    }
+    text = "\n".join(t for sec in sections for t in _section_texts(sec)) if sections else ppt_text
+    if not text.strip():
+        return []
+    first_where: dict[str, str] = {}
+    if sections:
+        for sec in sections:
+            for m in ACRONYM_RE.findall("\n".join(_section_texts(sec))):
+                first_where.setdefault(m, _section_label(sec))
+    unexplained: list[str] = []
+    for acr in dict.fromkeys(ACRONYM_RE.findall(text)):
+        if acr in COMMON_ACRONYMS or ROMAN_RE.match(acr) or acr.isdigit() or acr in glossary:
+            continue
+        if re.search(rf"{re.escape(acr)}\s*[\(（]|[\(（]\s*{re.escape(acr)}\s*[\)）]", text):
+            continue  # 본문에서 '약어(풀이)' 또는 '풀이(약어)'로 설명됨
+        unexplained.append(acr + (f"({first_where[acr]})" if acr in first_where else ""))
+    if not unexplained:
+        return []
+    src = "제안 문안" if sections else "제출용 PPT 본문 (제안 문안 없음)"
+    return [
+        f"{src} 약어 미설명 {len(unexplained)}건: " + ", ".join(unexplained[:15]),
+        "용어집(glossary)에 용어·풀이·비전문가용 설명을 추가하거나 첫 등장 시 괄호로 풀어쓰기",
+    ]
 
 
 def _spec_rows(sheets: dict[str, list[list[Any]]]) -> dict[str, dict[str, Any]]:

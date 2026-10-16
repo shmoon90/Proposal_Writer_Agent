@@ -40,6 +40,7 @@ from proposal_agent.generators.pptx.outline import (
     plan_chapters,
 )
 from proposal_agent.generators.pptx.pagemap import requirement_page_map
+from proposal_agent.generators.pptx.slide_spec import build_slide_spec
 from proposal_agent.models import (
     ActorKind,
     ArchitectureComponent,
@@ -326,6 +327,7 @@ class GenerationService:
                 for rid, pages in requirement_page_map(data, ctx.requirements).items():
                     ctx.page_map.setdefault(rid, {})[purpose] = pages  # 추적표 '대응 제안서 페이지'
                 result.deliverables.append(self._store(project, dk, data, ctx))
+                self._write_slide_spec(project, ctx, data, purpose, result)
             except Exception as exc:  # noqa: BLE001
                 log.exception("생성 실패 %s", dk)
                 result.errors.append(f"{dk.value} 생성 실패: {type(exc).__name__}: {exc}")
@@ -364,7 +366,8 @@ class GenerationService:
                 version=ctx.version,
                 run_id=f"gen-{datetime.now().strftime('%Y%m%d%H%M%S')}",
                 extra_files={
-                    k: self._paths.relative_output(v) for k, v in ctx.diagram_paths.items()
+                    k: self._paths.relative_output(v)
+                    for k, v in {**ctx.diagram_paths, **ctx.extra_paths}.items()
                 },
                 errors=result.errors,
                 actor=actor,
@@ -534,9 +537,51 @@ class GenerationService:
         parts.append("<data>\n" + json.dumps(data, ensure_ascii=False)[:24000] + "\n</data>")
         parts.append(
             "위 템플릿 관행과 RFP 지정 목차를 따르는 제출용 제안 문안(profile=submission)을 JSON으로 반환하라. "
-            "sections[]마다 chapter·section·number·lead_message를 채우고, 표가 적합한 절은 table_headers/table_rows를 쓴다."
+            "sections[]마다 chapter·section·number·lead_message를 채우고, 표가 적합한 절은 table_headers/table_rows를 쓴다. "
+            "소절마다 key_message(결론형 제목)·purpose·audience·evidence(근거)·layout_type을 채우고, "
+            "기술 소절은 tech_detail(구성·연계·데이터·운영·보안·대안 비교)을, 약어·전문 용어는 glossary에 설명을 넣는다."
         )
         return "\n\n".join(parts)
+
+    def _write_slide_spec(
+        self,
+        project: Project,
+        ctx: GenerationContext,
+        data: bytes,
+        purpose: str,
+        result: GenerationResult,
+    ) -> None:
+        """슬라이드 디자인 명세 JSON (Phase 19): 07_/08_ 폴더에 `슬라이드명세_<제출용|발표용>_vX.Y.json`."""
+        subdir, label = (
+            ("07_Submission_Proposal_PPT", "제출용")
+            if purpose == "submission"
+            else ("08_Presentation_PPT", "발표용")
+        )
+        try:
+            spec = build_slide_spec(data, ctx, purpose)
+            name = self._files.next_version_name(
+                project.output_dir, subdir, f"슬라이드명세_{label}", ".json"
+            )
+            stored = self._files.save_bytes(
+                project.output_dir,
+                subdir,
+                name,
+                json.dumps(spec, ensure_ascii=False, indent=1).encode("utf-8"),
+            )
+            ctx.extra_paths[f"slide_spec_{purpose}"] = str(stored.path)
+            summ = spec.get("summary", {})
+            for key, msg in (
+                ("sections_without_key_message", "결론형 제목(key_message) 없는 소절"),
+                ("sections_without_evidence", "근거(evidence·data_refs) 없는 소절"),
+            ):
+                missing = summ.get(key) or []
+                if missing:
+                    result.review_items.append(
+                        f"{label} 슬라이드 명세: {msg} {len(missing)}건 ({', '.join(map(str, missing[:6]))})"
+                    )
+        except Exception as exc:  # noqa: BLE001  명세 실패가 생성을 막지 않는다
+            log.warning("슬라이드 명세 기록 실패 (%s): %s", purpose, exc)
+            result.review_items.append(f"{label} 슬라이드 명세 기록 실패: {exc}")
 
     def _write_outline(
         self,

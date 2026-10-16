@@ -1019,11 +1019,73 @@ PROPOSAL: dict[str, Any] = {
         {
             "slide_group": "architecture",
             "title": "시스템 구성",
+            "key_message": "정밀 계산은 서버 엔진이, 입력 검사는 브라우저가 맡아 오류를 즉시 알린다",
+            "purpose": "목표 시스템 구조와 기술 선택 근거(상용/공개/자체 비교)를 설명",
+            "audience": "technical",
+            "layout_type": "tech_detail",
             "bullets": [
                 "React/TypeScript 계산기 UI — Nginx — FastAPI 계산 API — decimal/mpmath 평가 엔진 — 이력 저장소",
                 "계산은 서버에서만 수행, 프론트는 유효성 검사·표시",
                 "입력 길이·지수 상한으로 서버 보호",
             ],
+            "evidence": [
+                {"kind": "requirement", "ref": "NFR-001", "text": "소수점 21자리 정밀도 요구"},
+                {
+                    "kind": "research",
+                    "ref": "고정밀 계산 라이브러리",
+                    "text": "decimal·mpmath 임의 정밀도 지원",
+                },
+            ],
+            "links_prev": ["요구사항 대응"],
+            "links_next": ["추진 일정"],
+            "terms": ["API", "UI"],
+            "tech_detail": {
+                "components": [
+                    "React/TypeScript 계산기 UI",
+                    "Nginx 정적 서빙·역프록시",
+                    "FastAPI 계산 API",
+                    "decimal/mpmath 평가 엔진",
+                ],
+                "interfaces": ["브라우저 ↔ 계산 API: HTTPS JSON 호출"],
+                "data": ["계산 이력(식·결과·시각) 저장소"],
+                "operations": ["무상태 API로 재기동 단순", "입력 길이·지수 상한으로 과부하 방지"],
+                "security": ["HTTPS 전송 암호화", "입력 검증으로 식 주입 차단"],
+                "alternatives": [
+                    {
+                        "name": "상용 수식 엔진",
+                        "kind": "commercial",
+                        "pros": ["벤더 지원"],
+                        "cons": ["라이선스 비용", "웹 연동 추가 개발"],
+                        "cost_note": "라이선스",
+                        "basis": "고정밀 계산 라이브러리",
+                    },
+                    {
+                        "name": "decimal/mpmath (공개)",
+                        "kind": "open_source",
+                        "pros": ["임의 정밀도", "비용 없음"],
+                        "cons": ["초월함수 21자리 실측 필요"],
+                        "selected": True,
+                        "basis": "고정밀 계산 라이브러리",
+                    },
+                    {
+                        "name": "자체 평가기 개발",
+                        "kind": "in_house",
+                        "pros": ["요구에 맞춘 제어"],
+                        "cons": ["검증 부담·일정 위험"],
+                        "basis": "조사 필요",
+                    },
+                ],
+                "selection_reason": "조사된 공개 라이브러리가 정밀도 요구를 만족하고 비용이 없어 선정",
+            },
+            "visual": {
+                "kind": "layers",
+                "items": [
+                    {"title": "브라우저 계산기 UI", "group": "사용자", "text": "입력 검사·표시"},
+                    {"title": "Nginx", "group": "웹"},
+                    {"title": "FastAPI 계산 API", "group": "응용", "text": "decimal/mpmath 엔진"},
+                    {"title": "이력 저장소", "group": "데이터"},
+                ],
+            },
             "data_refs": ["CLI01", "APP01", "APP02"],
         },
         {
@@ -1071,6 +1133,38 @@ PROPOSAL: dict[str, Any] = {
     "unverified_claims": [
         "mpmath/decimal의 초월함수 21자리 정밀도 — 실측 전",
         "기술 조사 출처 URL은 세션에서 열람하지 않음",
+    ],
+    "glossary": [
+        {
+            "term": "API",
+            "full_form": "Application Programming Interface",
+            "meaning": "프로그램끼리 기능을 주고받는 약속된 호출 방식",
+            "first_section": "시스템 구성",
+        },
+        {
+            "term": "UI",
+            "full_form": "User Interface",
+            "meaning": "사용자가 보고 조작하는 화면",
+            "first_section": "시스템 구성",
+        },
+        {
+            "term": "QA",
+            "full_form": "Quality Assurance",
+            "meaning": "품질을 확인하고 보증하는 활동",
+            "first_section": "인력 투입",
+        },
+        {
+            "term": "HTTPS",
+            "full_form": "HyperText Transfer Protocol Secure",
+            "meaning": "브라우저와 서버 사이를 암호화해 주고받는 웹 통신 방식",
+            "first_section": "시스템 구성",
+        },
+        {
+            "term": "JSON",
+            "full_form": "JavaScript Object Notation",
+            "meaning": "프로그램끼리 자료를 주고받을 때 쓰는 글자 형식",
+            "first_section": "시스템 구성",
+        },
     ],
 }
 
@@ -1123,6 +1217,9 @@ def approve_if_needed(s: Services, project, gate: str) -> str:  # type: ignore[n
 
 
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):  # Windows 콘솔(cp949)에서 '—' 등 출력 오류 방지
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     if len(sys.argv) < 2:
         print(
             "사용: run_manual_agents.py <RFP .docx 경로> [--template <제안서 템플릿 .pptx>]... [--name <프로젝트명>]"

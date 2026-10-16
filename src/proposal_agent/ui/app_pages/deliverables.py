@@ -270,6 +270,53 @@ if latest:
                     caption=d.file_path,
                     alt=d.kind.value,
                 )
+    with st.expander(
+        "슬라이드 명세 (Phase 19: 결론형 제목·목적·독자·근거·레이아웃)", expanded=False
+    ):
+        import json as _json
+
+        for sub, label in (
+            ("07_Submission_Proposal_PPT", "제출용"),
+            ("08_Presentation_PPT", "발표용"),
+        ):
+            folder = services.ctx.paths.resolve_output(project.output_dir) / sub
+            files = sorted(folder.glob(f"슬라이드명세_{label}_v*.json")) if folder.exists() else []
+            if not files:
+                st.caption(f"{label}: 슬라이드 명세 없음 (산출물 생성 시 기록)")
+                continue
+            try:
+                spec = _json.loads(files[-1].read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                st.caption(f"{label}: 명세 읽기 실패 — {exc}")
+                continue
+            summ = spec.get("summary", {})
+            st.markdown(
+                f"**{label}** `{files[-1].name}` · 슬라이드 {summ.get('slides', 0)} · 소절 {summ.get('sections', 0)} "
+                f"(에이전트 {summ.get('agent_sections', 0)}) · 용어 {summ.get('glossary_terms', 0)} · "
+                f"결론형 제목 없음 {len(summ.get('sections_without_key_message', []))} · "
+                f"근거 없음 {len(summ.get('sections_without_evidence', []))}"
+            )
+            st.dataframe(
+                pd.DataFrame(
+                    [
+                        {
+                            "No": x["slide_no"],
+                            "제목": x["title"][:40],
+                            "소절": x.get("number") or x.get("section_key", ""),
+                            "결론형 제목": x.get("key_message", "")[:50],
+                            "목적": x.get("purpose", "")[:40],
+                            "독자": x.get("audience", ""),
+                            "레이아웃(계획/실제)": f"{x.get('layout_type', '') or '-'} / {x.get('rendered_layout', '')}",
+                            "도식": x.get("visual_kind", ""),
+                            "근거": len(x.get("evidence", [])),
+                            "요구사항 ID": ", ".join(x.get("requirement_ids", [])[:6]),
+                        }
+                        for x in spec.get("slides", [])
+                    ]
+                ),
+                hide_index=True,
+                alt=f"{label} 슬라이드 명세",
+            )
 else:
     st.info("아직 생성된 산출물이 없습니다.")
 

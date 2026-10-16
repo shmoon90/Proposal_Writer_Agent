@@ -44,7 +44,32 @@ VISUAL_KINDS = (
     "bars",
     "kpis",
     "compare",
+    # Phase 19
+    "raci",
+    "data_model",
+    "procedure",
+    "security_layers",
+    "layers",
 )
+# 에이전트(proposal_writer)가 VisualSpec.kind 로 고를 수 있는 종류 13종. architecture/timeline/bars 는 코드가 데이터로 그린다.
+AGENT_VISUAL_KINDS = (
+    "cards",
+    "flow",
+    "process",
+    "two_column",
+    "dataflow",
+    "screen",
+    "kpis",
+    "compare",
+    "raci",
+    "data_model",
+    "procedure",
+    "security_layers",
+    "layers",
+)
+RACI_FILLS = {"R": "1F4E78", "A": "C00000", "C": "5B9BD5", "I": "A6A6A6"}
+RACI_LABEL = {"R": "R 실행", "A": "A 책임", "C": "C 협의", "I": "I 통보"}
+SECURITY_ZONE_ORDER = ("네트워크", "서버", "응용", "데이터", "관리")
 
 
 @dataclass(frozen=True)
@@ -915,6 +940,298 @@ def draw_compare(
             p.font.name = style.font
 
 
+# --- Phase 19: 책임 분담·데이터 모델·절차·보안 통제·계층 -----------------------------------------
+
+
+def draw_raci(
+    slide: Any, box: Box, headers: list[str], rows: list[list[str]], *, style: ShapeStyle
+) -> None:
+    """RACI 책임 분담표: 네이티브 표, R/A/C/I 셀은 색으로 구분. headers[0]=활동, 나머지=역할."""
+    headers = [str(h) for h in headers] or ["활동"]
+    n_rows = min(len(rows), 12) + 1
+    legend_h = 0.6
+    shape = slide.shapes.add_table(
+        n_rows,
+        len(headers),
+        Cm(box.left),
+        Cm(box.top),
+        Cm(box.width),
+        Cm(min(box.height - legend_h, 0.7 * n_rows)),
+    )
+    table = shape.table
+    for ci, hd in enumerate(headers):
+        cell = table.cell(0, ci)
+        cell.text = hd[:30]
+        p = cell.text_frame.paragraphs[0]
+        p.font.size = Pt(max(style.base_pt - 1, 7))
+        p.font.bold = True
+        p.font.name = style.heading_font
+        p.font.color.rgb = _rgb("FFFFFF")
+        p.alignment = PP_ALIGN.CENTER
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = _rgb(style.primary)
+    for ri, row in enumerate(rows[:12], start=1):
+        for ci in range(len(headers)):
+            raw = str(row[ci] if ci < len(row) else "").strip()
+            cell = table.cell(ri, ci)
+            cell.text = raw[:60]
+            p = cell.text_frame.paragraphs[0]
+            p.font.size = Pt(max(style.base_pt - 1, 7))
+            p.font.name = style.font
+            code = raw.upper()[:1] if ci > 0 and raw else ""
+            if ci > 0 and code in RACI_FILLS and len(raw) <= 3:
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = _rgb(RACI_FILLS[code])
+                p.font.color.rgb = _rgb("FFFFFF")
+                p.font.bold = True
+                p.alignment = PP_ALIGN.CENTER
+    legend = "   ".join(RACI_LABEL[k] for k in ("R", "A", "C", "I"))
+    label(
+        slide,
+        box.left,
+        box.top + box.height - legend_h,
+        box.width,
+        legend_h,
+        legend,
+        style=style,
+        pt=max(style.base_pt - 2, 7),
+        color=style.primary,
+    )
+
+
+def draw_data_model(
+    slide: Any,
+    box: Box,
+    entities: list[dict[str, Any]],
+    relations: list[dict[str, Any]],
+    *,
+    style: ShapeStyle,
+) -> None:
+    """데이터 모델(개념 ERD): 엔티티 상자(이름 띠 + 속성 목록)와 관계 화살표(라벨 1:N 등)."""
+    entities = entities[:12]
+    if not entities:
+        return
+    pos: dict[str, tuple[float, float, float, float]] = {}
+    for i, (left, top, w, h) in enumerate(_grid(len(entities), box, max_cols=4, gap=1.0)):
+        ent = entities[i]
+        eid = str(ent.get("id") or ent.get("title") or i)
+        pos[eid] = (left, top, w, h)
+        rect(
+            slide,
+            left,
+            top,
+            w,
+            h,
+            style=style,
+            fill="FFFFFF",
+            line=style.primary,
+            shape=MSO_SHAPE.RECTANGLE,
+        )
+        head_h = min(0.8, h * 0.3)
+        rect(
+            slide,
+            left,
+            top,
+            w,
+            head_h,
+            str(ent.get("title", ""))[:30],
+            style=style,
+            fill=style.primary,
+            shape=MSO_SHAPE.RECTANGLE,
+            bold=True,
+            color="FFFFFF",
+            heading=True,
+        )
+        attrs = str(ent.get("text", "") or "")
+        if attrs:
+            label(
+                slide,
+                left + 0.1,
+                top + head_h + 0.05,
+                w - 0.2,
+                h - head_h - 0.1,
+                "\n".join(f"• {a.strip()[:28]}" for a in attrs.split("\n") if a.strip())[:400],
+                style=style,
+                pt=max(style.base_pt - 1, 7),
+            )
+    for e in relations[:24]:
+        a, b = pos.get(str(e.get("source", ""))), pos.get(str(e.get("target", "")))
+        if not a or not b:
+            continue
+        if a[0] + a[2] <= b[0]:
+            x1, y1, x2, y2 = a[0] + a[2], a[1] + a[3] / 2, b[0], b[1] + b[3] / 2
+        elif b[0] + b[2] <= a[0]:
+            x1, y1, x2, y2 = a[0], a[1] + a[3] / 2, b[0] + b[2], b[1] + b[3] / 2
+        elif a[1] < b[1]:
+            x1, y1, x2, y2 = a[0] + a[2] / 2, a[1] + a[3], b[0] + b[2] / 2, b[1]
+        else:
+            x1, y1, x2, y2 = a[0] + a[2] / 2, a[1], b[0] + b[2] / 2, b[1] + b[3]
+        arrow(slide, x1, y1, x2, y2, style=style, text=str(e.get("label", ""))[:16])
+
+
+def draw_procedure(
+    slide: Any,
+    box: Box,
+    steps: list[dict[str, Any]],
+    *,
+    style: ShapeStyle,
+) -> None:
+    """운영·장애 대응 절차: 담당(group)별 가로 레인, 단계는 순서대로 왼쪽→오른쪽, 연속 단계는 화살표."""
+    steps = steps[:10]
+    if not steps:
+        return
+    lanes: list[str] = []
+    for st in steps:
+        g = str(st.get("group", "") or "")
+        if g not in lanes:
+            lanes.append(g)
+    if lanes == [""]:
+        draw_flow(slide, box, steps, style=style)
+        return
+    lane_label_w = 2.4
+    n = len(steps)
+    gap = 0.3
+    lane_h = (box.height - gap * (len(lanes) - 1)) / len(lanes)
+    step_w = (box.width - lane_label_w - 0.2 - gap * (n - 1)) / n
+    pos: list[tuple[float, float, float, float]] = []
+    for li, lane in enumerate(lanes):
+        top = box.top + li * (lane_h + gap)
+        rect(
+            slide,
+            box.left,
+            top,
+            box.width,
+            lane_h,
+            style=style,
+            fill=style.light if li % 2 == 0 else "F7F7F7",
+            line=style.accent,
+            shape=MSO_SHAPE.RECTANGLE,
+        )
+        rect(
+            slide,
+            box.left,
+            top,
+            lane_label_w,
+            lane_h,
+            lane[:16] or "담당",
+            style=style,
+            fill=style.primary,
+            shape=MSO_SHAPE.RECTANGLE,
+            bold=True,
+            color="FFFFFF",
+            heading=True,
+        )
+    box_h = min(lane_h - 0.3, 2.2)
+    for i, st in enumerate(steps):
+        li = lanes.index(str(st.get("group", "") or ""))
+        left = box.left + lane_label_w + 0.2 + i * (step_w + gap)
+        top = box.top + li * (lane_h + gap) + (lane_h - box_h) / 2
+        text = f"{i + 1}. {str(st.get('title', ''))[:24]}"
+        if st.get("text"):
+            text += "\n" + str(st["text"])[:60]
+        rect(
+            slide,
+            left,
+            top,
+            step_w,
+            box_h,
+            text,
+            style=style,
+            fill="FFFFFF",
+            line=style.primary,
+            pt=max(style.base_pt - 1, 7),
+        )
+        pos.append((left, top, step_w, box_h))
+    for (l1, t1, w1, h1), (l2, t2, _w2, h2) in zip(pos, pos[1:], strict=False):
+        arrow(slide, l1 + w1, t1 + h1 / 2, l2, t2 + h2 / 2, style=style)
+
+
+def _draw_bands(
+    slide: Any,
+    box: Box,
+    items: list[dict[str, Any]],
+    *,
+    style: ShapeStyle,
+    order: tuple[str, ...] = (),
+    fills: tuple[str, str] = ("DDEBF7", "E2F0D9"),
+) -> None:
+    """group 별 가로 띠(위→아래) 안에 항목 상자. 보안 통제·계층 구성 공용."""
+    items = items[:20]
+    if not items:
+        return
+    groups: list[str] = []
+    for it in items:
+        g = str(it.get("group", "") or "")
+        if g not in groups:
+            groups.append(g)
+    if order:
+        groups.sort(key=lambda g: next((i for i, o in enumerate(order) if o in g), len(order)))
+    gap = 0.25
+    band_h = (box.height - gap * (len(groups) - 1)) / len(groups)
+    label_w = 2.6
+    for gi, g in enumerate(groups):
+        top = box.top + gi * (band_h + gap)
+        rect(
+            slide,
+            box.left,
+            top,
+            box.width,
+            band_h,
+            style=style,
+            fill=fills[gi % 2],
+            line=style.accent,
+            shape=MSO_SHAPE.RECTANGLE,
+        )
+        rect(
+            slide,
+            box.left,
+            top,
+            label_w,
+            band_h,
+            g[:16] or "구분",
+            style=style,
+            fill=style.primary,
+            shape=MSO_SHAPE.RECTANGLE,
+            bold=True,
+            color="FFFFFF",
+            heading=True,
+        )
+        members = [it for it in items if str(it.get("group", "") or "") == g][:6]
+        inner_w = box.width - label_w - 0.4
+        w = (inner_w - 0.25 * (len(members) - 1)) / max(len(members), 1)
+        h = band_h - 0.3
+        for mi, it in enumerate(members):
+            text = str(it.get("title", ""))[:30]
+            if it.get("text"):
+                text += "\n" + str(it["text"])[:70]
+            rect(
+                slide,
+                box.left + label_w + 0.2 + mi * (w + 0.25),
+                top + 0.15,
+                w,
+                h,
+                text,
+                style=style,
+                fill="FFFFFF",
+                line=style.primary,
+                pt=max(style.base_pt - 1, 7),
+            )
+
+
+def draw_security_layers(
+    slide: Any, box: Box, controls: list[dict[str, Any]], *, style: ShapeStyle
+) -> None:
+    """보안 통제 도식: 영역(네트워크→서버→응용→데이터→관리) 띠마다 통제 상자."""
+    _draw_bands(
+        slide, box, controls, style=style, order=SECURITY_ZONE_ORDER, fills=("FBE5D6", "FFF2CC")
+    )
+
+
+def draw_layers(slide: Any, box: Box, items: list[dict[str, Any]], *, style: ShapeStyle) -> None:
+    """계층 구성(사용자 → 응용 → 데이터 → 인프라 등): group 순서대로 띠."""
+    _draw_bands(slide, box, items, style=style)
+
+
 # --- 에이전트 지정 도식 ----------------------------------------------------------------------------
 
 
@@ -967,6 +1284,20 @@ def draw_visual(slide: Any, box: Box, spec: dict[str, Any], *, style: ShapeStyle
             [[str(c) for c in r] for r in spec.get("rows", []) or []],
             style=style,
         )
+    elif kind == "raci":
+        headers = [str(h) for h in spec.get("headers", []) or []]
+        rows = [[str(c) for c in r] for r in spec.get("rows", []) or []]
+        if not rows and items:  # items 로 준 경우: title=활동, text="R,A,C,I" 순
+            rows = [[str(x.get("title", "")), *str(x.get("text", "")).split(",")] for x in items]
+        draw_raci(slide, box, headers or ["활동"], rows, style=style)
+    elif kind == "data_model":
+        draw_data_model(slide, box, items, edges, style=style)
+    elif kind == "procedure":
+        draw_procedure(slide, box, items, style=style)
+    elif kind == "security_layers":
+        draw_security_layers(slide, box, items, style=style)
+    elif kind == "layers":
+        draw_layers(slide, box, items, style=style)
     else:
         kind = "cards"
         draw_cards(slide, box, items, style=style)
@@ -982,6 +1313,7 @@ def visual_summary_text(spec: dict[str, Any]) -> str:
 
 
 __all__ = [
+    "AGENT_VISUAL_KINDS",
     "LAYER_LABEL",
     "LAYER_ORDER",
     "VISUAL_KINDS",
@@ -991,6 +1323,11 @@ __all__ = [
     "draw_bars",
     "draw_cards",
     "draw_compare",
+    "draw_data_model",
+    "draw_layers",
+    "draw_procedure",
+    "draw_raci",
+    "draw_security_layers",
     "draw_dataflow",
     "draw_flow",
     "draw_kpis",

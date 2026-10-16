@@ -21,6 +21,7 @@ from proposal_agent.generators.pptx.shapes import (
     draw_timeline,
     draw_two_column,
 )
+from proposal_agent.generators.pptx.slide_spec import code_entry, evidence_line, section_entry
 from proposal_agent.generators.pptx.template import Box, TemplateDeckBuilder, TemplateProfile
 from proposal_agent.models import RequirementType
 from proposal_agent.planning.effort import md_to_mm
@@ -217,15 +218,167 @@ _DATA_KEYS = {
 }
 
 
+ALTERNATIVE_KIND_LABEL = {"commercial": "상용", "open_source": "공개 SW", "in_house": "자체 개발"}
+
+
+def _spec_profile(compact: bool) -> str:
+    return "presentation" if compact else "submission"
+
+
+def _log_slides(ctx: GenerationContext, profile: str, entry: dict[str, Any]) -> None:
+    ctx.slide_specs.setdefault(profile, []).append(entry)
+
+
+def _notes_text(agent: dict[str, Any] | None, *, lead_used: str) -> str:
+    """발표자 노트 = speaker_notes + 슬라이드 명세(목적·독자·연결·리드) (Phase 19)."""
+    a = agent or {}
+    lines = [str(a.get("speaker_notes", "") or "")]
+    if a.get("purpose"):
+        lines.append(f"[목적] {a['purpose']}")
+    if a.get("audience"):
+        lines.append(f"[독자] {a['audience']}")
+    prev, nxt = a.get("links_prev") or [], a.get("links_next") or []
+    if prev or nxt:
+        lines.append(
+            f"[연결] 앞 {', '.join(map(str, prev)) or '-'} → 뒤 {', '.join(map(str, nxt)) or '-'}"
+        )
+    lm = str(a.get("lead_message", "") or "")
+    if lm and lm != lead_used:
+        lines.append(f"[리드] {lm}")
+    return "\n".join(x for x in lines if x)
+
+
+def _evidence_footnotes(agent: dict[str, Any] | None, *, compact: bool = False) -> list[str]:
+    """근거 → 하단 ※ 주석. 발표용(compact)은 주석 상자가 작아 1줄만."""
+    return [
+        evidence_line(e) for e in (agent or {}).get("evidence", []) or [] if isinstance(e, dict)
+    ][: 1 if compact else 2]
+
+
+def _render_tech_detail(
+    b: Builder, sec: OutlineSection, agent: dict[str, Any], footer: str, *, compact: bool
+) -> None:
+    """기술 소절 템플릿: 구성·연계·데이터·운영·보안 카드 + 대안 비교(상용/공개/자체) 표 (Phase 19)."""
+    td = agent.get("tech_detail") or {}
+    if not isinstance(td, dict):
+        return
+    groups = (
+        ("구성 요소", td.get("components") or []),
+        ("연계·인터페이스", td.get("interfaces") or []),
+        ("데이터", td.get("data") or []),
+        ("운영·장애", td.get("operations") or []),
+        ("보안 통제", td.get("security") or []),
+    )
+    items = [
+        {"title": t, "text": "\n".join(f"• {str(x)[:60]}" for x in v[:5])} for t, v in groups if v
+    ]
+    reason = str(td.get("selection_reason", "") or "")
+    if items and not compact:
+        slide, box = b.canvas_slide(
+            f"{sec.title} — 기술 상세", lead=reason, notes=str(agent.get("speaker_notes", "") or "")
+        )
+        draw_cards(slide, box, items, style=b.style, numbered=False, max_cols=5)
+    alts = [a for a in td.get("alternatives") or [] if isinstance(a, dict)]
+    if alts:
+        # 발표용(compact)은 셀 글꼴이 커서 짧게: 항목 2개·30자, 비용 열 생략
+        n_items, n_chars = (2, 30) if compact else (4, 60)
+
+        def _join(xs: Any) -> str:
+            return " · ".join(str(x)[:n_chars] for x in (xs or [])[:n_items])
+
+        rows = [
+            [
+                ALTERNATIVE_KIND_LABEL.get(str(a.get("kind", "")), str(a.get("kind", ""))),
+                str(a.get("name", ""))[: 24 if compact else 40],
+                _join(a.get("pros")),
+                _join(a.get("cons")),
+                *([] if compact else [str(a.get("cost_note", "") or "")[:40]]),
+                ("● 선정" if a.get("selected") else "")
+                + (
+                    f" — {str(a.get('basis', ''))[: 20 if compact else 40]}"
+                    if a.get("basis")
+                    else ""
+                ),
+            ]
+            for a in alts[:6]
+        ]
+        headers = (
+            ("구분", "대안", "장점", "단점", "선정·근거")
+            if compact
+            else ("구분", "대안", "장점", "단점", "비용 관점", "선정·근거")
+        )
+        b.table_slides(
+            f"{sec.title} — 대안 비교 (상용/공개/자체)",
+            headers,
+            rows,
+            footer,
+            col_widths=(1, 2, 3.5, 3.5, 2.5) if compact else (1, 2, 3, 3, 1.5, 2.5),
+            lead=reason,
+            footnotes=() if compact else _evidence_footnotes(agent),
+        )
+
+
 def _render_section(
+    b: Builder, ctx: GenerationContext, sec: OutlineSection, profile: str, *, compact: bool
+) -> None:
+    """소절 렌더링 + 슬라이드 범위 기록(명세) + 기술 상세·대안 비교 (Phase 19)."""
+    agent = _agent_section(ctx, sec.key, sec.agent_index)
+    first = len(b.prs.slides) + 1
+    _render_section_body(b, ctx, sec, profile, compact=compact)
+    if agent and agent.get("tech_detail"):
+        _render_tech_detail(b, sec, agent, _footer(ctx, profile), compact=compact)
+    last = len(b.prs.slides)
+    if last >= first:
+        _log_slides(ctx, _spec_profile(compact), section_entry(sec, agent, first, last))
+
+
+def _glossary_rows(ctx: GenerationContext) -> list[list[object]]:
+    rows: list[list[object]] = []
+    for g in (ctx.proposal_content or {}).get("glossary") or []:
+        if not isinstance(g, dict) or not g.get("term"):
+            continue
+        rows.append(
+            [
+                str(g.get("term", ""))[:30],
+                str(g.get("full_form", "") or "")[:60],
+                str(g.get("meaning", "") or "")[:140],
+                str(g.get("first_section", "") or "")[:10],
+            ]
+        )
+    return rows
+
+
+def _render_glossary(b: Builder, ctx: GenerationContext, footer: str, *, compact: bool) -> None:
+    rows = _glossary_rows(ctx)
+    if not rows:
+        return
+    first = len(b.prs.slides) + 1
+    b.table_slides(
+        "용어 설명",
+        ("용어·약어", "풀이", "설명 (비전문가용)", "첫 등장"),
+        rows[: 16 if compact else 60],
+        footer,
+        col_widths=(1.5, 2.5, 5, 1),
+        lead="본문에 쓴 약어·전문 용어의 뜻" if not compact else "",
+    )
+    _log_slides(
+        ctx, _spec_profile(compact), code_entry("glossary", "용어 설명", first, len(b.prs.slides))
+    )
+
+
+def _render_section_body(
     b: Builder, ctx: GenerationContext, sec: OutlineSection, profile: str, *, compact: bool
 ) -> None:
     footer = _footer(ctx, profile)
     figs = key_figures(ctx)
     agent = _agent_section(ctx, sec.key, sec.agent_index)
-    notes = (agent or {}).get("speaker_notes", "")
-    lead = sec.lead or str((agent or {}).get("lead_message", "") or "")
-    footnotes = [str(x) for x in (agent or {}).get("footnotes", []) or []]
+    key_msg = str((agent or {}).get("key_message", "") or "")
+    # 결론형 제목(key_message)이 있으면 리드 상자에 결론을, 원래 리드 문장은 발표자 노트에 남긴다
+    lead = key_msg or sec.lead or str((agent or {}).get("lead_message", "") or "")
+    notes = _notes_text(agent, lead_used=lead)
+    footnotes = [str(x) for x in (agent or {}).get("footnotes", []) or []] + _evidence_footnotes(
+        agent, compact=compact
+    )
     req_ids = [str(x) for x in (agent or {}).get("requirement_ids", []) or []]
     key = sec.key
     if key == "placeholder":
@@ -547,6 +700,7 @@ def build_submission_deck(
             outline, toc_tree, template_profile.chapters if template_profile else None
         )
     )
+    ctx.slide_specs["submission"] = []
     b.title_slide(
         f"{ctx.project.name} 제안서",
         f"{ctx.project.client_name or ''} · {ctx.generated_on}".strip(" ·"),
@@ -573,10 +727,14 @@ def build_submission_deck(
     claims = (ctx.proposal_content or {}).get("unverified_claims") or []
     if claims:
         tail_items.append(("사람 확인 필요 문구", list(claims)))
-    if tail_items:
+    glossary = _glossary_rows(ctx)
+    if tail_items or glossary:
         b.begin_section("부록", len(plan[-1].sections) + 1 if plan else 1)
         for title, items in tail_items:
+            first = len(b.prs.slides) + 1
             b.bullet_slides(title, items, footer)
+            _log_slides(ctx, "submission", code_entry("appendix", title, first, len(b.prs.slides)))
+        _render_glossary(b, ctx, footer, compact=False)
     return b.to_bytes()
 
 
@@ -659,6 +817,7 @@ def build_presentation_deck(
         o for o in outline if o.key in PRESENTATION_KEYS or o.key.startswith(("generic", "agent"))
     ]
     plan = plan_chapters(pres_outline, skeleton, template_chapters)
+    ctx.slide_specs["presentation"] = []
     b.title_slide(f"{ctx.project.name}", f"제안 발표 · {ctx.generated_on}", footer)
     # 사업 필요성·목표 (카드)
     goals = [str(g) for g in a.get("client_goals", []) or [] if g][:3]
@@ -722,4 +881,5 @@ def build_presentation_deck(
     claims = (ctx.proposal_content or {}).get("unverified_claims") or []
     if claims:
         b.bullet_slides("사람 확인 필요 문구", list(claims), footer)
+    _render_glossary(b, ctx, footer, compact=True)
     return b.to_bytes()

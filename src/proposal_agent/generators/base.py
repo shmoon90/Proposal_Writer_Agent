@@ -75,6 +75,12 @@ class GenerationContext:
     version: str = "v1.0"
     generated_on: date = field(default_factory=date.today)
     change_log: list[list[Any]] = field(default_factory=list)  # 구축 단계 변경관리대장 행 (CR 단위)
+    slide_specs: dict[str, list[dict[str, Any]]] = field(
+        default_factory=dict
+    )  # profile → 소절별 슬라이드 범위·명세 (Phase 19, 덱 생성 중 기록)
+    extra_paths: dict[str, str] = field(
+        default_factory=dict
+    )  # 보조 파일(슬라이드 명세 등) → 절대 경로
     page_map: dict[str, dict[str, list[int]]] = field(
         default_factory=dict
     )  # 요구사항 ID → {"submission": [슬라이드…], "presentation": [...]} (Phase 17, 덱 생성 후 채움)

@@ -10,7 +10,7 @@
 
 명령: `python -m pytest -q -rs` (기본 `-m 'not llm'`)
 
-결과: **265 passed, 1 skipped, 2 deselected** (73.2s, 2026-10-16 Phase 18 반영. Phase 17 262, Phase 16 257, Phase 15 253, Phase 14 249, Phase 13 243, Phase 12 238, Phase 11 231, Phase 8 215)
+결과: **270 passed, 1 skipped, 2 deselected** (2026-10-16 Phase 19 반영. Phase 18 265, Phase 17 262, Phase 16 257, Phase 15 253, Phase 14 249, Phase 13 243, Phase 12 238, Phase 11 231, Phase 8 215)
 
 - skipped 1: `tests/unit/test_paths.py::test_ensure_within_blocks_symlink` — 이 PC 계정에 심볼릭 링크 생성 권한이 없음(WinError 1314). 코드 결함이 아니라 환경 제약.
 - deselected 2: `tests/integration/llm/` — 실제 Claude API 호출이 필요한 LLM 계약 테스트. **크레딧 부족으로 실행하지 않음.**
@@ -62,13 +62,15 @@
 
 **Phase 18 점검 (2026-10-16)**: 계산기 RFP + 고객 템플릿 2종 흐름에 목차·전략 브리프(대행 작성)와 Gate P 대행 승인을 넣어 재실행. 브리프 `07_Submission_Proposal_PPT/전략브리프_v1.0.md`(목차 4장·전략 3·핵심 기술 3·위험 2·확인 필요 3) 저장, 제출용 덱은 브리프 목차를 뼈대로 생성(데이터 없는 절은 자리표시). 통합 QA **36항목 중 35 실행·31 통과·0 실패·4 검토 필요·1 미실행**, gate3·gate4 PASS, QA-RFP-08 PASS. 첫 실행에서 브리프 프롬프트가 `build_context`를 호출해 계획·구성 요소 기본값이 먼저 저장되는 문제(아키텍처 결과 무시, QA-TECH-06/CON-06/CON-08 검토 증가)와 긴 장 제목의 라벨 넘침(QA-FILE-03)을 발견해 수정했다. pytest 265 passed(신규 Phase 18 테스트 3건). 실제 모델 호출(`strategy_planner`)은 미검증.
 
+**Phase 19 점검 (2026-10-16)**: 같은 흐름(대행 fixture에 결론형 제목·근거·tech_detail·layers 도식·용어집 추가) 재실행 — 제출용 28장·발표용 21장·그림 0, 슬라이드 명세 2건(`슬라이드명세_제출용/발표용_v1.0.json`) 저장·manifest 기록, 기술 상세·대안 비교(상용/공개/자체)·용어 설명 슬라이드 생성. 통합 QA **38항목 중 37 실행·33 통과·0 실패·4 검토 필요**(QA-TECH-01/02/05/07)·1 미실행(QA-RFP-07), gate3·gate4 PASS, QA-CON-10·11 PASS. 첫 실행에서 QA-CON-10이 범위별 건수("부가 제안 2건")를 근거 없는 수치로 본 것, QA-CON-11의 HTTPS·JSON 검출(정상), 발표용 대안 비교 슬라이드 ※ 주석 넘침(QA-FILE-03), 명세 제목이 장 라벨을 집는 문제를 고쳤다. pytest 270 passed(신규 Phase 19 테스트 5건). 실제 모델 호출(`proposal_writer` 명세 필드)은 미검증.
+
 ## 2. 정적 검사
 
 | 명령 | 결과 |
 |---|---|
 | `python -m ruff check src tests scripts` | All checks passed |
 | `python -m ruff format --check src tests scripts` | 통과 |
-| `python -m mypy src` | Success: no issues found in 101 source files |
+| `python -m mypy src` | Success: no issues found in 113 source files (2026-10-16) |
 
 ## 3. 회귀 실행기 (`scripts/run_regression.py`)
 
