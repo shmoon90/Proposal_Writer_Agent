@@ -4,7 +4,7 @@
 
 
 ## 통합 개발 지시문 — 단계 0 진단 (2026-10-16, branch `feature/major-revision`)
-- 현재 단계: **단계 4 완료(2026-10-16), 단계 5(설계·구축 단계 지원) 착수 대기** — 상세 `docs/DIRECTIVE_STAGE4_REPORT.md`
+- 현재 단계: **단계 4 완료(2026-10-16), 단계 5(기준선·변경 관리) 착수 대기** — 남은 단계 5·6·7·8, main 병합은 맨 마지막. 단계 6 에 문맥 주입·구현 방안 구체성 검사 추가(D-21) — 상세 `docs/DIRECTIVE_STAGE4_REPORT.md`
 - 단계 4 결과: 분량 모드·장 수 상한, 배포 구조·의사결정 표 도식(16종)·배포 소절, 비용 산정(`planning/cost.py`·비용산정 시트·사업성 평가 공유), 추적표 7열·정의서 기술검토 열, 렌더링 미리보기 화면. - pytest 316 passed, 1 skipped(전체, llm 제외; 단계 3 대비 +9: 신규 tests/unit/test_stage4_deliverables.py — parse_krw, estimate_cost(단가 없음→unavailable, 설정 단가+RFP 예산 문구→원가·마진, 설정 예산 우선), 비용산정 시트, 추적표 7열·'미정', 정의서 기술검토 열, build_context design_links(STR dropped 제외·API/TBL/DSG/MOD/TC), 요약 모드·장 수 상한 각주·장 수 감소, 배포 소절(구성 요소 없으면 생략)·영역 매핑·연결, draw_deployment/draw_decision_table 도형·가중 합계). 기존 테스트 2곳은 도식 종류 수 14→16 
 - (이전) 단계 3 완료(2026-10-16) — 상세 `docs/DIRECTIVE_STAGE3_REPORT.md`
 - 단계 3 결과: 전략 항목 보강·STR 저장·덱 전략 표, 요구사항 분석 14항목(Requirement.analysis·화면), 대안 비교·비기능 설계(설계 스키마·덱 표), 출처 확인 날짜, QA-TECH-08(총 54항목). - pytest 307 passed, 1 skipped(전체, llm 제외; 단계 2 대비 +4: 신규 tests/unit/test_stage3_strategy_tech.py 4건 — 전략·분석·대안 비교 스키마, STR 저장(버전 갱신·dropped), 덱의 전략 표·대안 비교 표·비기능 설계 표·확인 날짜, QA-TECH-08 판정(추천안 정합·PoC·분석 누락·조사에 없는 기술)). ruff·mypy(139 파일) 통과. 민감 용어 검사 통과. - 계산기 샘플(모의 에이전트, 렌더링): QA 54항목 중 51 실행·43 통과·0 실패·8 검토(TECH-08: PoC 필요 1건, 14항목 분석 없는 필수 기능 요구 5건 검토). - 실제 고객 RFP(저장소 밖 fixture·템플릿 2종): 전략 4건이 
