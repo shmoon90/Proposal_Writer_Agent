@@ -236,8 +236,9 @@ def arrow(
     text: str = "",
     color: str | None = None,
     width_pt: float = 1.25,
+    label_w: float = 3.0,
 ) -> Any:
-    """직선 연결선(끝 화살표). 라벨은 선 중앙 위의 작은 텍스트 상자."""
+    """직선 연결선(끝 화살표). 라벨은 선 중앙 위의 작은 텍스트 상자(``label_w`` cm, 흰 바탕)."""
     conn = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Cm(x1), Cm(y1), Cm(x2), Cm(y2))
     conn.line.color.rgb = _rgb(color or style.accent)
     conn.line.width = Pt(width_pt)
@@ -249,12 +250,12 @@ def arrow(
     ln.append(tail)
     if text:
         mx, my = (x1 + x2) / 2, (y1 + y2) / 2
-        label(
+        lab = label(
             slide,
-            mx - 1.5,
-            my - 0.45,
-            3.0,
-            0.5,
+            mx - label_w / 2,
+            my - 0.85,
+            label_w,
+            0.8,
             text[:24],
             style=style,
             pt=max(style.base_pt - 2, 7),
@@ -262,6 +263,9 @@ def arrow(
             anchor=MSO_ANCHOR.MIDDLE,
             color=style.primary,
         )
+        lab.fill.solid()
+        lab.fill.fore_color.rgb = _rgb("FFFFFF")
+        lab.text_frame.margin_left = lab.text_frame.margin_right = Cm(0.05)
     return conn
 
 
@@ -465,11 +469,13 @@ def draw_dataflow(
         if g not in groups:
             groups.append(g)
     cols = max(len(groups), 1)
-    col_w = (box.width - 0.6 * (cols - 1)) / cols
+    # 라벨 달린 화살표가 있으면 열 사이 간격을 라벨 폭만큼 둔다 (라벨이 상자를 덮지 않게, Phase 21 렌더링 점검)
+    col_gap = 2.2 if any(str(e.get("label", "") or "") for e in edges) else 0.6
+    col_w = (box.width - col_gap * (cols - 1)) / cols
     pos: dict[str, tuple[float, float, float, float]] = {}
     for ci, g in enumerate(groups):
         members = [n for n in nodes if str(n.get("group", "") or "") == g]
-        left = box.left + ci * (col_w + 0.6)
+        left = box.left + ci * (col_w + col_gap)
         head = 0.0
         if g:
             rect(
@@ -488,8 +494,8 @@ def draw_dataflow(
             )
             head = 0.85
         avail = box.height - head
-        gap = 0.4
-        h = min(1.6, (avail - gap * (len(members) - 1)) / max(len(members), 1))
+        gap = 0.5
+        h = min(2.4, (avail - gap * (len(members) - 1)) / max(len(members), 1))
         for ri, n in enumerate(members):
             top = box.top + head + ri * (h + gap)
             nid = str(n.get("id") or n.get("title") or ri)
@@ -509,17 +515,32 @@ def draw_dataflow(
                 line=style.primary,
                 pt=max(style.base_pt - 1, 7),
             )
+    seen_pairs: dict[tuple[str, str], int] = {}
     for e in edges[:24]:
-        a, b = pos.get(str(e.get("source", ""))), pos.get(str(e.get("target", "")))
+        sid, tid = str(e.get("source", "")), str(e.get("target", ""))
+        a, b = pos.get(sid), pos.get(tid)
         if not a or not b:
             continue
+        # 같은 두 노드 사이의 두 번째(역방향) 화살표는 아래로 비켜 그려 선·라벨이 겹치지 않게 한다
+        pair = (min(sid, tid), max(sid, tid))
+        shift = 0.6 * seen_pairs.get(pair, 0)
+        seen_pairs[pair] = seen_pairs.get(pair, 0) + 1
         if a[0] < b[0]:
-            x1, y1, x2, y2 = a[0] + a[2], a[1] + a[3] / 2, b[0], b[1] + b[3] / 2
+            x1, y1, x2, y2 = a[0] + a[2], a[1] + a[3] / 2 + shift, b[0], b[1] + b[3] / 2 + shift
         elif a[0] > b[0]:
-            x1, y1, x2, y2 = a[0], a[1] + a[3] / 2, b[0] + b[2], b[1] + b[3] / 2
+            x1, y1, x2, y2 = a[0], a[1] + a[3] / 2 + shift, b[0] + b[2], b[1] + b[3] / 2 + shift
         else:
             x1, y1, x2, y2 = a[0] + a[2] / 2, a[1] + a[3], b[0] + b[2] / 2, b[1]
-        arrow(slide, x1, y1, x2, y2, style=style, text=str(e.get("label", ""))[:24])
+        arrow(
+            slide,
+            x1,
+            y1,
+            x2,
+            y2,
+            style=style,
+            text=str(e.get("label", ""))[:24],
+            label_w=max(col_gap - 0.2, 1.2),
+        )
 
 
 def draw_screen(
@@ -922,6 +943,7 @@ def draw_architecture(
                     b[1],
                     style=style,
                     text=conn.protocol[:16] if far else "",
+                    label_w=2.2,  # 구성도는 세로 화살표가 나란히 놓여 라벨을 좁게 (겹침 방지)
                 )
             elif a[1] > b[1]:
                 far = adjacent and a[1] - (b[1] + b[3]) >= 0.8
@@ -933,6 +955,7 @@ def draw_architecture(
                     b[1] + b[3],
                     style=style,
                     text=conn.protocol[:16] if far else "",
+                    label_w=2.2,  # 구성도는 세로 화살표가 나란히 놓여 라벨을 좁게 (겹침 방지)
                 )
             else:
                 arrow(

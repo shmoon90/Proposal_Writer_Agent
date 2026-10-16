@@ -223,6 +223,16 @@ def _render_picture(b: Builder, title: str, pic: dict[str, Any], footer: str) ->
     return True
 
 
+def _first_sentence(text: str, limit: int) -> str:
+    """발표용 리드 상자(한 줄 양식)에 맞게 첫 문장만, 최대 limit 자."""
+    text = " ".join(text.split())
+    for sep in (". ", "다. ", "함. "):
+        i = text.find(sep)
+        if 0 < i <= limit:
+            return text[: i + 1]
+    return text[:limit].rstrip() + ("…" if len(text) > limit else "")
+
+
 def _card_title(text: str) -> str:
     head = text.split("(")[0].split(":")[0].split("—")[0].strip()
     return head[:18] if head else text[:18]
@@ -479,7 +489,11 @@ def _render_section_body(
             notes=notes,
         )
         _render_agent_extras(b, sec, agent, footer)
-        return
+        if key not in ("organization", "schedule", "requirements"):
+            return
+        # 일정·인력·요구사항 소절은 핵심 수치(기간·공수·인원·건수) 슬라이드가 반드시 있어야 하므로 코드 데이터 슬라이드도 이어 그린다
+        agent = {**agent, "bullets": [], "visual": None}
+        notes = ""
     if agent and req_ids and agent.get("bullets"):
         # 템플릿 관행: 소절 상단에 대응 요구사항 ID 카드 → 글머리 첫 줄로
         agent = {
@@ -965,7 +979,7 @@ def build_presentation_deck(
         "제안 발표에 앞서 — 사업의 필요성",
         {"kind": "cards", "items": need_items},
         footer,
-        lead=str(a.get("overview", "") or f"{ctx.project.name} 제안 요약")[:200],
+        lead=_first_sentence(str(a.get("overview", "") or f"{ctx.project.name} 제안 요약"), 110),
     )
     b.bullet_slides(
         "CONTENTS",

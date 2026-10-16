@@ -117,8 +117,8 @@ ABSTRACT_WORDS = (
     "최고 수준",
 )
 NUMBER_CLAIM_RE = re.compile(
-    r"(\d[\d,]*(?:\.\d+)?)\s*(%|퍼센트|배|초|ms|밀리초|분|시간|건|명|년|개월|주|일|억|만|천|TPS|GB|TB|MB|회|대|식|자리|페이지|장|종|배 이상)"
-)
+    r"(?<![A-Za-z0-9.-])(\d[\d,]*(?:\.\d+)?)[ \t]*(%|퍼센트|배|초|ms|밀리초|분|시간|건|명|년|개월|주|일|억|만|천|TPS|GB|TB|MB|회|대|식|자리|페이지|장|종|배 이상)"
+)  # 줄바꿈을 건너 'FR-013' + '대표…' 를 '013대'로 읽지 않도록 ID·줄바꿈 제외
 # Phase 19: QA-CON-11 약어 — 대문자 2~8자(숫자·'/' 허용), ID(FR-001)·로마 숫자·일반 약어 제외
 ACRONYM_RE = re.compile(r"(?<![A-Za-z0-9/-])[A-Z][A-Z0-9]{1,7}(?:/[A-Z]{1,3})?(?![A-Za-z0-9/-])")
 ROMAN_RE = re.compile(r"^[IVX]+$")
@@ -1126,6 +1126,7 @@ def _base_number_tokens(inp: QaInputs) -> set[str]:
         parts.extend(f"{src.title} {src.url}" for src in t.sources)
     parts.extend(b.text for b in inp.blocks)
     parts.extend(w.name for w in inp.ctx.wbs)
+    parts.extend(str(getattr(w, "estimate_basis", "") or "") for w in inp.ctx.wbs)
     parts.extend(str(w.effort_md) for w in inp.ctx.wbs)
     parts.append(str(inp.ctx.total_effort_md))
     parts.extend(f"{r.role_name} {r.headcount_planned}" for r in inp.ctx.roles)
@@ -1204,8 +1205,11 @@ def _unexplained_acronyms(
                 first_where.setdefault(m, _section_label(sec))
     unexplained: list[str] = []
     for acr in dict.fromkeys(ACRONYM_RE.findall(text)):
-        if acr in COMMON_ACRONYMS or ROMAN_RE.match(acr) or acr.isdigit() or acr in glossary:
-            continue
+        parts = [p for p in acr.split("/") if p]
+        if all(
+            p in COMMON_ACRONYMS or ROMAN_RE.match(p) or p.isdigit() or p in glossary for p in parts
+        ):
+            continue  # 'UI/UX' 처럼 슬래시로 묶인 약어는 각각 설명되어 있으면 통과
         if re.search(rf"{re.escape(acr)}\s*[\(（]|[\(（]\s*{re.escape(acr)}\s*[\)）]", text):
             continue  # 본문에서 '약어(풀이)' 또는 '풀이(약어)'로 설명됨
         unexplained.append(acr + (f"({first_where[acr]})" if acr in first_where else ""))

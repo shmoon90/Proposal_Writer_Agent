@@ -203,6 +203,30 @@ REQUIREMENTS: list[dict[str, Any]] = [
 ]
 
 
+UNRESOLVED: list[str] = [
+    "'윈도우 공학용 계산기 연산' 목록 확정 필요",
+    "계산 이력 보존 범위(세션/서버·개수) 미정",
+    "사업 기간·예산·제출 조건·평가 기준 없음",
+]
+# 검증 대행: (chunk 모드에서 낼 소견 1건) — fixture 로 바꿀 수 있다
+VERIFIER_FINDING: dict[str, Any] = {
+    "kind": "feasibility_check_needed",
+    "severity": "info",
+    "requirement_prefix": "FR-00",
+    "message": "'공학용 연산'의 구체 목록(삼각·로그·진법·각도 모드 등)이 원문에 없어 범위 확정이 필요함",
+    "evidence_quote": "계산은 윈도우에서 제공하는 계산기(공학용)에서 제공하는 연산을 지원한다.",
+    "suggested_fix": "발주처와 연산 목록을 합의하고 요구사항 설명에 명시",
+}
+VERIFIER_COMMENTS: dict[str, str] = {"FR-001": "사업 목적 문장 — 개별 기능보다 상위 항목"}
+PROJECT: dict[str, Any] = {
+    "name": "공학용 계산기 웹 개발",
+    "start_date": date(2026, 11, 2),
+    "end_date": date(2027, 1, 29),
+    "client_name": "(RFP 미기재)",
+    "placeholder_picture": True,
+}
+
+
 def extractor(request: AgentRequest) -> dict[str, Any]:
     blocks = [
         (m.group(1), m.group(2))
@@ -224,13 +248,7 @@ def extractor(request: AgentRequest) -> dict[str, Any]:
         out.append(item)
     return {
         "requirements": out,
-        "unresolved_items": [
-            "'윈도우 공학용 계산기 연산' 목록 확정 필요",
-            "계산 이력 보존 범위(세션/서버·개수) 미정",
-            "사업 기간·예산·제출 조건·평가 기준 없음",
-        ]
-        if blocks
-        else [],
+        "unresolved_items": list(UNRESOLVED) if blocks else [],
         "notes": NOTE,
     }
 
@@ -244,28 +262,31 @@ def verifier(request: AgentRequest) -> dict[str, Any]:
     )
     verdicts = []
     for i in ids:
-        comment = ""
-        verdict = "verified"
-        if i in ("FR-001",):
-            comment = "사업 목적 문장 — 개별 기능보다 상위 항목"
-        verdicts.append({"requirement_id": i, "verdict": verdict, "comment": comment})
+        verdicts.append(
+            {"requirement_id": i, "verdict": "verified", "comment": VERIFIER_COMMENTS.get(i, "")}
+        )
     findings = []
-    if "모드: chunk" in request.prompt:
+    if "모드: chunk" in request.prompt and VERIFIER_FINDING:
+        f = VERIFIER_FINDING
         findings.append(
             {
-                "kind": kind_missing,
-                "severity": "info",
-                "requirement_ids": [x for x in ids if x.startswith("FR-00")][:1],
-                "message": "'공학용 연산'의 구체 목록(삼각·로그·진법·각도 모드 등)이 원문에 없어 범위 확정이 필요함",
-                "evidence_quote": "계산은 윈도우에서 제공하는 계산기(공학용)에서 제공하는 연산을 지원한다.",
-                "suggested_fix": "발주처와 연산 목록을 합의하고 요구사항 설명에 명시",
+                "kind": f.get("kind", kind_missing)
+                if f.get("kind", kind_missing) in FINDING_KINDS
+                else kind_missing,
+                "severity": f.get("severity", "info"),
+                "requirement_ids": [
+                    x for x in ids if x.startswith(f.get("requirement_prefix", ""))
+                ][:1],
+                "message": f["message"],
+                "evidence_quote": f.get("evidence_quote", ""),
+                "suggested_fix": f.get("suggested_fix", ""),
             }
         )
     return {
         "verdicts": verdicts,
         "findings": findings,
         "coverage_estimate": 1.0,
-        "summary": f"원문 11문장 모두 요구사항으로 추출됨 ({NOTE})",
+        "summary": f"요구사항 {len(ids)}건 검증 ({NOTE})",
     }
 
 
@@ -1170,6 +1191,80 @@ PROPOSAL: dict[str, Any] = {
 }
 
 
+FIXTURE_NAMES = (
+    "RFP_ANALYSIS",
+    "REQUIREMENTS",
+    "APPROACHES",
+    "STRATEGY",
+    "RESEARCH",
+    "ARCHITECTURE",
+    "WBS",
+    "PROPOSAL",
+    "UNRESOLVED",
+    "VERIFIER_FINDING",
+    "VERIFIER_COMMENTS",
+    "PROJECT",
+    "ID_ALIASES",
+)
+ID_ALIASES: dict[
+    str, str
+] = {}  # "@별칭" → 요구사항 이름에 포함되는 문자열 (fixture 가 실제 ID 를 모를 때)
+
+
+def load_fixture(path: Path) -> list[str]:
+    """다른 RFP용 대행 응답 파이썬 파일(저장소 밖)을 읽어 같은 이름의 전역을 바꾼다. 고객 자료는 저장소에 두지 않는다."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("manual_fixture", path)
+    if spec is None or spec.loader is None:
+        raise SystemExit(f"fixture 를 읽을 수 없습니다: {path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    loaded = []
+    for name in FIXTURE_NAMES:
+        if hasattr(mod, name):
+            globals()[name] = getattr(mod, name)
+            loaded.append(name)
+    return loaded
+
+
+def resolve_fixture_aliases(s: Services, project) -> dict[str, str]:  # type: ignore[no-untyped-def]
+    """fixture 의 '@별칭' 을 추출된 실제 요구사항 ID 로 바꾼다 (딕셔너리를 제자리에서 수정)."""
+    if not ID_ALIASES:
+        return {}
+    reqs = s.requirements.list_requirements(project)
+    mapping: dict[str, str] = {}
+    for alias, needle in ID_ALIASES.items():
+        hit = next((r for r in reqs if needle in r.name), None)
+        if hit is not None:
+            mapping[alias] = hit.id
+    pattern = re.compile("|".join(re.escape(a) for a in sorted(mapping, key=len, reverse=True)))
+
+    def walk(obj: Any) -> Any:
+        if isinstance(obj, str):
+            return pattern.sub(lambda m: mapping[m.group(0)], obj) if mapping else obj
+        if isinstance(obj, list):
+            for i, v in enumerate(obj):
+                obj[i] = walk(v)
+            return obj
+        if isinstance(obj, dict):
+            for k, v in list(obj.items()):
+                obj[k] = walk(v)
+            return obj
+        if isinstance(obj, tuple):
+            return tuple(walk(list(obj)))
+        return obj
+
+    for name in ("STRATEGY", "RESEARCH", "ARCHITECTURE", "WBS", "PROPOSAL", "RFP_ANALYSIS"):
+        walk(globals()[name])
+    for _keys, spec in APPROACHES:
+        walk(spec)
+    missing = [a for a in ID_ALIASES if a not in mapping]
+    if missing:
+        print("별칭 미해결:", ", ".join(missing))
+    return mapping
+
+
 def purge_previous(ctx: AppContext, name: str) -> None:
     """이 스크립트가 이전에 만든(created_by=ACTOR) 같은 이름의 프로젝트를 DB·폴더에서 제거한다. 사용자 프로젝트는 건드리지 않는다."""
     import shutil
@@ -1223,12 +1318,12 @@ def main() -> int:
             stream.reconfigure(encoding="utf-8", errors="replace")
     if len(sys.argv) < 2:
         print(
-            "사용: run_manual_agents.py <RFP .docx 경로> [--template <제안서 템플릿 .pptx>]... [--name <프로젝트명>]"
+            "사용: run_manual_agents.py <RFP 경로> [--template <제안서 템플릿 .pptx>]... [--name <프로젝트명>] [--fixture <대행 응답 .py>]"
         )
         return 2
     rfp = Path(sys.argv[1])
     templates: list[Path] = []
-    name = "공학용 계산기 웹 개발"
+    name: str | None = None
     args = sys.argv[2:]
     while args:
         if args[0] == "--template" and len(args) >= 2:
@@ -1237,9 +1332,14 @@ def main() -> int:
         elif args[0] == "--name" and len(args) >= 2:
             name = args[1]  # 다른 이름이면 기존 프로젝트(승인·최종본)를 지우지 않는다
             args = args[2:]
+        elif args[0] == "--fixture" and len(args) >= 2:
+            loaded = load_fixture(Path(args[1]))
+            print(f"fixture 적용: {args[1]} ({', '.join(loaded)})")
+            args = args[2:]
         else:
             print(f"알 수 없는 인자: {args[0]}")
             return 2
+    name = name or str(PROJECT.get("name") or "공학용 계산기 웹 개발")
     ctx = AppContext.create(
         Settings(
             qa_render_check=True
@@ -1266,9 +1366,9 @@ def main() -> int:
     p = s.projects.create(
         name=name,
         mode=ProjectMode.PROPOSAL,
-        start_date=date(2026, 11, 2),
-        end_date=date(2027, 1, 29),
-        client_name="(RFP 미기재)",
+        start_date=PROJECT.get("start_date") or date(2026, 11, 2),
+        end_date=PROJECT.get("end_date") or date(2027, 1, 29),
+        client_name=str(PROJECT.get("client_name") or "(RFP 미기재)"),
         created_by=ACTOR,
     )
     log: list[str] = []
@@ -1289,16 +1389,17 @@ def main() -> int:
 
     from PIL import Image
 
-    buf = io.BytesIO()
-    Image.new("RGB", (640, 360), (120, 140, 160)).save(buf, format="PNG")
-    pic = s.documents.register_upload(
-        p,
-        kind=DocumentKind.PICTURE,
-        file_name="photo__사업 수행 환경 사진(자리표시).png",
-        data=buf.getvalue(),
-        actor=ACTOR,
-    )
-    log.append(f"참고 그림 등록: {pic.file_name} → {pic.stored_path}")
+    if PROJECT.get("placeholder_picture", True):
+        buf = io.BytesIO()
+        Image.new("RGB", (640, 360), (120, 140, 160)).save(buf, format="PNG")
+        pic = s.documents.register_upload(
+            p,
+            kind=DocumentKind.PICTURE,
+            file_name="photo__사업 수행 환경 사진(자리표시).png",
+            data=buf.getvalue(),
+            actor=ACTOR,
+        )
+        log.append(f"참고 그림 등록: {pic.file_name} → {pic.stored_path}")
     r = StepRunner(s)
     r.run_extraction(p, actor=ACTOR)
     log.append(approve_if_needed(s, p, "gate0"))
@@ -1317,6 +1418,9 @@ def main() -> int:
         if not req.is_mandatory:
             req.notes = "부가 제안 — 발주처 합의 시 구현 (대행 결정, 사용자 확인 필요)"
         ctx.repos.requirements.update(req)
+    aliases = resolve_fixture_aliases(s, p)
+    if aliases:
+        log.append(f"fixture 별칭 → ID {len(aliases)}건 해결")
     log.append(r.run_rfp_analysis(p, actor=ACTOR).summary)
     log.append(r.run_tech_research(p, actor=ACTOR).summary)
     log.append(r.run_approach_writing(p, actor=ACTOR).summary)
