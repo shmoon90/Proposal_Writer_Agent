@@ -21,6 +21,7 @@ from proposal_agent.services.context import AppContext
 from proposal_agent.services.document_service import DocumentService
 from proposal_agent.services.pipeline_service import PipelineService
 from proposal_agent.services.project_service import ProjectService
+from proposal_agent.services.strategy_service import StrategyService
 from proposal_agent.services.template_service import TemplateService
 from proposal_agent.validation.qa_service import QaService
 
@@ -45,6 +46,7 @@ class Services:
     changes: ChangeService
     templates: TemplateService
     approach: ApproachService
+    strategy: StrategyService
 
     @classmethod
     def from_context(
@@ -116,6 +118,9 @@ class Services:
             changes=changes,
             templates=templates,
             approach=ApproachService(ctx.repos, audit, steps),
+            strategy=StrategyService(
+                ctx.repos, ctx.paths, ctx.files, audit, steps, generation, extraction
+            ),
         )
 
 

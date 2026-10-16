@@ -908,9 +908,19 @@ class TemplateDeckBuilder:
             text = self.chapter_numeral if is_numeral else self.chapter_title
             if not text:
                 continue
+            target = box
+            if not is_numeral and box.font_size:
+                # 장 제목이 템플릿 라벨 상자 폭보다 길면 한 줄에 맞게 글꼴을 줄인다 (최소 10pt) — 넘침 방지 (Phase 18)
+                width_pt = box.width / 2.54 * 72
+                # 한글(전각) 글자 폭 ≈ 글꼴 크기, 영문 ≈ 0.6배. 여백 5%를 둔다.
+                cjk = sum(1 for ch in text if ord(ch) > 0x2E7F)
+                est_width_per_pt = (cjk * 1.0 + (len(text) - cjk) * 0.6) / max(1, len(text))
+                fit = width_pt * 0.95 / (est_width_per_pt * max(1, len(text)))
+                if fit < box.font_size:
+                    target = box.model_copy(update={"font_size": max(9.0, round(fit, 1))})
             self._text(
                 slide,
-                box,
+                target,
                 text,
                 fill=band,
                 color=text_color,

@@ -33,7 +33,12 @@ from proposal_agent.generators.pptx import (
     build_submission_deck,
     decide_outline,
 )
-from proposal_agent.generators.pptx.outline import ChapterPlan, OutlineSection, plan_chapters
+from proposal_agent.generators.pptx.outline import (
+    ChapterPlan,
+    OutlineSection,
+    brief_toc_tree,
+    plan_chapters,
+)
 from proposal_agent.generators.pptx.pagemap import requirement_page_map
 from proposal_agent.models import (
     ActorKind,
@@ -268,7 +273,9 @@ class GenerationService:
             ctx.diagram_paths["staffing"] = str(stored.path)
         # PPT (템플릿이 등록되어 있으면 그 양식, 없으면 기본 양식)
         rfp_toc = self._extraction.rfp_proposal_toc(project)
-        toc_tree = self._extraction.rfp_proposal_toc_tree(project)
+        rfp_tree = self._extraction.rfp_proposal_toc_tree(project)
+        # RFP 지정 목차가 없으면 전략 브리프의 목차 초안을 제출용 덱 뼈대로 쓴다 (Phase 18). 발표용은 기본 장 구성 유지.
+        toc_tree = rfp_tree or brief_toc_tree(self._steps.prior_output(project, "strategy_planner"))
         # 목차 트리(장/절)가 있으면 평면 목차를 섹션 키에 다시 매핑하지 않는다 — 트리가 뼈대, 섹션은 데이터 기준
         outline = decide_outline(ctx, [] if toc_tree else rfp_toc)
         result.outline = outline
@@ -309,7 +316,7 @@ class GenerationService:
                     outline,
                     template_profile=pres_hit.profile if pres_hit else None,
                     template_data=pres_hit.data if pres_hit else None,
-                    toc_tree=toc_tree,
+                    toc_tree=rfp_tree,
                 ),
             ),
         ):
@@ -448,7 +455,9 @@ class GenerationService:
             parts.append(
                 "<proposal_template>\n등록된 템플릿 없음 — 코드 기본 양식(16:9, 소절당 글머리 8개 이하)\n</proposal_template>"
             )
-        tree = self._extraction.rfp_proposal_toc_tree(project)
+        tree = self._extraction.rfp_proposal_toc_tree(project) or brief_toc_tree(
+            self._steps.prior_output(project, "strategy_planner")
+        )
         if tree:
             lines = []
             for ch in tree:

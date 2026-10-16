@@ -262,6 +262,28 @@ QA_REVIEWER = _register(
 )
 
 
+# --- 12. 목차·전략 브리프 (Phase 18) ----------------------------------------------------------
+STRATEGY_PLANNER = _register(
+    AgentRole(
+        key="strategy_planner",
+        title="목차·전략 브리프",
+        description="RFP 분석·요구사항·조사 결과로 제안서 목차 초안과 주요 전략(3~5)·차별화 근거·핵심 기술·위험·제출/발표 구성 차이·확인 필요 사항을 정리한다. 전체 제안서 작성 전에 사용자가 승인한다(Gate P).",
+        inputs=("RFP 프로파일·분석", "요구사항·구현 방안", "기술 조사", "검토 의견(재작성 시)"),
+        output_schema=schemas.StrategyBrief,
+        prompt_name="strategy_planner",
+        mcp_servers=(MCP_PROJECT,),
+        mcp_tool_patterns=_PROJECT_READ,
+        max_turns=12,
+        max_budget_usd=3.0,
+        timeout_s=600,
+        effort="high",
+        reuses=("rfp_analyst",),
+        output_subdir="07_Submission_Proposal_PPT",
+        output_stem="strategy_brief",
+    )
+)
+
+
 # --- 11. 요구사항별 구현 방안 (Phase 14) -----------------------------------------------------
 APPROACH_WRITER = _register(
     AgentRole(

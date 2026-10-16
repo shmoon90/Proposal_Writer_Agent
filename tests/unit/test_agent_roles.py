@@ -27,6 +27,7 @@ EXPECTED_ROLES = {
     "qa_reviewer",
     "semantic_differ",  # Phase 6: 구축 단계 변경 요청 의미 비교
     "approach_writer",  # Phase 14: 요구사항별 구현 방안·난이도·검사 기준
+    "strategy_planner",  # Phase 18: 목차·전략 브리프 (Gate P 승인 대상)
 }
 
 

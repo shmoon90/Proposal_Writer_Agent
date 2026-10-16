@@ -71,6 +71,9 @@ def test_deliverables_page_flow(services: Services) -> None:
     at.button(key="gate5_approve").click().run()
     assert not at.exception
     assert services.gates.state(project, "gate5").passed
+    at.text_area(key="gateP_comments").set_value("목차·전략 직접 확인")
+    at.button(key="gateP_approve").click().run()
+    assert not at.exception and services.gates.state(project, "gateP").passed
     at.button(key="dl_finalize").click().run()
     assert not at.exception
     final = services.ctx.paths.project_output_dir(project.output_dir) / "13_Final_Deliverables"

@@ -272,6 +272,8 @@ def test_presentation_deck_structure_is_editable_and_uses_agent_visuals(
 ) -> None:
     s, p, _ = proj
     r = StepRunner(s)
+    s.strategy.evaluate(p)  # Phase 18: 목차·전략(Gate P) 승인 후에만 문안 작성
+    s.gates.approve_human_review(p, "gateP", approver="pm", comments="목차 확인")
     with pytest.raises(ValidationError, match="기술 조사 기록이 없어"):
         r.run_proposal_writing(p)
     r.run_tech_research(p)

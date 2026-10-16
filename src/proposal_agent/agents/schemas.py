@@ -352,6 +352,80 @@ class DocumentPlan(_Strict):
     )
 
 
+# --- 6-2. 목차·전략 브리프 (Phase 18, 사용자 승인 대상) ------------------------------------------
+
+
+class RequirementDirection(_Strict):
+    requirement_id: str = Field(description="입력에 있는 요구사항 ID")
+    priority: str = Field(default="중", description="중요도 상/중/하 (RFP 필수·평가 배점 기준)")
+    direction: str = Field(description="대응 방향 한 줄 (수용 방식·핵심 구현·차별점)")
+
+
+class TocChapter(_Strict):
+    numeral: str = Field(default="", description="장 번호 (Ⅰ, Ⅱ … 또는 1, 2)")
+    title: str
+    sections: list[str] = Field(
+        default_factory=list, description="절 제목 목록 (RFP 지정 목차 우선)"
+    )
+    rfp_mandatory: bool = Field(default=False, description="RFP가 지정한 필수 목차인가")
+    note: str = Field(default="", description="RFP 작성 지침·배점·이 장에서 다룰 핵심")
+
+
+class StrategyItem(_Strict):
+    title: str = Field(description="전략 제목 (결론형 한 문장)")
+    description: str = Field(description="무엇을 어떻게 — 구체적 구현 방향")
+    differentiator: str = Field(
+        description="차별화 근거 (경쟁 대비 왜 유리한가; 근거 없는 실적·수치 금지)"
+    )
+    related_requirement_ids: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(
+        default_factory=list,
+        description="근거 구분과 출처: 'RFP: …' / '참고 문서: …' / '조사 TR-…: …' / '설계 제안'",
+    )
+
+
+class KeyTechnology(_Strict):
+    area: str = Field(description="framework/ui_ux/web_was/db/api/security/deploy_ops/업무 영역")
+    choice: str = Field(description="선택 기술·방식 (조사·RFP 명시 기준)")
+    rationale: str = ""
+    feasibility_basis: str = Field(default="", description="근거 조사 ID·구현 가능성")
+
+
+class RiskItem(_Strict):
+    risk: str
+    mitigation: str
+    related_requirement_ids: list[str] = Field(default_factory=list)
+
+
+class StrategyBrief(_Strict):
+    """RFP 분석 후 전체 제안서 작성 전에 사용자가 검토·승인하는 브리프 (요청서 §4의 10항목)."""
+
+    rfp_summary: str = Field(description="1. RFP 분석 요약 (목적·범위·현행 문제·제약·평가 기준)")
+    requirement_directions: list[RequirementDirection] = Field(
+        default_factory=list, description="2·3. 요구사항별 중요도와 대응 방향"
+    )
+    toc: list[TocChapter] = Field(
+        default_factory=list, description="4. 제안서 목차 초안 (RFP 필수 목차 보존)"
+    )
+    toc_change_requests: list[str] = Field(
+        default_factory=list,
+        description="필수 목차 변경이 필요하거나 RFP 요구가 모호한 경우 이유와 대안",
+    )
+    strategies: list[StrategyItem] = Field(
+        default_factory=list, description="5·6. 주요 제안 전략 3~5개와 차별화 근거"
+    )
+    key_technologies: list[KeyTechnology] = Field(
+        default_factory=list, description="7. 핵심 기술·구현 방향"
+    )
+    risks: list[RiskItem] = Field(default_factory=list, description="8. 예상 위험과 대응")
+    submission_vs_presentation: str = Field(
+        default="", description="9. 제출용과 발표용 구성 차이 (무엇을 상세히/압축해서 다루는가)"
+    )
+    open_questions: list[str] = Field(
+        default_factory=list, description="10. 자료 부족·사용자 확인 필요 사항"
+    )
+
+
 # --- 8-2. 요구사항별 구현 방안 (Phase 14) -------------------------------------------------------
 
 

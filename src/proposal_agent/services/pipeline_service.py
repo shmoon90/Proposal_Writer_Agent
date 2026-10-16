@@ -57,6 +57,7 @@ PROPOSAL_STEPS = _steps(
     ("req_verify", "독립 검증", "게이트 1: 요구사항 기준선 승인", "requirement_verifier"),
     ("tech_research", "기술 조사·구현 가능성", "게이트 2: 조사 결과 검토", "tech_researcher"),
     ("impl_approach", "요구사항별 구현 방안·난이도", None, "approach_writer"),
+    ("strategy_brief", "목차·전략 브리프", "Gate P: 목차·전략 승인", "strategy_planner"),
     ("architecture", "아키텍처 설계", None, "architect"),
     ("wbs_schedule", "WBS·일정 계산", None, "planner"),
     ("staffing", "인력 투입계획", "게이트 3: 계획 승인", None),

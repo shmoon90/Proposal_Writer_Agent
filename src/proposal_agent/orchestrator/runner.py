@@ -17,6 +17,7 @@ from proposal_agent.ingest.service import GATE0_KEY
 from proposal_agent.models import GateStatus, Project, StepRun
 from proposal_agent.orchestrator.gates import GateBlockedError, GateState
 from proposal_agent.requirements.service import GATE1_KEY, ExtractionSummary, VerificationSummary
+from proposal_agent.services.strategy_service import GATEP_KEY
 from proposal_agent.validation.qa_service import GATE5_KEY
 
 if TYPE_CHECKING:
@@ -213,6 +214,52 @@ class StepRunner:
             raise
 
     STEP_APPROACH = "impl_approach"
+    STEP_STRATEGY = "strategy_brief"
+
+    def run_strategy_brief(
+        self,
+        project: Project,
+        *,
+        actor: str = "user",
+        cancel: CancellationToken | None = None,
+        reviewer_comments: str = "",
+    ) -> StepOutcome:
+        """목차·전략 브리프(strategy_planner) 작성 → Gate P(사람 승인) 대기. Gate 1 통과 필요.
+
+        RFP 분석 후 곧바로 전체 제안서를 쓰지 않도록, 브리프가 승인되어야 제안 문안 작성과 최종 확정이 열린다.
+        반려 사유(``reviewer_comments``)를 주면 프롬프트에 넣어 다시 쓴다.
+        """
+        self._s.gates.require(project, GATE1_KEY)
+        pipeline = self._s.pipeline
+        run = pipeline.start_step(project, self.STEP_STRATEGY, actor=actor)
+        try:
+            result = self._s.strategy.run(
+                project,
+                actor=actor,
+                step_run_id=run.id,
+                cancel=cancel,
+                reviewer_comments=reviewer_comments,
+            )
+            b = result.brief
+            summary = (
+                f"브리프 작성: 목차 {len(b.toc)}장, 전략 {len(b.strategies)}개, 핵심 기술 {len(b.key_technologies)}건, "
+                f"위험 {len(b.risks)}건, 확인 필요 {len(b.open_questions)}건 → {GATEP_KEY} {result.gate.status.value} "
+                f"({result.markdown_path}, 비용 ${result.cost_usd:.3f})"
+            )
+            pipeline.complete_step(
+                project,
+                run,
+                summary=summary,
+                cost_usd=result.cost_usd,
+                actor=actor,
+                output_refs={"markdown": result.markdown_path, "gateP": result.gate.id},
+            )
+            return StepOutcome(
+                run=run, gate=self._s.gates.state(project, GATEP_KEY), summary=summary
+            )
+        except PWAError as exc:
+            pipeline.fail_step(project, run, exc, actor=actor)
+            raise
 
     def run_approach_writing(
         self,
@@ -309,6 +356,7 @@ class StepRunner:
         근거 조사가 없는 필수 기능 요구사항이 남아 있으면 경고를 감사 기록·요약에 남긴다(에이전트는 '조사 후 확정'으로 쓴다).
         """
         self._s.gates.require(project, GATE1_KEY)
+        self._s.gates.require(project, GATEP_KEY)  # 목차·전략 승인 전에는 전체 문안을 쓰지 않는다
         if not self._s.research.list_research(project):
             raise ValidationError(
                 "기술 조사 기록이 없어 제안 문안을 작성할 수 없습니다.",
@@ -349,6 +397,10 @@ class StepRunner:
             # 정의서 '구현방안' 칸이 비지 않도록: 빈 항목은 조사·구성 요소 데이터로 규칙 초안([자동 초안]) 채움
             drafted = self._s.approach.ensure_filled(project, actor=actor)
             result = self._s.generation.generate_all(project, actor=actor)
+            if not self._s.gates.state(project, GATEP_KEY).passed:
+                result.review_items.append(
+                    "목차·전략(Gate P)이 승인되지 않은 상태의 시안입니다. 브리프를 승인한 뒤 재생성하면 승인된 목차·전략이 반영됩니다."
+                )
             summary = (
                 f"산출물 {len(result.deliverables)}건 생성, 목차 출처 {result.outline[0].source if result.outline else '-'}, "
                 f"검토 필요 {len(result.review_items)}건"
@@ -423,6 +475,8 @@ class StepRunner:
 
     def run_finalize(self, project: Project, *, approver: str, comments: str) -> StepOutcome:
         """Gate 5(최종 독립 QA)가 PASS(사람 승인 포함)여야 최종본 폴더로 복사한다. 필수 검증 실패가 있으면 통과할 수 없다."""
+        if project.mode.value == "proposal":
+            self._s.gates.require(project, GATEP_KEY)  # 승인된 목차·전략 없이는 최종 확정 불가
         self._s.gates.require(project, GATE5_KEY)
         pipeline = self._s.pipeline
         run = pipeline.start_step(project, self.STEP_FINALIZE, actor=approver)

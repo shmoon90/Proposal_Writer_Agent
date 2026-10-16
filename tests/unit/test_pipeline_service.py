@@ -23,7 +23,7 @@ def test_definitions_differ_by_mode() -> None:
     build = PipelineService.definitions(ProjectMode.BUILD)
     assert [d.key for d in proposal][:3] == ["upload", "extract", "rfp_analysis"]
     assert [d.key for d in build][:3] == ["upload", "doc_structure", "load_baseline"]
-    assert sum(d.requires_gate for d in proposal) == 4
+    assert sum(d.requires_gate for d in proposal) == 5  # Phase 18: Gate P 추가
     assert sum(d.requires_gate for d in build) == 2
     assert [d.order for d in proposal] == list(range(1, len(proposal) + 1))
 
@@ -44,7 +44,7 @@ def test_step_without_gate_completes_to_approved(
         services.pipeline.start_step(proposal_project, "upload")  # 이미 실행 중
     services.pipeline.complete_step(proposal_project, run, summary="done")
     assert run.status == StepStatus.APPROVED
-    assert services.pipeline.progress(proposal_project) == (1, 14)
+    assert services.pipeline.progress(proposal_project) == (1, 15)
     assert services.pipeline.current_step(proposal_project).definition.key == "extract"
 
 

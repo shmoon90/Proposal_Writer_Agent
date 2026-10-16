@@ -27,7 +27,7 @@
 | `04_Technology_Research` | 기술 조사 결과 | `research_vX.Y.json` |
 | `05_Architecture_Design` | 아키텍처 에이전트 결과 | `architecture_vX.Y.json` |
 | `06_WBS_Effort_Schedule` | WBS·간트, 인력 투입계획 Excel | 제안: `WBS_간트_vX.Y.xlsx`, `인력투입계획_vX.Y.xlsx` · 구축: `WBS_Gantt_YYYYMMDDHHMM.xlsx`, `Staffing_Plan_YYYYMMDDHHMM.xlsx` |
-| `07_Submission_Proposal_PPT` | 제출용 PPT(템플릿이 있으면 그 용지·마스터), 목차 결정 기록(`sections`·`chapters`(장/절/소절 계획)·`templates`(사용 템플릿 파일명)) | `제안서_제출용_vX.Y.pptx`, `목차결정_vX.Y.json` |
+| `07_Submission_Proposal_PPT` | 제출용 PPT(템플릿이 있으면 그 용지·마스터), 목차 결정 기록(`sections`·`chapters`(장/절/소절 계획)·`templates`(사용 템플릿 파일명)), **목차·전략 브리프**(Phase 18: 에이전트 JSON `strategy_brief_vX.Y.json` + 검토용 Markdown `전략브리프_vX.Y.md`, Gate P 승인 대상) | `제안서_제출용_vX.Y.pptx`, `목차결정_vX.Y.json`, `전략브리프_vX.Y.md` |
 | `08_Presentation_PPT` | 발표용 PPT | `제안서_발표용_vX.Y.pptx` |
 | `09_Excel_Deliverables` | 요구사항 정의서·추적표 | 제안: `요구사항정의서_vX.Y.xlsx`, `요구사항추적표_vX.Y.xlsx` · 구축: `Requirements_Definition_YYYYMMDDHHMM.xlsx`, `Traceability_Matrix_YYYYMMDDHHMM.xlsx` |
 | `10_Diagrams_Charts_Images` | 구성도 3종·차트 PNG | `시스템구성도_vX.Y.png`, `SW구성도_vX.Y.png`, `서비스구성도_vX.Y.png`, `일정차트_vX.Y.png`, `공수차트_vX.Y.png` |

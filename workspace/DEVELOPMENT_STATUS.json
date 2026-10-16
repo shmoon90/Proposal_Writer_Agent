@@ -2,7 +2,7 @@
   "updated": "2026-10-16",
   "main_commit": "ab75fba",
   "plan": "docs/IMPROVEMENT_PLAN_2026-10.md",
-  "status": "step17_done",
+  "status": "step18_done_awaiting_user_confirmation",
   "analysis_done": [
     "existing project structure, agents, MCP, outputs, tests (Phase 1-15)",
     "gap analysis against the quality/editability directive (19 sections)",
@@ -10,50 +10,54 @@
   ],
   "implemented": [
     "step16: manifest.json (runs + QA), picture policy (allowed tags, QA-FILE-12), library review doc, record_test_status script",
-    "step17: RfpAnalysis directive fields, page-limit parsing, evidence_class/response_strategy, deck-first generation with slide page map, trace matrix 29 cols / spec 33 cols"
+    "step17: RfpAnalysis directive fields, page-limit parsing, evidence_class/response_strategy, deck-first generation with slide page map, trace matrix 29 cols / spec 33 cols",
+    "step18: strategy_planner brief (10 items), Gate P human approval/reject/rewrite, writing/finalize blocked before approval, QA-RFP-08, approval UI panel, brief toc as submission deck skeleton"
   ],
   "changed_files": [
-    "src/proposal_agent/requirements/evidence.py",
-    "src/proposal_agent/generators/pptx/pagemap.py",
+    "src/proposal_agent/services/strategy_service.py",
+    "src/proposal_agent/agents/prompts/strategy_planner.md",
     "src/proposal_agent/agents/schemas.py",
-    "src/proposal_agent/agents/prompts/rfp_analyst.md",
-    "src/proposal_agent/ingest/rfp_profile.py",
-    "src/proposal_agent/ingest/excel_reader.py",
-    "src/proposal_agent/models/requirement.py",
-    "src/proposal_agent/requirements/service.py",
-    "src/proposal_agent/requirements/approach.py",
-    "src/proposal_agent/changes/baseline_service.py",
-    "src/proposal_agent/changes/service.py",
-    "src/proposal_agent/generators/base.py",
+    "src/proposal_agent/agents/roles.py",
+    "src/proposal_agent/orchestrator/gates.py",
+    "src/proposal_agent/orchestrator/runner.py",
+    "src/proposal_agent/services/pipeline_service.py",
+    "src/proposal_agent/services/__init__.py",
     "src/proposal_agent/generators/service.py",
-    "src/proposal_agent/generators/excel/trace_matrix.py",
-    "src/proposal_agent/generators/excel/requirement_spec.py",
-    "tests/unit/test_phase17_rfp_trace.py",
-    "docs/PHASE17_REPORT.md",
+    "src/proposal_agent/generators/pptx/outline.py",
+    "src/proposal_agent/generators/pptx/template.py",
+    "src/proposal_agent/validation/independent_qa.py",
+    "src/proposal_agent/validation/qa_service.py",
+    "src/proposal_agent/ui/app_pages/deliverables.py",
+    "scripts/run_manual_agents.py",
+    "tests/unit/test_phase18_strategy_gate.py",
+    "docs/PHASE18_REPORT.md",
     "docs/AGENT_DESIGN.md",
+    "docs/USER_GUIDE.md",
     "docs/OUTPUT_STRUCTURE.md",
     "docs/TEST_RESULTS.md"
   ],
   "tests": {
     "last_run": "2026-10-16",
     "command": "pytest -q -p no:cacheprovider",
-    "passed": 262,
+    "passed": 265,
     "failed": 0,
     "skipped": 1,
     "deselected": 2
   },
   "resolved": [
     "invalid picture tag inserted picture before rejecting",
-    "QA-FILE-12 failed on allowed photos"
+    "QA-FILE-12 failed on allowed photos",
+    "brief prompt called build_context and persisted default plan/components before agent steps",
+    "long chapter title overflowed the template chapter label box (font fitted by CJK width)"
   ],
   "open_issues": [
     "real Claude model calls unverified (no credit)",
     "slide rendering verification not implemented (step 21)",
-    "outline/strategy approval gate not implemented (step 18)",
     "native charts and UI mockup components not implemented (step 20)",
     "deck generation does not yet place tagged photos (step 19)",
     "manifest does not record finalization (step 21)",
-    "proposal page map only finds requirement IDs printed in slide text (agent sections must list requirement_ids)"
+    "proposal page map only finds requirement IDs printed in slide text (agent sections must list requirement_ids)",
+    "brief toc cannot be edited in the UI (rewrite via rejection comments)"
   ],
   "connections": {
     "claude_api": "not configured",
@@ -69,6 +73,7 @@
     "check": "QA-FILE-12 (tagged photos allowed)"
   },
   "next": [
-    "step 18: strategy/outline brief role, Gate P approval gate and UI, block full writing before approval (user confirmation after implementation)"
+    "user confirmation of brief format, approval screen and blocking scope (PHASE18_REPORT §3)",
+    "step 19: slide-level spec, technical specificity, plain-language rules, QA-CON-10/11"
   ]
 }

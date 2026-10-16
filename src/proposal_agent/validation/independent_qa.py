@@ -138,6 +138,10 @@ class QaInputs:
     rfp_profile: Any | None = None  # ingest.rfp_profile.RfpProfile
     template_profiles: dict[str, Any] = field(default_factory=dict)  # purpose → TemplateProfile
     rfp_toc_tree: list[dict[str, Any]] = field(default_factory=list)
+    gate_p_status: str = (
+        ""  # Gate P(목차·전략 승인) 상태: PASS | NEEDS_HUMAN_REVIEW | FAIL | ''(미평가) (Phase 18)
+    )
+    strategy_brief: dict[str, Any] | None = None
 
     @property
     def mode(self) -> ProjectMode:
@@ -299,6 +303,14 @@ def check_rfp_fit(inp: QaInputs, ppt_sub_text: str) -> list[QaCheck]:
             gate=gate,
             fix_suggestion="누락 ID의 절을 확인해 요구사항을 추가 추출·수동 추가",
         ),
+        _check(
+            "QA-RFP-08",
+            cat,
+            "목차·전략 승인(Gate P)",
+            "전체 제안서 작성 전에 목차 초안·주요 전략·차별화·핵심 기술·위험·제출/발표 구성 차이를 담은 브리프를 사람이 승인했는가 (요청서 §4)",
+            gate="gate5",
+            fix_suggestion="산출물 화면에서 '전략·목차 브리프 작성(에이전트)' 후 검토·승인하고 재생성",
+        ),
     ]
     if not inp.blocks or inp.mode != ProjectMode.PROPOSAL:
         return [
@@ -415,6 +427,27 @@ def check_rfp_fit(inp: QaInputs, ppt_sub_text: str) -> list[QaCheck]:
             fail=[f"연결된 요구사항이 없는 RFP ID {len(uncovered)}건: " + ", ".join(uncovered[:10])]
             if uncovered
             else [],
+        )
+    # 08: 목차·전략 승인 (Gate P)
+    if inp.gate_p_status == "PASS":
+        brief = inp.strategy_brief or {}
+        _finish(
+            checks[7],
+            review=[]
+            if brief
+            else [
+                "브리프 없이 승인됨 — 코드 기본 목차·데이터 기반 문안 (목차·전략을 사람이 직접 확인했는지 기록 필요)"
+            ],
+        )
+    elif inp.gate_p_status == "FAIL":
+        _finish(checks[7], fail=["목차·전략 브리프가 반려됨 — 사유를 반영해 다시 작성·승인 필요"])
+    else:
+        _finish(
+            checks[7],
+            review=[
+                "목차·전략(Gate P)이 아직 승인되지 않음 — 현재 산출물은 시안이며 승인 후 재생성 필요"
+                + (" (브리프 작성됨, 검토 대기)" if inp.strategy_brief else " (브리프 미작성)")
+            ],
         )
     return checks
 

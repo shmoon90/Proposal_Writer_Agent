@@ -397,6 +397,8 @@ def test_writer_agent_gets_template_brief_and_deck_uses_lead_table_footnotes(
 ) -> None:
     s, p, runner = tpl
     r = StepRunner(s)
+    s.strategy.evaluate(p)  # Phase 18: 목차·전략(Gate P) 승인 후에만 문안 작성
+    s.gates.approve_human_review(p, "gateP", approver="pm", comments="목차 확인")
     with pytest.raises(ValidationError, match="기술 조사 기록이 없어"):
         r.run_proposal_writing(p)  # 구현 가능한 내용만 쓰도록 조사(웹 검색) 선행 강제
     r.run_tech_research(p)

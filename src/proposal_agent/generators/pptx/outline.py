@@ -419,3 +419,25 @@ def plan_chapters(
                     )
                 )
     return chapters
+
+
+def brief_toc_tree(brief: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """전략 브리프(strategy_planner 출력 dict)의 목차를 덱 빌더 트리 형식으로. 없으면 빈 목록 (Phase 18)."""
+    if not brief or not isinstance(brief.get("toc"), list):
+        return []
+    numerals = ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ", "Ⅸ", "Ⅹ"]
+    out: list[dict[str, Any]] = []
+    for i, ch in enumerate(brief["toc"], start=1):
+        if not isinstance(ch, dict) or not ch.get("title"):
+            continue
+        out.append(
+            {
+                "numeral": str(ch.get("numeral") or (numerals[i - 1] if i <= len(numerals) else i)),
+                "title": str(ch["title"]),
+                "sections": [
+                    {"number": str(j), "title": str(sec), "guide": []}
+                    for j, sec in enumerate(ch.get("sections") or [], start=1)
+                ],
+            }
+        )
+    return out

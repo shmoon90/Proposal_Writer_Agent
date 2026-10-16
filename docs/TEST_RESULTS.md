@@ -10,7 +10,7 @@
 
 명령: `python -m pytest -q -rs` (기본 `-m 'not llm'`)
 
-결과: **262 passed, 1 skipped, 2 deselected** (86.7s, 2026-10-16 Phase 17 반영. Phase 16 257, Phase 15 253, Phase 14 249, Phase 13 243, Phase 12 238, Phase 11 231, Phase 8 215)
+결과: **265 passed, 1 skipped, 2 deselected** (73.2s, 2026-10-16 Phase 18 반영. Phase 17 262, Phase 16 257, Phase 15 253, Phase 14 249, Phase 13 243, Phase 12 238, Phase 11 231, Phase 8 215)
 
 - skipped 1: `tests/unit/test_paths.py::test_ensure_within_blocks_symlink` — 이 PC 계정에 심볼릭 링크 생성 권한이 없음(WinError 1314). 코드 결함이 아니라 환경 제약.
 - deselected 2: `tests/integration/llm/` — 실제 Claude API 호출이 필요한 LLM 계약 테스트. **크레딧 부족으로 실행하지 않음.**
@@ -59,6 +59,8 @@
 **Phase 16 점검 (2026-10-16)**: 같은 흐름 재실행 후 `Output/<프로젝트>/manifest.json`에 run 1건(산출물 9·보조 파일 5)과 QA 결과(35항목 중 34 실행·30 통과·0 실패·4 검토·1 미실행, gate3·gate4 PASS, 그림 예외 0) 첨부 확인. pytest 257 passed(신규 Phase 16 테스트 4건: manifest·그림 정책·태그 거부·상태 기록 해석). 슬라이드 렌더링 검증은 미구현(미실행).
 
 **Phase 17 점검 (2026-10-16)**: 같은 흐름 재실행 — 추적표 29열(대응 전략·근거 구분·제안서 페이지 제출용/발표용), 정의서 33열(근거 구분·대응 전략), 덱 → Excel 생성 순서, 제안서 페이지 역산(제출용 5·발표용 7: 대행 응답 소절에 requirement_ids가 없어 대응표 슬라이드만). QA 35항목 중 34 실행·30 통과·0 실패·4 검토·1 미실행. pytest 262 passed(신규 Phase 17 테스트 5건). RFP 분석 새 필드와 페이지 제한은 픽스처로만 확인(실제 모델·고객 RFP에는 해당 문구 없음).
+
+**Phase 18 점검 (2026-10-16)**: 계산기 RFP + 고객 템플릿 2종 흐름에 목차·전략 브리프(대행 작성)와 Gate P 대행 승인을 넣어 재실행. 브리프 `07_Submission_Proposal_PPT/전략브리프_v1.0.md`(목차 4장·전략 3·핵심 기술 3·위험 2·확인 필요 3) 저장, 제출용 덱은 브리프 목차를 뼈대로 생성(데이터 없는 절은 자리표시). 통합 QA **36항목 중 35 실행·31 통과·0 실패·4 검토 필요·1 미실행**, gate3·gate4 PASS, QA-RFP-08 PASS. 첫 실행에서 브리프 프롬프트가 `build_context`를 호출해 계획·구성 요소 기본값이 먼저 저장되는 문제(아키텍처 결과 무시, QA-TECH-06/CON-06/CON-08 검토 증가)와 긴 장 제목의 라벨 넘침(QA-FILE-03)을 발견해 수정했다. pytest 265 passed(신규 Phase 18 테스트 3건). 실제 모델 호출(`strategy_planner`)은 미검증.
 
 ## 2. 정적 검사
 

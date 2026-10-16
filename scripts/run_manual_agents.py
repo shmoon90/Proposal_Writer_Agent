@@ -360,6 +360,142 @@ def approach_writer(request: AgentRequest) -> dict[str, Any]:
     return {"items": items, "research_needed": [], "notes": NOTE}
 
 
+# --- 2-3. 목차·전략 브리프 (Phase 18, 세션의 Claude가 수동 작성 — Gate P 대행 승인) -------------------
+STRATEGY: dict[str, Any] = {
+    "rfp_summary": "PC 웹 기반 공학용 계산기 개발. Windows 공학용 계산기 수준의 연산, 프론트 입력 검증·서버 계산, 소수점 21자리·10^25 범위, 계산 이력 표시가 핵심이며 모바일은 범위 밖이다. 평가 기준·페이지 제한은 RFP에 없다.",
+    "requirement_directions": [
+        {
+            "requirement_id": "FR-001",
+            "priority": "상",
+            "direction": "서버 계산 엔진(Python decimal/mpmath)으로 수용",
+        },
+        {
+            "requirement_id": "FR-003",
+            "priority": "상",
+            "direction": "React/TypeScript 단일 화면 UI로 수용",
+        },
+        {
+            "requirement_id": "FR-005",
+            "priority": "상",
+            "direction": "프론트 검증 + FastAPI 계산 API 분리로 수용",
+        },
+        {
+            "requirement_id": "NFR-001",
+            "priority": "상",
+            "direction": "decimal 정밀도 50자리·21자리 반올림, 경계값 시험으로 검증",
+        },
+        {
+            "requirement_id": "NFR-002",
+            "priority": "상",
+            "direction": "10^25 범위 검사, 초과 시 오류 반환",
+        },
+        {
+            "requirement_id": "CON-001",
+            "priority": "중",
+            "direction": "데스크톱 브라우저 전용 레이아웃(모바일 미지원 안내)",
+        },
+    ],
+    "toc": [
+        {
+            "numeral": "Ⅰ",
+            "title": "사업 이해",
+            "sections": ["사업 배경·목적", "요구사항 이해", "추진 방향"],
+            "rfp_mandatory": False,
+            "note": "RFP에 지정 목차 없음 — 기본 순서",
+        },
+        {
+            "numeral": "Ⅱ",
+            "title": "사업 수행 방안",
+            "sections": [
+                "요구사항 대응 방안",
+                "시스템 구성",
+                "계산 엔진·정밀도",
+                "화면·입력 검증",
+                "계산 이력",
+            ],
+            "rfp_mandatory": False,
+            "note": "",
+        },
+        {
+            "numeral": "Ⅲ",
+            "title": "사업 관리 방안",
+            "sections": ["추진 일정", "투입 인력", "품질·시험", "위험 관리"],
+            "rfp_mandatory": False,
+            "note": "",
+        },
+        {
+            "numeral": "Ⅳ",
+            "title": "지원 방안",
+            "sections": ["교육·인수인계", "유지관리"],
+            "rfp_mandatory": False,
+            "note": "",
+        },
+    ],
+    "toc_change_requests": [],
+    "strategies": [
+        {
+            "title": "서버 임의 정밀도 연산으로 21자리·10^25 요구를 충족한다",
+            "description": "계산은 서버 decimal/mpmath로 수행하고 프론트는 유효성 검사만 맡겨 정밀도 손실을 없앤다.",
+            "differentiator": "IEEE 754 배정밀도(15~17자리)로는 불가능한 요구를 설계 단계에서 해결",
+            "related_requirement_ids": ["NFR-001", "NFR-002", "FR-005"],
+            "evidence": ["조사 고정밀 십진 연산: feasible_with_risk", "RFP: 소수점 21자리·10^25"],
+        },
+        {
+            "title": "입력 오류를 즉시 알리는 이중 검증으로 사용성을 높인다",
+            "description": "프론트 토크나이저와 서버 파서가 같은 문법을 공유해 오류 메시지를 일관되게 낸다.",
+            "differentiator": "오류 코드 체계를 설계 단계에서 확정해 메시지 누락 방지",
+            "related_requirement_ids": ["FR-005", "FR-006"],
+            "evidence": ["조사 웹 계산기 UI·입력 유효성 검사: feasible", "설계 제안"],
+        },
+        {
+            "title": "계산 이력 재사용·내보내기로 반복 작업을 줄인다",
+            "description": "이력 클릭 재적재와 CSV 내보내기를 부가 제안으로 구현한다.",
+            "differentiator": "RFP 추가 제안 요구(SUB-001)에 대한 구체 대안",
+            "related_requirement_ids": ["FR-004"],
+            "evidence": ["설계 제안", "RFP: 추가 제안 및 구현"],
+        },
+    ],
+    "key_technologies": [
+        {
+            "area": "framework",
+            "choice": "Python/FastAPI 계산 API",
+            "rationale": "decimal 모듈과 결합",
+            "feasibility_basis": "조사 서버 계산 API: feasible",
+        },
+        {
+            "area": "ui_ux",
+            "choice": "React/TypeScript",
+            "rationale": "PC 웹 단일 화면",
+            "feasibility_basis": "조사 웹 계산기 UI: feasible",
+        },
+        {
+            "area": "db",
+            "choice": "SQLite(→PostgreSQL 전환 가능)",
+            "rationale": "이력 저장 단순",
+            "feasibility_basis": "조사 정적 서빙·저장소: feasible",
+        },
+    ],
+    "risks": [
+        {
+            "risk": "삼각·로그 함수의 21자리 정밀도 보장 라이브러리 미확인",
+            "mitigation": "mpmath 공식 문서 확인 후 확정, 미달 시 교체(2.2.1 공수 증가)",
+            "related_requirement_ids": ["NFR-001"],
+        },
+        {
+            "risk": "초대형 지수·팩토리얼 입력으로 서버 부하",
+            "mitigation": "입력 상한·시간 제한 적용",
+            "related_requirement_ids": ["NFR-002"],
+        },
+    ],
+    "submission_vs_presentation": "제출용은 요구사항 대응표·계산 엔진 구조·API/오류 코드 설계·시험 계획을 상세히 싣고, 발표용은 정밀도 전략·이중 검증·이력 재사용 3개 전략을 흐름도로 압축한다.",
+    "open_questions": [
+        "Windows 공학용 계산기 기준 지원 연산 목록 확정",
+        "mpmath 삼각함수 정밀도 공식 문서 미열람",
+        "이력 보관 기간·개인 식별 여부",
+    ],
+}
+
+
 def SRC(url: str, title: str, product: str, version: str, excerpt: str) -> dict[str, Any]:  # noqa: N802
     return {
         "url": url,
@@ -1017,6 +1153,7 @@ def main() -> int:
             "planner": WBS,
             "proposal_writer": PROPOSAL,
             "approach_writer": approach_writer,
+            "strategy_planner": STRATEGY,
         },
         cost_per_call=0.0,
     )
@@ -1064,6 +1201,8 @@ def main() -> int:
     log.append(r.run_rfp_analysis(p, actor=ACTOR).summary)
     log.append(r.run_tech_research(p, actor=ACTOR).summary)
     log.append(r.run_approach_writing(p, actor=ACTOR).summary)
+    log.append(r.run_strategy_brief(p, actor=ACTOR).summary)
+    log.append(approve_if_needed(s, p, "gateP"))
     log.append(
         r.run_role_step(
             p, StepRunner.STEP_ARCHITECTURE, "architect", "아키텍처 설계", actor=ACTOR

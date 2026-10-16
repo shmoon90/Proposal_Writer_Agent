@@ -93,7 +93,7 @@ def test_proposal_full_flow_independent_qa_gates_and_finalize(services: Services
     run = services.qa.latest_run(p)
     assert (
         run is not None
-        and run.counts["executed"] == 33
+        and run.counts["executed"] == 34
         and run.counts["not_run"] == 2  # QA-RFP-07(ID 체계 없음), QA-FILE-11(템플릿 미등록)
         and run.counts["fail"] == 0
     )
@@ -143,6 +143,10 @@ def test_proposal_full_flow_independent_qa_gates_and_finalize(services: Services
         r.run_finalize(p, approver="pm", comments="x")
     assert out.gate.status == GateStatus.NEEDS_HUMAN_REVIEW
     services.gates.approve_human_review(p, "gate5", approver="pm", comments="검토 완료")
+    with pytest.raises(GateBlockedError):  # Phase 18: 목차·전략(Gate P) 승인 없이는 최종 확정 불가
+        r.run_finalize(p, approver="pm", comments="확정")
+    services.strategy.evaluate(p)
+    services.gates.approve_human_review(p, "gateP", approver="pm", comments="목차·전략 직접 확인")
     r.run_finalize(p, approver="pm", comments="확정")
     final = services.ctx.paths.project_output_dir(p.output_dir) / "13_Final_Deliverables"
     assert len(list(final.iterdir())) == 9

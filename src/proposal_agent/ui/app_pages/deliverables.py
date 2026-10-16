@@ -87,13 +87,97 @@ with st.expander("제안서 템플릿 (프로젝트 화면에서 '제안서 템�
             alt="RFP 지정 목차",
         )
 
+st.divider()
+st.subheader("목차·전략 브리프 (Gate P — 승인 후 전체 제안서 작성)")
+gate_p = services.strategy.gate_state(project)
+brief = services.strategy.latest(project)
+sb1, sb2 = st.columns([1, 2])
+if sb1.button(
+    "전략·목차 브리프 작성 (에이전트)",
+    key="dl_strategy",
+    icon=":material/map:",
+    disabled=not gate1.passed,
+    help="RFP 분석 요약·요구사항 대응 방향·목차 초안·전략 3~5·차별화·핵심 기술·위험·제출/발표 차이·확인 필요 사항을 정리합니다. 반려 의견이 있으면 반영해 다시 씁니다.",
+):
+    with st.status("브리프를 작성하는 중…", expanded=True) as status:
+        try:
+            outcome = runner.run_strategy_brief(
+                project,
+                actor=actor_name(),
+                reviewer_comments=str(st.session_state.get("gateP_comments", "") or ""),
+            )
+        except PWAError as exc:
+            status.update(label="브리프 작성 실패", state="error")
+            show_error(exc, context="전략 브리프")
+        else:
+            status.update(label=outcome.summary, state="complete")
+            st.rerun()
+sb2.caption(
+    f"{gate_p.title}: **{gate_p.status.value}**"
+    + (f" · 승인자 {gate_p.approved_by}" if gate_p.approved_by else "")
+    + (" · 브리프 작성됨" if brief else " · 브리프 미작성")
+)
+if gate_p.evaluation and gate_p.evaluation.reasons:
+    st.caption("평가 사유: " + " / ".join(gate_p.evaluation.reasons[:4]))
+if brief:
+    with st.expander("브리프 내용 (검토용)", expanded=not gate_p.passed):
+        st.markdown(services.strategy.markdown(project, brief))
+if not gate_p.passed:
+    st.text_area(
+        "검토 의견 (승인·반려 사유, 반려 시 재작성에 반영)",
+        key="gateP_comments",
+        help="브리프 없이 승인하면 코드 기본 목차·데이터 기반 문안으로 작성됩니다.",
+    )
+    g1, g2 = st.columns(2)
+    if g1.button(
+        "검토 후 Gate P 승인",
+        key="gateP_approve",
+        type="primary",
+        icon=":material/check:",
+        disabled=not gate1.passed,
+    ):
+        try:
+            services.strategy.ensure_evaluation(project, actor=actor_name())
+            services.gates.approve_human_review(
+                project,
+                "gateP",
+                approver=actor_name(),
+                comments=str(st.session_state.get("gateP_comments", "") or ""),
+            )
+        except PWAError as exc:
+            show_error(exc, context="Gate P 승인")
+        else:
+            st.success(
+                "목차·전략을 승인했습니다. 제안 문안 작성과 최종 확정이 열립니다.",
+                icon=":material/check:",
+            )
+            st.rerun()
+    if g2.button(
+        "반려 (수정 요청)", key="gateP_reject", icon=":material/undo:", disabled=not gate1.passed
+    ):
+        try:
+            services.strategy.ensure_evaluation(project, actor=actor_name())
+            services.gates.reject_human_review(
+                project,
+                "gateP",
+                approver=actor_name(),
+                comments=str(st.session_state.get("gateP_comments", "") or ""),
+            )
+        except PWAError as exc:
+            show_error(exc, context="Gate P 반려")
+        else:
+            st.info(
+                "반려했습니다. 의견을 반영해 브리프를 다시 작성하십시오.", icon=":material/info:"
+            )
+            st.rerun()
+
 w1, w2 = st.columns([1, 2])
 if w1.button(
     "제안 문안 작성 (에이전트)",
     key="dl_write",
     icon=":material/edit_note:",
-    disabled=not gate1.passed,
-    help="템플릿 관행·RFP 지정 목차·기준 데이터를 넣어 proposal_writer 에이전트가 장·절·소절 문안을 작성합니다. 이후 '산출물 생성'이 이 문안을 씁니다.",
+    disabled=not (gate1.passed and gate_p.passed),
+    help="(Gate P 승인 후) 템플릿 관행·RFP 지정 목차·기준 데이터를 넣어 proposal_writer 에이전트가 장·절·소절 문안을 작성합니다. 이후 '산출물 생성'이 이 문안을 씁니다.",
 ):
     with st.status("제안 문안을 작성하는 중…", expanded=True) as status:
         try:

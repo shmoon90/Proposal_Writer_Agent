@@ -427,6 +427,8 @@ def test_finalize_requires_gate5_approval_and_separates_final(
     r.run_qa(ready)
     with pytest.raises(GateBlockedError):
         r.run_finalize(ready, approver="pm", comments="승인 전")
+    services.strategy.evaluate(ready)
+    services.gates.approve_human_review(ready, "gateP", approver="pm", comments="목차 확인")
     services.gates.approve_human_review(ready, "gate5", approver="pm", comments="검토 완료")
     outcome = r.run_finalize(ready, approver="pm", comments="확정")
     final = services.ctx.paths.project_output_dir(ready.output_dir) / "13_Final_Deliverables"

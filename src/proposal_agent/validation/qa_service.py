@@ -158,6 +158,17 @@ class QaService:
                 if self._extraction and project.mode == ProjectMode.PROPOSAL
                 else []
             ),
+            gate_p_status=(
+                _gate_service(self._repos, self._audit).state(project, "gateP").status.value
+                if project.mode == ProjectMode.PROPOSAL
+                and self._repos.gate_evaluations.latest(project.id, "gateP") is not None
+                else ""
+            ),
+            strategy_brief=(
+                self._steps.prior_output(project, "strategy_planner")
+                if self._steps is not None and project.mode == ProjectMode.PROPOSAL
+                else None
+            ),
         )
 
     # --- 실행 ------------------------------------------------------------------------------------
@@ -621,3 +632,10 @@ __all__ = [
     "QaService",
     "render_qa_report",
 ]
+
+
+def _gate_service(repos: Any, audit: Any) -> Any:
+    """순환 참조(orchestrator → runner → qa_service) 회피용 지연 import."""
+    from proposal_agent.orchestrator.gates import GateService
+
+    return GateService(repos, audit)
