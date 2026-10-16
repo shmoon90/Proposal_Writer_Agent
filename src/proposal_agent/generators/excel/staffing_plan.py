@@ -324,12 +324,77 @@ def build_staffing_plan(ctx: GenerationContext) -> bytes:
         widths=(14, *[9] * len(month_list)),
         number_formats={i + 2: "0.00" for i in range(len(month_list))},
     )
+    _write_cost_sheet(wb, ctx)
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
 
 
+SHEET_COST = "비용산정"
+
+
+def _write_cost_sheet(wb: Any, ctx: GenerationContext) -> None:
+    """역할별 공수 × 단가 → 원가, 예산 → 매출·마진 (단계 4). 단가·예산이 없으면 '산정 불가' 와 이유만 쓴다."""
+    from proposal_agent.models import ProjectSettings
+    from proposal_agent.planning.cost import estimate_cost
+
+    settings = ctx.settings or ProjectSettings()
+    hints = list((ctx.analysis or {}).get("budget_hints") or [])
+    est = estimate_cost(settings, ctx.roles, ctx.allocations, budget_hints=hints)
+    ws = wb.create_sheet(SHEET_COST)
+    rows: list[list[object]] = [
+        [
+            ln.role,
+            float(ln.mm),
+            float(ln.rate) if ln.rate is not None else None,
+            float(ln.cost) if ln.cost is not None else None,
+            "" if ln.rate is not None else "단가 없음(프로젝트 설정 '역할별 단가' 입력)",
+        ]
+        for ln in est.lines
+    ]
+    if est.status == "estimated":
+        rows.append(["직접비 합계", None, None, float(est.direct_cost or 0), ""])
+        rows.append(
+            [
+                f"간접비({est.overhead_ratio or 0})",
+                None,
+                None,
+                float(est.overhead_cost or 0),
+                "설정 간접비율",
+            ]
+        )
+        rows.append(["원가 합계", None, None, float(est.total_cost or 0), ""])
+        rows.append(["매출(예산)", None, None, float(est.revenue or 0), est.revenue_source])
+        rows.append(
+            [
+                "마진",
+                None,
+                None,
+                float(est.margin or 0),
+                f"마진율 {float(est.margin_ratio or 0):.1%}",
+            ]
+        )
+    else:
+        rows.append(["산정 불가", None, None, None, "; ".join(est.assumptions)])
+        if est.revenue is not None:
+            rows.append(["매출(예산)", None, None, float(est.revenue), est.revenue_source])
+    write_table(
+        ws,
+        ("항목·역할", "공수(MM)", "단가(원/MM)", "금액(원)", "비고"),
+        rows,
+        widths=(18, 10, 14, 16, 48),
+        number_formats={2: "0.00", 3: "#,##0", 4: "#,##0"},
+    )
+    add_note(
+        ws,
+        len(rows) + 3,
+        "원가 = 배정 공수(MM) × 역할별 단가(+간접비율). 단가·예산은 프로젝트 설정에서 입력하며 없으면 산정하지 않는다 (지시문 §6: 임의 수치 금지). "
+        + "; ".join(est.assumptions),
+    )
+
+
 __all__ = [
+    "SHEET_COST",
     "SHEET_MONTHLY",
     "SHEET_PLAN",
     "SHEET_ROLES",

@@ -83,6 +83,15 @@ class ProjectSettings(BaseModel):
     deliverable_formats: list[str] = Field(
         default_factory=list, description="제출 형식 (예: A4 세로 PPT, xlsx)"
     )
+    proposal_detail_level: str = Field(
+        default="detailed",
+        description="제안서 분량: detailed(상세: 절차 상세 표·대안 비교·데이터·비기능 포함) | summary(요약: 구조·절차·적용 기술·구현방안 표만)",
+    )
+    max_slides_per_group: int | None = Field(
+        default=None,
+        ge=1,
+        description="요구사항 묶음 소절당 제출용 장 수 상한 (초과 장은 생략하고 ※ 표기)",
+    )
     cost_rates: dict[str, Decimal] = Field(
         default_factory=dict,
         description="역할별 단가 (원/M/M). 사업성 평가·비용 산정에 사용, 없으면 산정 불가",

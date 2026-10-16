@@ -100,6 +100,7 @@ DEFAULT_KEYS: tuple[tuple[str, str], ...] = (
     ("system_diagram", "시스템 구성도"),
     ("sw_diagram", "SW 구성도"),
     ("service_diagram", "서비스 구성도"),
+    ("deployment_diagram", "배포·네트워크 구조"),
     ("architecture", "기술 아키텍처 및 구현 방안"),
     ("req_groups", "요구사항별 구현 방안"),
     ("security", "보안"),
@@ -261,6 +262,26 @@ def decide_outline(ctx: GenerationContext, rfp_toc: list[str]) -> list[OutlineSe
                     reason="제안 전략(STR) 보강",
                 ),
             )
+        if getattr(ctx, "components", None) and "deployment_diagram" not in have:
+            # 단계 4: 아키텍처 구성 요소가 있으면 구성도 뒤에 '배포·네트워크 구조' 소절을 코드가 보강한다
+            pos, anchor = len(agent_sections), None
+            for i, sec in enumerate(agent_sections):
+                if sec.key in ("system_diagram", "sw_diagram", "service_diagram", "architecture"):
+                    pos, anchor = i + 1, sec
+                    break
+            agent_sections.insert(
+                pos,
+                OutlineSection(
+                    key="deployment_diagram",
+                    title=dict(DEFAULT_KEYS)["deployment_diagram"],
+                    source="default",
+                    reason="배포·네트워크 구조 보강 (아키텍처 구성 요소)",
+                    # 구성도와 같은 장·절에 소절로 들어가도록 앞 소절의 장·절 지정을 물려받는다
+                    chapter=anchor.chapter if anchor else "",
+                    section=anchor.section if anchor else "",
+                    number=anchor.number if anchor else "",
+                ),
+            )
         return agent_sections
     if len(rfp_toc) >= 3:
         return map_rfp_toc(rfp_toc, ctx)
@@ -276,6 +297,7 @@ SECTION_KEYWORDS: dict[str, tuple[str, ...]] = {
     "requirements": ("요구사항", "요구 사항", "범위"),
     "strategy": ("전략", "특장점", "특징", "장점"),
     "system_diagram": ("시스템 구성", "장비", "하드웨어", "HW", "H/W"),
+    "deployment_diagram": ("시스템 구성", "네트워크", "배포", "장비", "하드웨어", "HW", "H/W"),
     "sw_diagram": ("소프트웨어", "SW", "S/W"),
     "service_diagram": ("서비스 구성", "서비스"),
     "architecture": ("아키텍처", "기술", "구현", "주요 기능", "기능"),

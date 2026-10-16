@@ -2,13 +2,14 @@
  "updated": "2026-10-16",
  "main_commit": "ab75fba",
  "plan": "docs/IMPROVEMENT_PLAN_2026-10.md",
- "status": "directive_stage3_done_stage4_pending",
+ "status": "directive_stage4_done_stage5_pending",
  "analysis_done": [
   "existing project structure, agents, MCP, outputs, tests (Phase 1-15)",
   "gap analysis against the quality/editability directive (19 sections)",
   "environment: PowerPoint COM registered, pywin32 installed, LibreOffice absent, no API credit"
  ],
  "implemented": [
+  "지시문 단계 4: ProjectSettings 분량 모드·장 수 상한, deployment·decision 도식·배포 구조 소절, planning/cost.estimate_cost·비용산정 시트·사업성 평가 공유, GenerationContext.settings/design_links·추적표 7열·정의서 기술검토 열, 렌더링 미리보기 화면, 대행 스크립트 --rate/--budget/--detail/--group-cap",
   "지시문 단계 3: StrategyItem 보강·ProposalStrategy 저장·덱 전략 표, RequirementAnalysis(14항목)·Requirement.analysis, AlternativeComparison·비기능 설계·checked_on, QA-TECH-08(54항목)",
   "지시문 단계 2: pptx/image 리더·MEETING_NOTE, requirements/quality.py+QA-RFP-09(53항목), feasibility(13항목·권고·비용·평가서·bid_assessment 단계·bid_reviewer·Decision 기록·화면)",
   "지시문 단계 1: ProjectSettings·TechSelectionMode, 엔티티 9종(STR/TBL/API/DSG/MOD/TC/DEF/DEC/NEG)+마이그레이션 8, StepRun 진행률·중단·백그라운드(JobManager), run_step/run_steps/rerun_failed·plan_preview, 로그 마스킹, qa_checks·shapes 패키지 분할",
@@ -49,7 +50,7 @@
   "failed": 0,
   "skipped": 1,
   "deselected": 2,
-  "pytest": "- pytest 307 passed, 1 skipped(전체, llm 제외; 단계 2 대비 +4: 신규 tests/unit/test_stage3",
+  "pytest": "- pytest 316 passed, 1 skipped(전체, llm 제외; 단계 3 대비 +9: 신규 tests/unit/test_stage4",
   "ruff": "pass",
   "mypy": "pass (117 files)"
  },
@@ -97,7 +98,7 @@
   "check": "QA-FILE-12 (tagged photos allowed), QA-FILE-03/04 flatten groups"
  },
  "next": [
-  "단계 4: 분량 조절(요약/상세), 시각 요소 확장(배포·네트워크·KPI·의사결정 표), 비용 산정 시트, 추적성 Excel 열(전략·설계·테스트·검수·분석), 렌더링 미리보기 화면"
+  "단계 5: 설계·구축 단계 지원 — 화면/DB/API 설계 산출물, 설계 항목(DSG·TBL·API) 엔티티 채우기, 추적표 '미정' 열 해소"
  ],
  "qa_checks": {
   "total": 54,
@@ -136,8 +137,8 @@
  },
  "branch": "feature/major-revision",
  "directive": {
-  "stage": 3,
-  "stage_name": "제안 전략·상세 기술 검토",
+  "stage": 4,
+  "stage_name": "제안서·제출 산출물",
   "done": true,
   "documents": [
    "workspace/PROJECT_ANALYSIS.md",
@@ -156,7 +157,7 @@
    "not_implemented": 8
   },
   "approvals_pending": [],
-  "next_stage": 4,
+  "next_stage": 5,
   "last_run": "2026-10-16",
   "approvals_granted": [
    "A-1",
@@ -169,6 +170,7 @@
   ],
   "stage1_report": "docs/DIRECTIVE_STAGE1_REPORT.md",
   "stage2_report": "docs/DIRECTIVE_STAGE2_REPORT.md",
-  "stage3_report": "docs/DIRECTIVE_STAGE3_REPORT.md"
+  "stage3_report": "docs/DIRECTIVE_STAGE3_REPORT.md",
+  "stage4_report": "docs/DIRECTIVE_STAGE4_REPORT.md"
  }
 }

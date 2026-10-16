@@ -79,13 +79,20 @@ COLUMNS: tuple[Column, ...] = (
     Column("구성 요소 ID", 14, "center", "design"),
     Column("구성 요소명", 22, "left", "design"),
     Column("담당 역할", 12, "center", "design"),
+    Column("전략 ID", 12, "center", "design"),
+    Column("API ID", 12, "center", "design"),
+    Column("DB 테이블 ID", 12, "center", "design"),
+    Column("설계 항목 ID", 12, "center", "design"),
+    Column("기술검토(14항목)", 10, "center", "design"),
     Column("WBS", 14, "center", "impl"),
+    Column("코드 모듈 ID", 12, "center", "impl"),
     Column("Task 명", 24, "left", "impl"),
     Column("단위테스트 ID", 16, "center", "impl"),
     Column("단위테스트 결과", 10, "center", "impl", RESULT_OPTIONS),
     Column("통합테스트 ID", 16, "center", "test"),
     Column("통합테스트 명", 24, "left", "test"),
     Column("통합테스트 결과", 10, "center", "test", RESULT_OPTIONS),
+    Column("테스트케이스 ID", 14, "center", "test"),
     Column("판정 기준", 36, "left", "check"),
     Column("완료여부", 9, "center", "check", COMPLETION_OPTIONS),
     Column("검토 상태", 11, "center", "note", REVIEW_OPTIONS),
@@ -217,6 +224,8 @@ def build_trace_matrix(
         ):
             untraced.append([r.id, r.name, "WBS 미연결"])
         roles = sorted({role for _, _, role in wbs_items if role})
+        dl = ctx.design_links.get(r.id, {})  # 단계 4: 전략·설계·테스트 연결 (없으면 미정)
+        analysis_n = sum(1 for v in (r.analysis or {}).values() if v)
         rows.append(
             [
                 no,
@@ -236,13 +245,20 @@ def build_trace_matrix(
                 ", ".join(comps),
                 "\n".join(f"{comp_names[c][1]}/{comp_names[c][0]}" for c in comps),
                 ", ".join(roles),
+                ", ".join(dl.get("strategy", [])) or PENDING_ID,
+                ", ".join(dl.get("api", [])) or PENDING_ID,
+                ", ".join(dl.get("db_table", [])) or PENDING_ID,
+                ", ".join(dl.get("design_item", [])) or PENDING_ID,
+                f"{analysis_n}/14" if analysis_n else "",
                 ", ".join(code for code, _, _ in wbs_items) or PENDING_ID,
+                ", ".join(dl.get("code_module", [])) or PENDING_ID,
                 "\n".join(name for _, name, _ in wbs_items),
                 ", ".join(uts) or PENDING_ID,
                 TestResult.NOT_RUN.value,
                 ", ".join(its) or PENDING_ID,
                 "\n".join(it_names[i] for i in its),
                 TestResult.NOT_RUN.value,
+                ", ".join(dl.get("test_case", [])) or PENDING_ID,
                 r.acceptance_criteria,
                 _completion(r),
                 "재검토 필요" if review.get(r.id) else "유효",

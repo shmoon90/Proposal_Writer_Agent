@@ -4,7 +4,9 @@
 
 
 ## 통합 개발 지시문 — 단계 0 진단 (2026-10-16, branch `feature/major-revision`)
-- 현재 단계: **단계 3 완료(2026-10-16), 단계 4(제안서·제출 산출물) 착수 대기** — 상세 `docs/DIRECTIVE_STAGE3_REPORT.md`
+- 현재 단계: **단계 4 완료(2026-10-16), 단계 5(설계·구축 단계 지원) 착수 대기** — 상세 `docs/DIRECTIVE_STAGE4_REPORT.md`
+- 단계 4 결과: 분량 모드·장 수 상한, 배포 구조·의사결정 표 도식(16종)·배포 소절, 비용 산정(`planning/cost.py`·비용산정 시트·사업성 평가 공유), 추적표 7열·정의서 기술검토 열, 렌더링 미리보기 화면. - pytest 316 passed, 1 skipped(전체, llm 제외; 단계 3 대비 +9: 신규 tests/unit/test_stage4_deliverables.py — parse_krw, estimate_cost(단가 없음→unavailable, 설정 단가+RFP 예산 문구→원가·마진, 설정 예산 우선), 비용산정 시트, 추적표 7열·'미정', 정의서 기술검토 열, build_context design_links(STR dropped 제외·API/TBL/DSG/MOD/TC), 요약 모드·장 수 상한 각주·장 수 감소, 배포 소절(구성 요소 없으면 생략)·영역 매핑·연결, draw_deployment/draw_decision_table 도형·가중 합계). 기존 테스트 2곳은 도식 종류 수 14→16 
+- (이전) 단계 3 완료(2026-10-16) — 상세 `docs/DIRECTIVE_STAGE3_REPORT.md`
 - 단계 3 결과: 전략 항목 보강·STR 저장·덱 전략 표, 요구사항 분석 14항목(Requirement.analysis·화면), 대안 비교·비기능 설계(설계 스키마·덱 표), 출처 확인 날짜, QA-TECH-08(총 54항목). - pytest 307 passed, 1 skipped(전체, llm 제외; 단계 2 대비 +4: 신규 tests/unit/test_stage3_strategy_tech.py 4건 — 전략·분석·대안 비교 스키마, STR 저장(버전 갱신·dropped), 덱의 전략 표·대안 비교 표·비기능 설계 표·확인 날짜, QA-TECH-08 판정(추천안 정합·PoC·분석 누락·조사에 없는 기술)). ruff·mypy(139 파일) 통과. 민감 용어 검사 통과. - 계산기 샘플(모의 에이전트, 렌더링): QA 54항목 중 51 실행·43 통과·0 실패·8 검토(TECH-08: PoC 필요 1건, 14항목 분석 없는 필수 기능 요구 5건 검토). - 실제 고객 RFP(저장소 밖 fixture·템플릿 2종): 전략 4건이 
 - (이전) 단계 2 완료(2026-10-16) — 상세 `docs/DIRECTIVE_STAGE2_REPORT.md`
 - 단계 2 결과: PPTX·이미지(OCR) 입력, 회의록 문서 종류, 요구사항 품질 규칙 8종(+QA-RFP-09, 총 53항목), 사업성 평가 13항목·권고·비용 산정(단가 없으면 불가)·평가서·파이프라인 단계 bid_assessment·bid_reviewer 에이전트·참여 결정(Decision). - pytest 303 passed, 1 skipped(전체, llm 제외; 단계 1 대비 +8: 신규 tests/unit/test_stage2_rfp_feasibility.py 8건 — PPTX 리더·형식 판별, 이미지 OCR 리더(엔진 없음·불가 시 실패 기록), 업로드 규칙(PPTX RFP 추출·회의록·이미지 첨부), 품질 규칙 8종, 금액 파싱·권고 규칙(사용자 판정 우선), 데이터 평가(미확인·비용 산정 불가 표시), 서비스 평가→재평가→결정 기록(근거 필수·권한 미확인은 제안), 파이프라인 순서). 기존 테스트 2건은 기대값만 갱신(역할 14종, 구축 모드 문서 종류에 회의록). ruff·mypy(139 파일) 통과. 민감 용어 검사 통과. - 계산기 샘플(모의 에이전트, 렌더링): 사업성 평가 

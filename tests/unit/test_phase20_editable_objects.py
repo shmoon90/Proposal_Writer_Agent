@@ -115,7 +115,7 @@ def test_native_charts_are_chart_objects() -> None:
         == "chart"
     )
     assert any(sh.has_chart for sh in slide4.shapes)
-    assert "chart" in shapes.AGENT_VISUAL_KINDS and len(shapes.AGENT_VISUAL_KINDS) == 14
+    assert "chart" in shapes.AGENT_VISUAL_KINDS and len(shapes.AGENT_VISUAL_KINDS) == 16
 
 
 def test_screen_mockup_components_are_individual_shapes_in_one_group() -> None:

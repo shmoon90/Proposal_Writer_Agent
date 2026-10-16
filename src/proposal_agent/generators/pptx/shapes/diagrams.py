@@ -10,6 +10,7 @@ from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Cm, Pt
 
 from proposal_agent.generators.pptx.shapes.base import (
+    DEPLOYMENT_ZONES,
     LAYER_LABEL,
     LAYER_ORDER,
     RACI_FILLS,
@@ -1291,6 +1292,170 @@ def draw_security_layers(
     _draw_bands(
         slide, box, controls, style=style, order=SECURITY_ZONE_ORDER, fills=("FBE5D6", "FFF2CC")
     )
+
+
+def draw_deployment(
+    slide: Any,
+    box: Box,
+    items: list[dict[str, Any]],
+    edges: list[dict[str, Any]] | None = None,
+    *,
+    style: ShapeStyle,
+) -> None:
+    """배포·네트워크 구조 (단계 4): 영역(group: 외부·사용자/DMZ/내부망/데이터·인프라) 을 세로 열로, 노드는 열 안에 쌓고,
+    edges(source→target id) 는 화살표로 잇는다. 모두 편집 가능한 도형."""
+    items = items[:24]
+    if not items:
+        return
+    zones: list[str] = []
+    for it in items:
+        z = str(it.get("group", "") or "내부망")
+        if z not in zones:
+            zones.append(z)
+    order = [z for z, _ in DEPLOYMENT_ZONES]
+    zones.sort(key=lambda z: order.index(z) if z in order else len(order))
+    gap = 1.8 if len(zones) > 1 else 0.0  # 열 사이에 연결 라벨이 들어갈 틈
+    col_w = (box.width - gap * (len(zones) - 1)) / len(zones)
+    head_h = 0.7
+    pos: dict[str, tuple[float, float, float, float]] = {}
+    col_of: dict[str, int] = {}
+    for zi, z in enumerate(zones):
+        left = box.left + zi * (col_w + gap)
+        rect(
+            slide,
+            left,
+            box.top,
+            col_w,
+            head_h,
+            z[:14],
+            style=style,
+            fill=style.primary if z != "DMZ" else "C00000",
+            shape=MSO_SHAPE.RECTANGLE,
+            bold=True,
+            color="FFFFFF",
+            heading=True,
+        )
+        rect(
+            slide,
+            left,
+            box.top + head_h + 0.1,
+            col_w,
+            box.height - head_h - 0.1,
+            style=style,
+            fill=style.light if zi % 2 == 0 else "F7F7F7",
+            line=style.accent,
+            shape=MSO_SHAPE.RECTANGLE,
+        )
+        members = [it for it in items if str(it.get("group", "") or "내부망") == z][:6]
+        inner_h = box.height - head_h - 0.3
+        node_h = min(1.6, (inner_h - 0.2 * (len(members) - 1)) / max(len(members), 1))
+        for mi, it in enumerate(members):
+            top = box.top + head_h + 0.2 + mi * (node_h + 0.2)
+            text = str(it.get("title", ""))[:28]
+            if it.get("text") and node_h >= 1.2:  # 낮은 상자는 제목만 (넘침 방지)
+                text += "\n" + str(it["text"])[:40]
+            elif node_h < 1.2:  # 좁은 상자(2.7cm×0.8cm) 는 2줄 ≈ 12자
+                text = text[:12] + ("…" if len(text) > 12 else "")
+            rect(
+                slide,
+                left + 0.15,
+                top,
+                col_w - 0.3,
+                node_h,
+                text,
+                style=style,
+                fill="FFFFFF",
+                line=style.primary,
+                pt=max(style.base_pt - (1 if node_h >= 1.2 else 2), 7),
+            )
+            key = str(it.get("id") or it.get("title"))
+            pos[key] = (left + 0.15, top, col_w - 0.3, node_h)
+            col_of[key] = zi
+    placed: dict[int, list[float]] = {}  # 열 틈(index) → 이미 놓인 라벨 y (라벨끼리 겹침 방지)
+    for e in edges or []:
+        sk, tk = str(e.get("source")), str(e.get("target"))
+        a_, b_ = pos.get(sk), pos.get(tk)
+        if not (a_ and b_):
+            continue
+        (l1, t1, w1, h1), (l2, t2, w2, h2) = a_, b_
+        adjacent = abs(col_of.get(sk, 0) - col_of.get(tk, 0)) == 1
+        text = str(e.get("label", ""))[:12] if adjacent else ""  # 라벨은 열 사이 틈에만 (겹침 방지)
+        if text:
+            gi = min(col_of.get(sk, 0), col_of.get(tk, 0))
+            my = (t1 + h1 / 2 + t2 + h2 / 2) / 2
+            if any(abs(my - y) < 0.9 for y in placed.get(gi, [])):
+                text = ""  # 같은 틈에 가까운 라벨이 이미 있으면 생략
+            else:
+                placed.setdefault(gi, []).append(my)
+        if l1 < l2:
+            arrow(
+                slide,
+                l1 + w1,
+                t1 + h1 / 2,
+                l2,
+                t2 + h2 / 2,
+                style=style,
+                text=text,
+                label_w=gap - 0.3,
+            )
+        elif l1 > l2:
+            arrow(
+                slide,
+                l1,
+                t1 + h1 / 2,
+                l2 + w2,
+                t2 + h2 / 2,
+                style=style,
+                text=text,
+                label_w=gap - 0.3,
+            )
+        else:
+            arrow(slide, l1 + w1 / 2, t1 + h1, l2 + w2 / 2, t2, style=style)
+
+
+def deployment_items_from_components(
+    components: list[Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """아키텍처 구성 요소 → 배포 구조 도식 항목·연결 (layer → 영역 매핑, extra['zone'] 이 있으면 우선)."""
+    zone_of = {layer: zone for zone, layers in DEPLOYMENT_ZONES for layer in layers}
+    items = [
+        {
+            "id": c.id,
+            "title": c.name,
+            "text": c.technology or "",
+            "group": (getattr(c, "extra", {}) or {}).get("zone") or zone_of.get(c.layer, "내부망"),
+        }
+        for c in components
+    ]
+    edges = [
+        {"source": c.id, "target": conn.to_component_id, "label": conn.protocol}
+        for c in components
+        for conn in getattr(c, "connections", [])
+    ]
+    return items, edges
+
+
+def draw_decision_table(
+    slide: Any, box: Box, headers: list[str], rows: list[list[str]], *, style: ShapeStyle
+) -> None:
+    """의사결정 표 (단계 4): 열 = [기준, 가중치, 대안…], 행 = 기준별 점수. 숫자면 가중 합계 행을 코드가 더한다."""
+    headers = headers or ["기준", "가중치"]
+    total: list[float | None] = [None] * max(len(headers) - 2, 0)
+    for r in rows:
+        try:
+            w = float(str(r[1]).replace("%", "")) if len(r) > 1 else 1.0
+        except ValueError:
+            continue
+        for i, cell in enumerate(r[2:]):
+            try:
+                v = float(str(cell).split("(")[0])
+            except ValueError:
+                continue
+            total[i] = (total[i] or 0.0) + w * v
+    body = [list(map(str, r)) for r in rows]
+    if any(t is not None for t in total):
+        body.append(["가중 합계", "", *[f"{t:.1f}" if t is not None else "-" for t in total]])
+    draw_compare(slide, box, headers, body, style=style)
 
 
 def draw_layers(slide: Any, box: Box, items: list[dict[str, Any]], *, style: ShapeStyle) -> None:

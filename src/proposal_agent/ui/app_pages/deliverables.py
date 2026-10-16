@@ -224,6 +224,44 @@ _cat_options = {
         QaCategory.EDITABILITY,
     )
 }
+with st.expander("제안서 분량 (단계 4)", expanded=False):
+    _ps = services.projects.settings_of(project)
+    _lvl = st.radio(
+        "분량 모드",
+        ["detailed", "summary"],
+        index=0 if _ps.proposal_detail_level != "summary" else 1,
+        format_func=lambda v: (
+            "상세 (절차 상세·대안 비교·데이터·비기능 표 포함)"
+            if v == "detailed"
+            else "요약 (구조·절차·적용 기술·구현방안 표만)"
+        ),
+        horizontal=True,
+        key="dl_detail_level",
+    )
+    _cap = st.number_input(
+        "묶음 소절당 제출용 장 수 상한 (0 = 제한 없음)",
+        min_value=0,
+        max_value=20,
+        value=int(_ps.max_slides_per_group or 0),
+        key="dl_group_cap",
+    )
+    if st.button("분량 설정 저장", key="dl_save_detail", icon=":material/save:"):
+        try:
+            services.projects.update_settings(
+                project,
+                _ps.model_copy(
+                    update={
+                        "proposal_detail_level": _lvl,
+                        "max_slides_per_group": int(_cap) or None,
+                    }
+                ),
+                actor=actor_name(),
+            )
+        except PWAError as exc:
+            show_error(exc, context="분량 설정")
+        else:
+            st.success("저장했습니다. 다음 산출물 생성부터 적용됩니다.", icon=":material/check:")
+
 qa_render = st.checkbox(
     f"실제 렌더링·재열기 검증 (PowerPoint COM — {_com_why})",
     value=_com_ok,
@@ -299,6 +337,47 @@ if latest:
                     str(services.ctx.paths.resolve_output(d.file_path)),
                     caption=d.file_path,
                     alt=d.kind.value,
+                )
+    with st.expander("렌더링 미리보기 (단계 4: PowerPoint 렌더링 PNG)", expanded=False):
+        from proposal_agent.validation.render import render_pptx
+
+        _render_root = (
+            services.ctx.paths.resolve_output(project.output_dir)
+            / "11_QA_Validation_Reports"
+            / "render"
+        )
+        _decks = (
+            sorted(p.name for p in _render_root.iterdir() if p.is_dir())
+            if _render_root.exists()
+            else []
+        )
+        _ok, _why = com_available()
+        if st.button(
+            "지금 렌더링 (최신 제출용·발표용)",
+            key="dl_render_now",
+            icon=":material/preview:",
+            disabled=not _ok,
+            help=_why,
+        ):
+            for d in latest.values():
+                if d.kind.value in ("submission_pptx", "presentation_pptx"):
+                    src = services.ctx.paths.resolve_output(d.file_path)
+                    res = render_pptx(src, _render_root / src.stem)
+                    st.write(f"{src.name}: {res.summary}")
+            st.rerun()
+        if not _decks:
+            st.caption(
+                "렌더링 결과가 없습니다. QA 에서 '실제 렌더링' 을 켜거나 위 버튼으로 렌더링하십시오."
+            )
+        else:
+            _deck = st.selectbox("덱", _decks, key="dl_preview_deck")
+            _pngs = sorted((_render_root / _deck).glob("slide_*.png"))
+            if _pngs:
+                _n = st.slider("슬라이드", 1, len(_pngs), 1, key="dl_preview_slide")
+                st.image(
+                    str(_pngs[_n - 1]),
+                    caption=f"{_deck} — {_n}/{len(_pngs)}",
+                    alt=f"{_deck} 슬라이드 {_n}",
                 )
     with st.expander(
         "슬라이드 명세 (Phase 19: 결론형 제목·목적·독자·근거·레이아웃)", expanded=False

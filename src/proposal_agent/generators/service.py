@@ -49,6 +49,7 @@ from proposal_agent.models import (
     DocumentKind,
     IntegrityStatus,
     Project,
+    ProjectSettings,
     QaStatus,
     RequirementStatus,
 )
@@ -157,6 +158,8 @@ class GenerationService:
             analysis=analysis,
             proposal_content=self._steps.prior_output(project, "proposal_writer"),
             designs=self._designs(project),
+            settings=ProjectSettings.from_project_settings(project.settings),
+            design_links=self._design_links(project),
             strategies=[
                 s
                 for s in self._repos.strategies.find(project.id, order_by="code")
@@ -170,6 +173,29 @@ class GenerationService:
         ctx.pictures = self._pictures(project)
         ctx.review_notes.extend(self.review_items(ctx))
         return ctx
+
+    def _design_links(self, project: Project) -> dict[str, dict[str, list[str]]]:
+        """요구사항 → 전략·API·DB·설계 항목·코드 모듈·테스트 케이스 코드 (단계 4 추적표 열). 없는 것은 비어 있다."""
+        links: dict[str, dict[str, list[str]]] = {}
+
+        def add(kind: str, code: str, req_ids: list[str]) -> None:
+            for rid in req_ids:
+                links.setdefault(rid, {}).setdefault(kind, []).append(code)
+
+        for s in self._repos.strategies.find(project.id, order_by="code"):
+            if s.status != "dropped":
+                add("strategy", s.code, s.related_requirement_ids)
+        for a in self._repos.api_specs.find(project.id, order_by="code"):
+            add("api", a.code, a.related_requirement_ids)
+        for t in self._repos.db_tables.find(project.id, order_by="code"):
+            add("db_table", t.code, t.related_requirement_ids)
+        for d in self._repos.design_items.find(project.id, order_by="code"):
+            add("design_item", d.code, d.related_requirement_ids)
+        for m in self._repos.code_modules.find(project.id, order_by="code"):
+            add("code_module", m.code, m.related_requirement_ids)
+        for tc in self._repos.test_cases.find(project.id, order_by="code"):
+            add("test_case", tc.code, tc.related_requirement_ids)
+        return links
 
     def _designs(self, project: Project) -> list[dict[str, Any]]:
         """design_writer 출력의 설계 목록 (검증 통과분). Phase 23."""

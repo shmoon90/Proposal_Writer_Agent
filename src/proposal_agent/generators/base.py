@@ -85,6 +85,10 @@ class GenerationContext:
     version: str = "v1.0"
     generated_on: date = field(default_factory=date.today)
     change_log: list[list[Any]] = field(default_factory=list)  # 구축 단계 변경관리대장 행 (CR 단위)
+    settings: Any | None = None  # ProjectSettings (단계 4: 분량 모드·단가·예산)
+    design_links: dict[str, dict[str, list[str]]] = field(
+        default_factory=dict
+    )  # 요구사항 ID → {strategy|api|db_table|design_item|code_module|test_case: [코드…]} (단계 4 추적표)
     strategies: list[Any] = field(
         default_factory=list
     )  # 제안 전략 STR 엔티티 (단계 3, ProposalStrategy) — 덱 '제안 전략' 소절

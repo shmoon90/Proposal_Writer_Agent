@@ -91,7 +91,7 @@ def test_new_visual_kinds_are_editable_shapes() -> None:
             "items": [{"title": "브라우저", "group": "사용자"}, {"title": "WAS", "group": "응용"}],
         },
     ]
-    assert len(shapes.AGENT_VISUAL_KINDS) == 14  # Phase 20: chart 추가
+    assert len(shapes.AGENT_VISUAL_KINDS) == 16  # Phase 20: chart, 단계 4: deployment·decision 추가
     for spec in cases:
         slide = _blank()
         drawn = shapes.draw_visual(slide, BOX, spec, style=STYLE)

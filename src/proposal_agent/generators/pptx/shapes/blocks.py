@@ -23,6 +23,8 @@ from proposal_agent.generators.pptx.shapes.diagrams import (
     draw_compare,
     draw_data_model,
     draw_dataflow,
+    draw_decision_table,
+    draw_deployment,
     draw_flow,
     draw_kpis,
     draw_layers,
@@ -305,7 +307,7 @@ def estimate_block_height(block: dict[str, Any], width: float, style: ShapeStyle
             return 4.5
         if vk == "kpis":
             return 3.2
-        if vk in ("two_column", "compare", "raci", "chart"):
+        if vk in ("two_column", "compare", "raci", "chart", "decision"):
             return 6.0
         if vk in ("cards",):
             return 3.4 * (-(-max(1, n) // 4))
@@ -470,6 +472,16 @@ def draw_visual(slide: Any, box: Box, spec: dict[str, Any], *, style: ShapeStyle
         draw_security_layers(slide, box, items, style=style)
     elif kind == "layers":
         draw_layers(slide, box, items, style=style)
+    elif kind == "deployment":
+        draw_deployment(slide, box, items, edges, style=style)
+    elif kind == "decision":
+        draw_decision_table(
+            slide,
+            box,
+            [str(h) for h in spec.get("headers", []) or []],
+            [[str(c) for c in r] for r in spec.get("rows", []) or []],
+            style=style,
+        )
     elif kind == "chart":
         from proposal_agent.generators.pptx.charts import chart_from_spec
 

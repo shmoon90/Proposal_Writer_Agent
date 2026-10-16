@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -43,6 +42,7 @@ from proposal_agent.models import (
     utcnow,
 )
 from proposal_agent.models.feasibility import CRITICAL_ITEMS, ITEM_KEYS
+from proposal_agent.planning.cost import estimate_cost, parse_krw
 from proposal_agent.planning.effort import md_to_mm
 from proposal_agent.requirements.quality import QualityFinding, check_requirement_quality
 from proposal_agent.requirements.service import LOW_CONFIDENCE
@@ -59,36 +59,11 @@ log = get_logger("feasibility")
 STEP_BID_ASSESSMENT = "bid_assessment"
 ROLE_BID_REVIEWER = "bid_reviewer"
 REPORT_SUBDIR = "02_RFP_Analysis"
-_KRW_RE = re.compile(r"(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(억|천만|백만|만)?\s*원?")
 _CONTRACT_WORDS = ("지체상금", "하자보수", "무상", "책임", "손해배상", "위약", "계약", "보증")
 _SECURITY_WORDS = ("개인정보", "보안", "암호", "접근 통제", "인증", "ISMS", "법", "규정")
 
 
 # --- 도우미 --------------------------------------------------------------------------------------
-def parse_krw(text: str) -> Decimal | None:
-    """'약 4.5억', '450,000,000원', '3천만원' 같은 금액 문구를 원 단위 Decimal 로. 못 찾으면 None."""
-    best: Decimal | None = None
-    for num, unit in _KRW_RE.findall(text or ""):
-        try:
-            v = Decimal(num.replace(",", ""))
-        except Exception:
-            continue
-        mult = {
-            "억": Decimal(10**8),
-            "천만": Decimal(10**7),
-            "백만": Decimal(10**6),
-            "만": Decimal(10**4),
-        }.get(unit)
-        if mult is None:
-            if "," not in num and v < 10_000:  # 단위 없는 작은 수는 금액이 아님
-                continue
-            mult = Decimal(1)
-        v = (v * mult).quantize(Decimal("1"))
-        if best is None or v > best:
-            best = v
-    return best
-
-
 def _rating_rank(r: FeasibilityRating) -> int:
     return {"good": 0, "unknown": 1, "caution": 2, "risk": 3}[r.value]
 
@@ -289,56 +264,16 @@ def assess_from_data(inp: AssessmentInputs) -> FeasibilityAssessment:  # noqa: C
         it.assumptions.append("공수는 WBS 단계에서 산정, 지금은 미확인")
     items.append(it)
 
-    # 7. 수익성
+    # 7. 수익성 (단계 4: planning/cost.estimate_cost 공유)
     it = _item("profitability")
-    revenue = s.budget_amount
-    rev_src = "설정 예산"
-    if revenue is None:
-        for h in a.get("budget_hints") or []:
-            parsed = parse_krw(str(h))
-            if parsed:
-                revenue, rev_src = parsed, f"RFP 예산 문구 '{str(h)[:40]}'"
-                break
-    cost: Decimal | None = None
-    cost_lines: list[str] = []
-    if inp.allocations and (s.cost_rates or any(r.unit_cost_per_mm for r in inp.roles)):
-        by_role: dict[str, Decimal] = {}
-        role_name = {r.id: r.role_name for r in inp.roles}
-        for al in inp.allocations:
-            by_role[role_name.get(al.staff_role_id, al.staff_role_id)] = by_role.get(
-                role_name.get(al.staff_role_id, al.staff_role_id), Decimal("0")
-            ) + Decimal(str(al.effort_md))
-        rate_of = {r.role_name: r.unit_cost_per_mm for r in inp.roles if r.unit_cost_per_mm}
-        rate_of.update(s.cost_rates)
-        missing_rate = [n for n in by_role if n not in rate_of]
-        if not missing_rate:
-            cost = Decimal("0")
-            for n, md in by_role.items():
-                mm = md_to_mm(md)
-                cost += mm * rate_of[n]
-                cost_lines.append(f"{n}: {mm} M/M × {rate_of[n]:,} 원")
-            if s.overhead_ratio is not None:
-                cost = cost * (Decimal(1) + s.overhead_ratio)
-                cost_lines.append(f"간접비율 {s.overhead_ratio} 적용")
-        else:
-            it.assumptions.append("단가 없는 역할: " + ", ".join(missing_rate[:5]))
-    cost_estimate: dict[str, Any] = {"status": "unavailable", "assumptions": []}
-    if revenue is not None and cost is not None:
-        margin = (revenue - cost) / revenue if revenue else Decimal(0)
-        cost_estimate = {
-            "status": "estimated",
-            "revenue": str(revenue),
-            "revenue_source": rev_src,
-            "cost": str(cost.quantize(Decimal("1"))),
-            "margin_ratio": str(margin.quantize(Decimal("0.001"))),
-            "lines": cost_lines,
-            "assumptions": [
-                "부가세·간접비 처리는 단가·예산 입력 기준",
-                "원가는 계획 공수 × 단가이며 실제 투입과 다를 수 있음",
-            ],
-        }
+    est = estimate_cost(
+        s, inp.roles, inp.allocations, budget_hints=list(a.get("budget_hints") or [])
+    )
+    cost_estimate: dict[str, Any] = est.to_dict()
+    if est.status == "estimated":
+        margin = est.margin_ratio or Decimal(0)
         it.code_basis.append(
-            f"매출(예산) {revenue:,} 원 ({rev_src}), 원가 {cost.quantize(Decimal('1')):,} 원, 마진 {margin:.1%}"
+            f"매출(예산) {est.revenue:,} 원 ({est.revenue_source}), 원가 {est.total_cost:,} 원, 마진 {margin:.1%}"
         )
         if margin >= Decimal("0.15"):
             it.rating = FeasibilityRating.GOOD
@@ -347,15 +282,14 @@ def assess_from_data(inp: AssessmentInputs) -> FeasibilityAssessment:  # noqa: C
         else:
             it.rating = FeasibilityRating.RISK
     else:
-        if revenue is not None:
-            it.code_basis.append(f"매출(예산) {revenue:,} 원 ({rev_src})")
+        if est.revenue is not None:
+            it.code_basis.append(f"매출(예산) {est.revenue:,} 원 ({est.revenue_source})")
         else:
             it.code_basis.append("예산 정보 없음(설정·RFP 모두)")
-        if cost is None:
+        if est.total_cost is None:
             it.code_basis.append("원가 산정 불가: 역할별 단가 또는 배정 공수 없음")
-        cost_estimate["assumptions"] = ["단가(설정 '역할별 단가')·예산·배정 공수가 있어야 산정"]
         it.needs_input = True
-    it.assumptions.extend(cost_estimate.get("assumptions", []))
+    it.assumptions.extend(est.assumptions)
     items.append(it)
 
     # 8. 외부 솔루션

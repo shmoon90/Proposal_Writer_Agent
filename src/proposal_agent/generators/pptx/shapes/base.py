@@ -44,6 +44,8 @@ VISUAL_KINDS = (
     "security_layers",
     "layers",
     "chart",  # Phase 20: 네이티브 차트 (charts.py)
+    "deployment",  # 단계 4: 배포·네트워크 구조 (영역 열 + 노드 + 연결)
+    "decision",  # 단계 4: 의사결정 표 (기준 × 대안, 가중 합계)
 )
 
 # 에이전트(proposal_writer)가 VisualSpec.kind 로 고를 수 있는 종류 14종(Phase 20: chart 추가). architecture/timeline/bars 는 코드가 데이터로 그린다.
@@ -62,6 +64,15 @@ AGENT_VISUAL_KINDS = (
     "security_layers",
     "layers",
     "chart",
+    "deployment",
+    "decision",
+)
+
+DEPLOYMENT_ZONES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("외부·사용자", ("client", "external")),
+    ("DMZ", ("web",)),
+    ("내부망", ("app", "integration", "batch", "security")),
+    ("데이터·인프라", ("data", "infra")),
 )
 
 # 화면 목업(screen) 항목 종류 (VisualItem.kind, Phase 20). 모두 개별 도형이며 목업 전체는 그룹(해제 가능).

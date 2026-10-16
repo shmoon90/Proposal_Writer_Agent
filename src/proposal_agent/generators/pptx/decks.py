@@ -586,7 +586,15 @@ def _paginate_blocks(
     return [pg for pg in pages if pg]
 
 
-def _group_blocks(g: RequirementGroup, *, compact: bool) -> list[dict[str, Any]]:
+def _detail_level(ctx: GenerationContext) -> str:
+    st = getattr(ctx, "settings", None)
+    level = str(getattr(st, "proposal_detail_level", "") or "detailed")
+    return "summary" if level == "summary" else "detailed"
+
+
+def _group_blocks(
+    g: RequirementGroup, *, compact: bool, brief: bool = False
+) -> list[dict[str, Any]]:
     """묶음 소절 내용 블록(순서대로): 요점 → [구현 구조 → 처리 절차 → 적용 기술 → 데이터·인터페이스] 또는 [기능 구성]
     → 정의서 구현방안 표(제출용만)."""
     ids_line = "대응 요구사항: " + ", ".join(
@@ -608,7 +616,9 @@ def _group_blocks(g: RequirementGroup, *, compact: bool) -> list[dict[str, Any]]
             )
         if d.get("flows"):
             blocks.append({"kind": "visual", "title": "처리 절차", "spec": design_flow_spec(d)})
-            if not compact:  # 상자에는 단계 제목만, 처리 내용·분기는 표로 (글자 잘림 방지)
+            if (
+                not compact and not brief
+            ):  # 상자에는 단계 제목만, 처리 내용·분기는 표로 (글자 잘림 방지)
                 blocks.append(
                     {
                         "kind": "table",
@@ -625,11 +635,11 @@ def _group_blocks(g: RequirementGroup, *, compact: bool) -> list[dict[str, Any]]
                     "kind": "table",
                     "title": "적용 기술·선정 이유",
                     "headers": TECH_HEADERS,
-                    "rows": rows[:4] if compact else rows,
+                    "rows": rows[:4] if (compact or brief) else rows,
                     "col_widths": TECH_WIDTHS,
                 }
             )
-        if not compact:
+        if not compact and not brief:  # 요약 모드(단계 4)는 대안 비교·데이터·비기능 표를 생략
             blocks.extend(design_comparison_blocks(d))  # 단계 3: 대안 비교
             lines = design_data_lines(d)
             risks = design_risk_lines(d)
@@ -676,9 +686,19 @@ def _render_group(
     from proposal_agent.generators.pptx.shapes import LAST_BLOCK_META
 
     notes_text = "\n".join(f"{r.id}: {r.implementation_approach}" for r in g.requirements)[:2000]
-    blocks = _group_blocks(g, compact=compact)
+    summary_mode = _detail_level(ctx) == "summary"
+    blocks = _group_blocks(g, compact=compact, brief=summary_mode)
     pages = _paginate_blocks(b, blocks, has_lead=bool(g.key_message))
     foot = premises(g) + list(g.notes)
+    cap = getattr(getattr(ctx, "settings", None), "max_slides_per_group", None)
+    if (
+        not compact and cap and len(pages) > int(cap)
+    ):  # 단계 4: 묶음당 장 수 상한 — 초과분은 생략하고 표기
+        dropped = len(pages) - int(cap)
+        pages = pages[: int(cap)]
+        foot = [
+            f"분량 상한({cap}장)으로 {dropped}장 생략 — 상세는 요구사항 정의서·구현 설계 JSON"
+        ] + foot
     i = 0
     while i < len(pages):
         page = pages[i]
@@ -1044,6 +1064,33 @@ def _render_section_body(
             [{"title": _card_title(x), "text": x} for x in bullets[:4]],
             style=b.style,
         )
+    elif key == "deployment_diagram":
+        # 단계 4: 구성 요소의 계층(또는 extra.zone) 을 외부·DMZ·내부망·데이터 영역으로 배치한 배포 구조
+        from proposal_agent.generators.pptx.shapes import deployment_items_from_components
+
+        items, edges = deployment_items_from_components(ctx.components)
+        if items:
+            b.composite_slide(
+                sec.title,
+                [
+                    {
+                        "kind": "bullets",
+                        "title": "",
+                        "lines": [
+                            f"영역 {len({i['group'] for i in items})}개 · 구성 요소 {len(items)}개 · 연결 {len(edges)}건 (편집 가능 도형)",
+                            "DMZ 에는 웹 서버만 두고 개인정보·세션은 내부망에 보관한다 (설계 기준)",
+                        ],
+                    },
+                    {
+                        "kind": "visual",
+                        "title": "배포·네트워크 구조",
+                        "spec": {"kind": "deployment", "items": items, "edges": edges},
+                    },
+                ],
+                footer,
+                lead=lead or "외부 → DMZ → 내부망 → 데이터 영역으로 분리 배치",
+                notes=notes,
+            )
     elif key in ("system_diagram", "sw_diagram", "service_diagram"):
         kind = key.split("_")[0]
         comps = [c for c in ctx.components if not c.diagram_kinds or kind in c.diagram_kinds]
@@ -1296,6 +1343,7 @@ PRESENTATION_KEYS = {
     "requirements",
     "strategy",
     "system_diagram",
+    "deployment_diagram",
     "architecture",
     "req_groups",
     "security",

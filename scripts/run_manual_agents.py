@@ -16,6 +16,7 @@ import json
 import re
 import sys
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -1593,12 +1594,16 @@ def main() -> int:
             stream.reconfigure(encoding="utf-8", errors="replace")
     if len(sys.argv) < 2:
         print(
-            "사용: run_manual_agents.py <RFP 경로> [--template <제안서 템플릿 .pptx>]... [--name <프로젝트명>] [--fixture <대행 응답 .py>]"
+            "사용: run_manual_agents.py <RFP 경로> [--template <제안서 템플릿 .pptx>]... [--name <프로젝트명>] [--fixture <대행 응답 .py>] [--rate 역할=원/MM]... [--budget 원] [--detail detailed|summary] [--group-cap N]"
         )
         return 2
     rfp = Path(sys.argv[1])
     templates: list[Path] = []
     name: str | None = None
+    cost_rates: dict[str, Decimal] = {}
+    budget_amount: Decimal | None = None
+    detail_level = "detailed"
+    group_cap: int | None = None
     args = sys.argv[2:]
     while args:
         if args[0] == "--template" and len(args) >= 2:
@@ -1610,6 +1615,23 @@ def main() -> int:
         elif args[0] == "--fixture" and len(args) >= 2:
             loaded = load_fixture(Path(args[1]))
             print(f"fixture 적용: {args[1]} ({', '.join(loaded)})")
+            args = args[2:]
+        elif (
+            args[0] == "--rate" and len(args) >= 2
+        ):  # 단계 4: 역할별 단가(원/MM) "역할=금액" (A-3: 사용자 입력)
+            role, _, amount = args[1].partition("=")
+            cost_rates[role.strip()] = Decimal(amount.replace(",", ""))
+            args = args[2:]
+        elif (
+            args[0] == "--budget" and len(args) >= 2
+        ):  # 단계 4: 예산(원) — 없으면 RFP 예산 문구를 쓴다
+            budget_amount = Decimal(args[1].replace(",", ""))
+            args = args[2:]
+        elif args[0] == "--detail" and len(args) >= 2:  # 단계 4: 분량 모드 detailed|summary
+            detail_level = args[1]
+            args = args[2:]
+        elif args[0] == "--group-cap" and len(args) >= 2:  # 단계 4: 묶음 소절당 장 수 상한
+            group_cap = int(args[1])
             args = args[2:]
         else:
             print(f"알 수 없는 인자: {args[0]}")
@@ -1649,6 +1671,19 @@ def main() -> int:
         created_by=ACTOR,
     )
     log: list[str] = []
+    if cost_rates or budget_amount is not None or detail_level != "detailed" or group_cap:
+        ps = s.projects.settings_of(p).model_copy(
+            update={
+                "cost_rates": cost_rates,
+                "budget_amount": budget_amount,
+                "proposal_detail_level": detail_level,
+                "max_slides_per_group": group_cap,
+            }
+        )
+        s.projects.update_settings(p, ps, actor=ACTOR)
+        log.append(
+            f"프로젝트 설정: 단가 {len(cost_rates)}개 역할, 예산 {budget_amount or '(RFP 문구)'}, 분량 {detail_level}, 장 수 상한 {group_cap or '없음'}"
+        )
     s.documents.register_upload(
         p, kind=DocumentKind.RFP, file_name=rfp.name, data=rfp.read_bytes(), actor=ACTOR
     )

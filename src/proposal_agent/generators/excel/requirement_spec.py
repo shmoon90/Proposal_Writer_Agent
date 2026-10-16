@@ -116,6 +116,7 @@ COLUMNS: tuple[Column, ...] = (
     Column("구현 난이도", 8, "center", "impl", DIFFICULTY_OPTIONS),
     Column("난이도 근거", 24, "left", "impl"),
     Column("구현 근거(조사·출처)", 24, "left", "impl"),
+    Column("기술검토(14항목)", 30, "left", "impl"),
     Column("검증 방법", 9, "center", "impl", VERIFICATION_OPTIONS),
     Column("검사 기준", 36, "left", "impl"),
     Column("수용여부", 11, "center", "accept", ACCEPTANCE_OPTIONS),
@@ -223,6 +224,29 @@ def _last_change(r: Requirement) -> tuple[str, str]:
     return "", ""
 
 
+def _analysis_summary(r: Requirement) -> str:
+    """요구사항별 기술 검토 14항목 요약 (단계 3·4): 채운 항목 수와 핵심 3항목 첫 줄."""
+    a = r.analysis or {}
+    filled = [(k, v) for k, v in a.items() if v]
+    if not filled:
+        return ""
+    labels = {
+        "purpose": "목적",
+        "business_rules": "규칙",
+        "data_transactions": "데이터",
+        "api_integration": "연계",
+        "performance_scalability": "성능",
+        "failure_recovery": "장애",
+        "test_acceptance": "테스트",
+    }
+    parts = [f"{len(filled)}/14 항목"]
+    for k, v in filled:
+        if k in labels and len(parts) < 4:
+            first = v[0] if isinstance(v, list) and v else str(v)
+            parts.append(f"{labels[k]}: {str(first)[:40]}")
+    return " | ".join(parts)
+
+
 def _approach_basis(r: Requirement) -> str:
     src = {
         "agent": "에이전트",
@@ -258,6 +282,7 @@ def _row(no: int, r: Requirement) -> list[Any]:
         r.difficulty.label if r.difficulty else "",
         r.difficulty_basis,
         _approach_basis(r),
+        _analysis_summary(r),
         r.verification_method or "",
         r.acceptance_criteria,
         acceptance_label(r),

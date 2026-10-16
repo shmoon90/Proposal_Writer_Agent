@@ -349,6 +349,10 @@ stateDiagram-v2
 
 - `Requirement.analysis`(JSON): 요구사항별 기술 검토 14항목(`agents.schemas.RequirementAnalysis` 덤프). `ProposalStrategy` 는 전략 브리프 작성 시 채워진다(`StrategyService.persist_strategies`). 구현 설계 JSON 에 `comparisons`·비기능 설계 5항목·`tech_choices[].checked_on` 추가.
 
+## 6.6 단계 4 추가 (스키마 변경 없음)
+
+- `ProjectSettings.proposal_detail_level`(detailed|summary)·`max_slides_per_group`(Project.settings JSON). `GenerationContext.settings`(ProjectSettings)·`design_links`(요구사항 ID → 전략/API/DB/설계/코드/테스트케이스 코드, 저장소에서 수집). 비용 산정은 `planning/cost.py` `CostEstimate`(estimated|unavailable) 로 인력투입계획 '비용산정' 시트와 사업성 평가 JSON 의 `cost_estimate` 에 같은 값이 들어간다.
+
 ## 7. 데이터 흐름 요약
 
 | 단계 | 입력 | 처리 주체 | 출력(저장) |
