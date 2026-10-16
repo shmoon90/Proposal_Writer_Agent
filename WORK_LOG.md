@@ -3,6 +3,7 @@
 작업 순서 기록. 상태 요약은 `workspace/DEVELOPMENT_STATUS.md`, 단계별 상세는 `docs/PHASE*_REPORT.md`.
 
 ## 2026-10-16
+- 지시문 단계 1 완료: 프로젝트 설정·신규 엔티티 9종(마이그레이션 8)·작업 진행률/중단/백그라운드·실행 계획 미리보기/디스패처/실패 재실행·로그 마스킹·QA/shapes 패키지 분할. - pytest 295 passed, 1 skipped(전체, llm 제외; 단계 0 대비 +6: 신규 tests/unit/test_stage1_foundation.py 6건 — 설정 왕복·사유 규칙, 엔티티 저장·프로젝트 내 코드 유일·다른 프로젝트 허용, 결정/협상 구속 규칙, 진행률·중단·백그라운드·끊긴 작업 정리, 실행 계획·디스패처·실패만 재실행, 로그 마스킹). ruff·mypy(132 파일) 통과. 민감 용어 검사 통과. - 실샘플 회귀(모의 에이전트, 렌더링 켬): 계산기 QA 52항목 중 49 실행·43 통과·0 실
 - 통합 개발 지시문 접수 → 단계 0 진단: 코드 수정 없이 구조·기능 상태(20 영역+횡단)·품질 기준선·위험(R-31~41)·단계 1~8 계획·결정(D-11~19) 문서를 `workspace/` 에 작성. 승인 대기 A-1~A-7. 브랜치 `feature/major-revision` 분리·push
 - Phase 23: 사용자 검토 의견('장표 밀도가 아니라 내용 — 어떻게 구현할지·어떤 기술·어떤 구조를 웹 검색 근거나 자체 설계로 구체적으로')을 반영. 구현 설계 에이전트 `design_writer`(묶음별 구조·절차·적용 기술·근거) 신설, 파이프라인 `impl_design` 단계, 묶음 소절에 구조/절차 도식·적용 기술 표, QA-CON-13(52항목). 실제 RFP 는 세션의 Claude 가 웹 검색(전자정부 프레임워크 4.3·JEUS 7·sticky·알림톡·POI SXSSF·Chart.js·KWCAG 2.2·Rocky Linux·ojdbc·TOTP·ShedLock)으로 확인한 사실에 근거해 설계 7묶음을 대행 작성(저장소 밖 fixture)
 - Phase 22: 사용자 검토 의견(구현 방안 부실·정의서 미반영·시각화 단조·빈칸)과 같은 RFP 제안서 샘플(Ⅲ장) 분석을 반영 — 요구사항 묶음별 구현 방안 소절(`req_groups.py`, requirement_groups 스키마·규칙 18), 복합 장표(밴드·블록 높이 배분·장 분할), 기능 블록 도식, 여러 줄 셀 표, 카드·2열·띠 높이 상한, QA-CON-12(51항목). 실제 RFP 재실행 QA 0 실패·gate4 PASS·QA-CON-12 통과. pytest 284 passed. → `docs/PHASE22_REPORT.md`

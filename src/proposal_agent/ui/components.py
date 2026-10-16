@@ -8,7 +8,8 @@ import streamlit as st
 from proposal_agent.models import GateStatus, Project, StepStatus
 from proposal_agent.orchestrator.gates import GateState
 from proposal_agent.services.document_service import InputStatus
-from proposal_agent.services.pipeline_service import Issue, StepView
+from proposal_agent.services.jobs import Job
+from proposal_agent.services.pipeline_service import Issue, PlanRow, StepView
 from proposal_agent.services.project_service import ProjectLocations
 
 _STATUS_ICON = {
@@ -46,6 +47,39 @@ def step_table(views: list[StepView], progress: tuple[int, int]) -> None:
             }
         )
     st.dataframe(pd.DataFrame(rows), hide_index=True, alt="단계별 진행 상태 표")
+
+
+def plan_table(rows: list[PlanRow]) -> None:
+    """실행 계획 미리보기 (지시문 §16-3): 단계·상태·실행 가능 여부·차단 사유·진행률."""
+    data = []
+    for r in rows:
+        data.append(
+            {
+                "순서": r.order,
+                "단계": r.title,
+                "상태": f"{_STATUS_ICON[r.status]} {r.status.label}",
+                "실행": "가능" if r.runnable else ("선택 안 함" if not r.selected else "차단"),
+                "차단 사유": "; ".join(r.blockers),
+                "에이전트": r.agent_role or "코드",
+                "게이트": r.gate or "",
+                "시도": r.attempts,
+                "진행률": f"{r.progress:.0%}" if 0 < r.progress < 1 else "",
+                "현재 일": r.progress_note,
+            }
+        )
+    st.dataframe(pd.DataFrame(data), hide_index=True, alt="실행 계획 미리보기 표")
+
+
+def jobs_panel(jobs: list[Job]) -> None:
+    """실행 중인 백그라운드 작업."""
+    if not jobs:
+        st.caption("실행 중인 백그라운드 작업 없음")
+        return
+    for j in jobs:
+        st.markdown(
+            f"- **{j.step_key}** (`{j.run_id}`) 시작 {j.started_at:%H:%M:%S} — "
+            + ("중단 요청됨" if j.cancel.is_cancelled else "실행 중")
+        )
 
 
 def issues_panel(issues: list[Issue]) -> None:

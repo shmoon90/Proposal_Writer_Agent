@@ -16,7 +16,7 @@
 | 단계 | 목표 | 핵심 작업 | 주요 변경 파일(예상) | 완료 기준 | 승인 |
 |---|---|---|---|---|---|
 | 0 | 진단 (완료) | 구조·기능·품질·위험 분석, 계획 | `workspace/*.md`, `DECISIONS.md` | 이 문서 세트 작성 | — |
-| 1 | 공통 기반·실행 구조 | ① 프로젝트 설정 확장(기간·예산·공수 제약·기술 스택·기술 선택 모드 5종·배포·보안·연계·산출물 종류) ② 공통 객체 ID 확장(전략 STR·화면 SCR·DB 테이블 TBL/컬럼 COL·API API·설계 항목 DSG·코드 모듈 MOD·테스트 케이스 TC·결함 DEF·변경 CR·결정 DEC·승인 APR·협상 NEG) + 마이그레이션 ③ 긴 작업 실행 레코드(StepRun 확장: 진행률·취소·재개 지점) + 선택적 백그라운드 실행 ④ 대형 모듈 분할(QA·shapes·decks·changes) ⑤ 업로드 상한·경로 검증·로그 마스킹 확인·보강 ⑥ 공통 UI(실행 계획 미리보기·범위 선택·실패만 재실행) | `models/*`, `storage/migrations.py`, `storage/repositories.py`, `config/settings.py`, `services/pipeline_service.py`, `ui/app_pages/project.py`, `validation/`·`generators/pptx/`·`changes/` 분할 | 기존 289 테스트 유지 + 신규 모델·마이그레이션·설정 테스트, 실샘플 2건 QA 결과 기준선 유지 | A-1, A-4 |
+| 1 | 공통 기반·실행 구조 (완료 2026-10-16, `docs/DIRECTIVE_STAGE1_REPORT.md`) | ① 프로젝트 설정 확장(기간·예산·공수 제약·기술 스택·기술 선택 모드 5종·배포·보안·연계·산출물 종류) ② 공통 객체 ID 확장(전략 STR·화면 SCR·DB 테이블 TBL/컬럼 COL·API API·설계 항목 DSG·코드 모듈 MOD·테스트 케이스 TC·결함 DEF·변경 CR·결정 DEC·승인 APR·협상 NEG) + 마이그레이션 ③ 긴 작업 실행 레코드(StepRun 확장: 진행률·취소·재개 지점) + 선택적 백그라운드 실행 ④ 대형 모듈 분할(QA·shapes·decks·changes) ⑤ 업로드 상한·경로 검증·로그 마스킹 확인·보강 ⑥ 공통 UI(실행 계획 미리보기·범위 선택·실패만 재실행) | `models/*`, `storage/migrations.py`, `storage/repositories.py`, `config/settings.py`, `services/pipeline_service.py`, `ui/app_pages/project.py`, `validation/`·`generators/pptx/`·`changes/` 분할 | 기존 289 테스트 유지 + 신규 모델·마이그레이션·설정 테스트, 실샘플 2건 QA 결과 기준선 유지 | A-1, A-4 |
 | 2 | RFP 분석·사업성 평가 | ① 입력 형식 확장(PPTX 텍스트, 이미지 OCR 단독, 회의록·기타 문서 분류) ② 요구사항 품질 검사 확장(충돌·검증 불가 표현·업무 규칙 누락·비기능 누락·근거 없는 추가) ③ 사업성 평가(§6: 항목 13·판정 4단계·가정 표시·사용자 입력 단가) 서비스·에이전트(검토용)·화면·평가서 산출물 ④ 참여 의사결정 기록(결정 객체) | `ingest/`(pptx_reader·image), `requirements/quality.py`(신규), `feasibility/`(신규 패키지), `agents/roles.py`+프롬프트, `ui/app_pages/feasibility.py`, `generators/`(평가서) | 실샘플 2건으로 평가서 생성·검토, 요구사항 품질 검사 테스트, 입력 형식 테스트 | A-3, A-7 |
 | 3 | 제안 전략·상세 기술 검토 | ① 전략 항목 보강(발주처 문제·기대 효과·증명 근거·전제·관련 요구 ID) + 전략 ID ② 요구사항별 분석 항목 14종 스키마화(입출력·업무 규칙·트랜잭션·인증/감사·성능/확장·장애/복구·운영·난이도/의존·테스트/수용) 를 `approach_writer`/`design_writer` 에 통합 ③ 대안 비교(A/B/C·조건·PoC 필요) 구조화 ④ 조사 출처에 확인 날짜·버전 ⑤ 구현 후 재검증 QA(설계 ↔ 산출물 ↔ 코드 일치 항목) | `agents/schemas.py`, `agents/prompts/*.md`, `requirements/design.py`, `validation/` | 실샘플 설계 7묶음이 새 스키마로 재생성, QA 통과, 프롬프트·스키마 테스트 | A-6(실모델 1회) |
 | 4 | 제안서·제출 산출물 | ① 분량 조절(요약/상세 모드, 묶음당 장 수 상한) ② 시각 요소 확장(배포·네트워크 구조, KPI 차트, 의사결정 표) ③ 비용 산정(단가 입력 → 원가·매출 시트) ④ 추적성 Excel 에 전략·설계·테스트·검수 열 ⑤ 제안서 미리보기(렌더링 PNG) 화면 | `generators/pptx/*`, `generators/excel/*`, `planning/cost.py`(신규), `ui/app_pages/deliverables.py` | 실샘플 렌더링·QA 기준선 유지, 비용 시트 테스트, 추적표 열 테스트 | — |
@@ -42,7 +42,11 @@
 
 1 → 2 → 3 → 4 는 순서대로(공통 모델·설정이 선행). 5 와 6 은 1 완료 후 병렬 가능하나 같은 파일(`models/`, `changes/`) 을 건드리므로 한 세션에서 순차 진행(단일 쓰기 세션 결정 유지). 7 은 6 에 의존. 8 은 마지막.
 
-## 4. 지금 바로 할 일 (단계 1 착수 조건)
+## 4. 지금 바로 할 일 (단계 2 착수 조건)
+
+- 단계 1 완료. 단계 2 는 승인 A-3(단가 입력 규칙)·A-7(HWP 1차 미지원) 이 이미 승인됐으므로 바로 착수 가능.
+
+### (이전) 단계 1 착수 조건
 
 - A-1(데이터 모델 확장·마이그레이션)·A-4(백그라운드 실행) 승인 또는 보류 결정.
 - 보류 시에도 가능한 단계 1 작업: 설정 확장(되돌릴 수 있음), 대형 모듈 분할, 업로드·로그 보안 확인, 공통 UI 미리보기. 이 작업은 승인 없이 진행한다.

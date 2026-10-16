@@ -14,7 +14,7 @@ from proposal_agent.config.errors import PWAError, ValidationError
 from proposal_agent.config.logging import get_logger
 from proposal_agent.ingest.chunker import build_chunks
 from proposal_agent.ingest.service import GATE0_KEY
-from proposal_agent.models import GateStatus, Project, StepRun
+from proposal_agent.models import GateStatus, Project, StepRun, StepStatus
 from proposal_agent.orchestrator.gates import GateBlockedError, GateState
 from proposal_agent.requirements.service import GATE1_KEY, ExtractionSummary, VerificationSummary
 from proposal_agent.services.strategy_service import GATEP_KEY
@@ -507,6 +507,112 @@ class StepRunner:
         except PWAError as exc:
             pipeline.fail_step(project, run, exc, actor=actor)
             raise
+
+    # --- 단계 키 디스패처 (단계 1, 지시문 §16: 특정 단계만·실패한 작업만·선택 범위 실행) --------------
+    DISPATCHABLE: tuple[str, ...] = (
+        "extract",
+        "rfp_analysis",
+        "req_extract",
+        "req_verify",
+        "tech_research",
+        "impl_approach",
+        "strategy_brief",
+        "architecture",
+        "impl_design",
+        "wbs_schedule",
+        "generate_docs",
+        "proposal_ppt",
+        "qa",
+    )
+
+    def run_step(
+        self,
+        project: Project,
+        step_key: str,
+        *,
+        actor: str = "user",
+        cancel: CancellationToken | None = None,
+    ) -> StepOutcome:
+        """단계 키로 해당 실행 함수를 호출한다. 업로드·인력 계획·최종 확정처럼 사람 입력이 필요한 단계는 거부한다."""
+        if step_key == "extract":
+            return self.run_extraction(project, actor=actor)
+        if step_key == "rfp_analysis":
+            return self.run_rfp_analysis(project, actor=actor, cancel=cancel)
+        if step_key == "req_extract":
+            return self.run_requirement_extraction(project, actor=actor)[0]
+        if step_key == "req_verify":
+            return self.run_verification(project, actor=actor)[0]
+        if step_key == "tech_research":
+            return self.run_tech_research(project, actor=actor, cancel=cancel)
+        if step_key == "impl_approach":
+            return self.run_approach_writing(project, actor=actor, cancel=cancel)
+        if step_key == "strategy_brief":
+            return self.run_strategy_brief(project, actor=actor, cancel=cancel)
+        if step_key == "architecture":
+            return self.run_role_step(
+                project,
+                self.STEP_ARCHITECTURE,
+                "architect",
+                "아키텍처 설계",
+                actor=actor,
+                cancel=cancel,
+            )
+        if step_key == "impl_design":
+            return self.run_design_writing(project, actor=actor, cancel=cancel)
+        if step_key == "wbs_schedule":
+            return self.run_role_step(
+                project, self.STEP_WBS, "planner", "WBS 초안", actor=actor, cancel=cancel
+            )
+        if step_key == "generate_docs":
+            return self.run_generation(project, actor=actor)
+        if step_key == "proposal_ppt":
+            return self.run_proposal_writing(project, actor=actor, cancel=cancel)
+        if step_key == "qa":
+            return self.run_qa(project, actor=actor)
+        raise ValidationError(
+            f"단계 '{step_key}' 는 화면에서 사람 입력으로 진행합니다.",
+            cause="upload/staffing/finalize 또는 알 수 없는 단계",
+            resolution="해당 화면에서 문서 업로드·기간 저장·승인을 수행하십시오.",
+        )
+
+    def run_steps(
+        self,
+        project: Project,
+        step_keys: list[str],
+        *,
+        actor: str = "user",
+        cancel: CancellationToken | None = None,
+        stop_on_failure: bool = True,
+    ) -> list[tuple[str, StepOutcome | None, str]]:
+        """선택한 단계를 정의 순서대로 실행한다. 돌려주는 값은 (단계 키, 결과, 메시지). 실패·게이트 대기에서 멈춘다."""
+        order = {d.key: d.order for d in self._s.pipeline.definitions(project.mode)}
+        keys = sorted(
+            (k for k in step_keys if k in self.DISPATCHABLE), key=lambda k: order.get(k, 999)
+        )
+        out: list[tuple[str, StepOutcome | None, str]] = []
+        for key in keys:
+            if cancel is not None and cancel.is_cancelled:
+                out.append((key, None, "중단 요청으로 실행하지 않음"))
+                continue
+            try:
+                outcome = self.run_step(project, key, actor=actor, cancel=cancel)
+            except PWAError as exc:
+                out.append((key, None, f"실패: {exc}"))
+                if stop_on_failure:
+                    break
+                continue
+            out.append((key, outcome, outcome.summary))
+            if outcome.run.status == StepStatus.NEEDS_REVIEW:
+                out.append((key, None, "사람 승인(게이트) 대기 — 이후 단계는 승인 뒤 실행"))
+                break
+        return out
+
+    def rerun_failed(
+        self, project: Project, *, actor: str = "user"
+    ) -> list[tuple[str, StepOutcome | None, str]]:
+        """실패한 단계만 다시 실행한다 (지시문 §16: 실패한 작업만 재실행)."""
+        keys = [v.definition.key for v in self._s.pipeline.failed_steps(project)]
+        return self.run_steps(project, keys, actor=actor)
 
     def run_finalize(self, project: Project, *, approver: str, comments: str) -> StepOutcome:
         """Gate 5(최종 독립 QA)가 PASS(사람 승인 포함)여야 최종본 폴더로 복사한다. 필수 검증 실패가 있으면 통과할 수 없다."""

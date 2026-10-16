@@ -20,6 +20,7 @@ from proposal_agent.services.agent_step_service import AgentStepService
 from proposal_agent.services.audit import AuditService
 from proposal_agent.services.context import AppContext
 from proposal_agent.services.document_service import DocumentService
+from proposal_agent.services.jobs import JobManager
 from proposal_agent.services.pipeline_service import PipelineService
 from proposal_agent.services.project_service import ProjectService
 from proposal_agent.services.strategy_service import StrategyService
@@ -49,6 +50,7 @@ class Services:
     approach: ApproachService
     strategy: StrategyService
     design: DesignService
+    jobs: JobManager
 
     @classmethod
     def from_context(
@@ -93,7 +95,7 @@ class Services:
             audit=audit,
             projects=ProjectService(ctx.repos, ctx.paths, audit),
             documents=documents,
-            pipeline=PipelineService(ctx.repos, audit),
+            pipeline=PipelineService(ctx.repos, audit, ctx.settings),
             extraction=extraction,
             requirements=RequirementService(
                 ctx.repos, ctx.settings, audit, extraction, runner, paths=ctx.paths
@@ -124,6 +126,7 @@ class Services:
                 ctx.repos, ctx.paths, ctx.files, audit, steps, generation, extraction
             ),
             design=DesignService(ctx.repos, steps),
+            jobs=JobManager(ctx.repos),
         )
 
 

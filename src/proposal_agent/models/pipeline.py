@@ -44,6 +44,16 @@ class StepRun(ProjectScoped):
     summary: str = ""
     cost_usd: float = 0.0
     output_refs: dict[str, Any] = Field(default_factory=dict)
+    # 단계 1 (지시문 §15·§16): 긴 작업의 진행률·중단 요청·재개 지점·마지막 생존 신호
+    progress: float = Field(default=0.0, ge=0.0, le=1.0, description="0~1 진행률")
+    progress_note: str = Field(default="", description="현재 하는 일 (화면 표시)")
+    cancel_requested: bool = False
+    resume_point: dict[str, Any] = Field(
+        default_factory=dict,
+        description="중단 시 이어서 실행할 지점 (단계별 의미, 예: 처리한 청크 수)",
+    )
+    heartbeat_at: datetime | None = None
+    background: bool = Field(default=False, description="백그라운드 작업으로 실행되었는가")
 
 
 class GateResult(ProjectScoped):

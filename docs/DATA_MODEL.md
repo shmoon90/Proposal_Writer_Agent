@@ -321,6 +321,22 @@ stateDiagram-v2
 
 단계 **정의**(순서·게이트 여부·담당 에이전트)는 `services/pipeline_service.py`의 코드 상수이며 DB에 저장하지 않는다.
 
+## 6.3 통합 개발 지시문 단계 1 추가 (마이그레이션 0008, 2026-10-16)
+
+| 엔티티 | 코드 접두사 | 테이블 | 용도 |
+|---|---|---|---|
+| `ProposalStrategy` | STR | `proposal_strategies` | 제안 전략(발주처 문제·RFP 근거·차별성·구현 방법·기술·기대 효과·위험·근거·미확인 주장·관련 요구) |
+| `DbTable`(+내장 `DbColumn` COL) | TBL | `db_tables` | DB 설계(컬럼·타입·PK/FK·제약·개인정보·보존 정책·이관·DB 종류) |
+| `ApiSpec` | API | `api_specs` | API 명세(경로·메서드·요청/응답 스키마·인증·오류 코드·검증·멱등·타임아웃·페이징·감사·버전) |
+| `DesignItem` | DSG | `design_items` | 화면·DB·API 외 설계 결정(배치·연계·보안·배포·데이터) |
+| `CodeModule` | MOD | `code_modules` | 코드 모듈(경로·계층·담당·리뷰 상태·체크리스트) — 개발 관리 범위(D-14) |
+| `TestCase` | TC | `test_cases` | 테스트 케이스(수준·목적·사전 조건·입력·절차·기대/실제·상태·오류·수정·재실행) — 미실행은 `unverified` |
+| `Defect` | DEF | `defects` | 결함(심각도·상태·재현·원인·영향·수정안·재시험·회귀) |
+| `Decision` | DEC | `decisions` | 회의·인터뷰·질의응답의 결정/요청/의견/미결 질문·조치 항목 — 공식 결정+승인+권한 확인일 때만 구속력 |
+| `Negotiation` | NEG | `negotiations` | 기술 협상·계약 변경(전/후·사유·고객 합의·계약/일정/비용 영향·승인) — 합의+승인 전 기준선 반영 불가 |
+
+공통: 프로젝트 범위, `code` 는 `(project_id, code)` 유일(`Repositories.next_code` 로 발급), 내부 `id` 는 전역 유일, `version`·`status`·관련 ID 목록. `TraceTargetType` 에 strategy/api/db_table/design_item/code_module/test_case/acceptance 추가. `Project.settings["project_settings"]` 에 `ProjectSettings`(지시문 §3) JSON. `StepRun` 에 progress/progress_note/cancel_requested/resume_point/heartbeat_at/background.
+
 ## 7. 데이터 흐름 요약
 
 | 단계 | 입력 | 처리 주체 | 출력(저장) |

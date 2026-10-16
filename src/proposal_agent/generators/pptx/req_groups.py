@@ -415,7 +415,9 @@ def tech_choice_rows(design: dict[str, Any]) -> list[list[str]]:
             reason += "\n" + "\n".join(f"대안: {a}" for a in alts[:3])
         src = str(t.get("source", "") or "설계 제안").strip()
         mark = " (확인)" if t.get("verified") else " (미확인)"
-        if src.startswith(("http://", "https://")):  # URL 은 도메인만 (전체 URL 은 설계 JSON·조사 기록에)
+        if src.startswith(
+            ("http://", "https://")
+        ):  # URL 은 도메인만 (전체 URL 은 설계 JSON·조사 기록에)
             m = re.match(r"https?://([^/]+)", src)
             src = (m.group(1) if m else src[:40]) + mark
         elif src in ("설계 제안", "자체 설계"):

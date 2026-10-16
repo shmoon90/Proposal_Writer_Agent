@@ -12,7 +12,14 @@ from datetime import date
 from proposal_agent.config.errors import NotFoundError, PWAError, StorageError, ValidationError
 from proposal_agent.config.logging import get_logger
 from proposal_agent.config.paths import OUTPUT_SUBDIRS, ProjectPaths
-from proposal_agent.models import ActorKind, Project, ProjectMode, ProjectStatus
+from proposal_agent.models import (
+    SETTINGS_KEY,
+    ActorKind,
+    Project,
+    ProjectMode,
+    ProjectSettings,
+    ProjectStatus,
+)
 from proposal_agent.services.audit import AuditService
 from proposal_agent.storage.repositories import Repositories
 
@@ -91,6 +98,43 @@ class ProjectService:
             payload={"name": name, "mode": str(mode), "output_dir": output_dir},
         )
         log.info("프로젝트 생성 %s (%s) → %s", project.id, mode, output_dir)
+        return project
+
+    # --- 프로젝트 설정 (단계 1, 지시문 §3) ---------------------------------------------------
+    def settings_of(self, project: Project) -> ProjectSettings:
+        return ProjectSettings.from_project_settings(project.settings)
+
+    def update_settings(
+        self, project: Project, settings: ProjectSettings, *, actor: str = "user"
+    ) -> Project:
+        """설정을 ``Project.settings[SETTINGS_KEY]`` 에 저장하고 변경 항목을 감사 기록에 남긴다.
+
+        RFP 명시 기술이 있는데 기술 선택 모드를 바꾸면 사유가 필수다(지시문 §3: 임의 변경 금지).
+        """
+        if (
+            settings.requires_change_reason(bool(settings.rfp_specified_tech))
+            and not (settings.tech_selection_reason or "").strip()
+        ):
+            raise ValidationError(
+                "RFP 가 기술을 명시한 사업에서 기술 선택 모드를 바꾸려면 사유가 필요합니다.",
+                cause=f"mode={settings.tech_selection_mode}, rfp_specified={settings.rfp_specified_tech[:3]}",
+                resolution="'기술 선택·변경 사유' 에 변경 이유와 대안을 적으십시오.",
+            )
+        before = self.settings_of(project).to_dict()
+        after = settings.to_dict()
+        changed = sorted(k for k in after if before.get(k) != after.get(k))
+        project.settings = {**project.settings, SETTINGS_KEY: after}
+        project.touch()
+        self._repos.projects.update(project)
+        self._audit.record(
+            project.id,
+            "project.settings.updated",
+            actor=actor,
+            actor_kind=ActorKind.USER,
+            entity_type="Project",
+            entity_id=project.id,
+            payload={"changed": changed},
+        )
         return project
 
     # --- 조회 ------------------------------------------------------------------------

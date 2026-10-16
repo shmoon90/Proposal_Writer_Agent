@@ -100,6 +100,28 @@ STEP_TRANSITIONS: dict[StepStatus, frozenset[StepStatus]] = {
 
 
 @dataclass(frozen=True)
+class PlanRow:
+    """실행 계획 미리보기 한 줄 (지시문 §16-3)."""
+
+    key: str
+    title: str
+    order: int
+    status: StepStatus
+    selected: bool
+    agent_role: str | None
+    gate: str | None
+    attempts: int
+    last_summary: str
+    blockers: list[str]
+    progress: float = 0.0
+    progress_note: str = ""
+
+    @property
+    def runnable(self) -> bool:
+        return self.selected and not self.blockers
+
+
+@dataclass(frozen=True)
 class StepView:
     definition: StepDefinition
     run: StepRun | None
@@ -119,9 +141,12 @@ class Issue:
 
 
 class PipelineService:
-    def __init__(self, repos: Repositories, audit: AuditService) -> None:
+    def __init__(
+        self, repos: Repositories, audit: AuditService, settings: Any | None = None
+    ) -> None:
         self._repos = repos
         self._audit = audit
+        self._settings = settings  # 단계 1: 계획 미리보기에서 API 키 유무 확인용 (없으면 검사 생략)
 
     # --- 정의 ------------------------------------------------------------------------
     @staticmethod
@@ -186,6 +211,64 @@ class PipelineService:
                     )
                 )
         return issues
+
+    # --- 실행 계획 미리보기·재실행 대상 (단계 1, 지시문 §16) --------------------------------------
+    def plan_preview(self, project: Project, step_keys: list[str] | None = None) -> list[PlanRow]:
+        """단계별로 '지금 실행할 수 있는가·왜' 를 계산한다. 선행 단계가 승인되지 않았으면 차단 사유를 적는다."""
+        views = self.overview(project)
+        wanted = set(step_keys or [v.definition.key for v in views])
+        rows: list[PlanRow] = []
+        prev_ok = True
+        for v in views:
+            d = v.definition
+            blockers: list[str] = []
+            if not prev_ok:
+                blockers.append("선행 단계 미완료")
+            if v.run and v.run.status == StepStatus.RUNNING:
+                blockers.append("이미 실행 중")
+            if d.agent_role and not self._settings_has_key():
+                blockers.append("API 키 없음 (대행 응답 없이는 에이전트 단계 실행 불가)")
+            rows.append(
+                PlanRow(
+                    key=d.key,
+                    title=d.title,
+                    order=d.order,
+                    status=v.status,
+                    selected=d.key in wanted,
+                    agent_role=d.agent_role,
+                    gate=d.gate_title,
+                    attempts=v.run.attempt if v.run else 0,
+                    last_summary=(v.run.summary if v.run else "") or "",
+                    blockers=blockers,
+                    progress=v.run.progress if v.run else 0.0,
+                    progress_note=v.run.progress_note if v.run else "",
+                )
+            )
+            prev_ok = prev_ok and v.status in (StepStatus.APPROVED, StepStatus.SKIPPED)
+        return rows
+
+    def _settings_has_key(self) -> bool:
+        return bool(getattr(self._settings, "anthropic_api_key", None)) if self._settings else True
+
+    def failed_steps(self, project: Project) -> list[StepView]:
+        return [v for v in self.overview(project) if v.run and v.run.status == StepStatus.FAILED]
+
+    def update_progress(
+        self,
+        run: StepRun,
+        progress: float,
+        note: str = "",
+        *,
+        resume_point: dict[str, Any] | None = None,
+    ) -> StepRun:
+        run.progress = max(0.0, min(1.0, float(progress)))
+        if note:
+            run.progress_note = note[:200]
+        if resume_point is not None:
+            run.resume_point = dict(resume_point)
+        run.heartbeat_at = utcnow()
+        self._repos.step_runs.update(run)
+        return run
 
     # --- 실행 상태 전이 ------------------------------------------------------------------
     def start_step(self, project: Project, step_key: str, *, actor: str = "system") -> StepRun:

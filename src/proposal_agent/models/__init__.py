@@ -14,9 +14,15 @@ from proposal_agent.models.change import (
     TaskImpact,
 )
 from proposal_agent.models.common import Entity, ProjectScoped, new_id, utcnow
+from proposal_agent.models.decision import Decision, Negotiation
 from proposal_agent.models.deliverable import Approval, Deliverable, Revision, ValidationResult
 from proposal_agent.models.design import (
+    ApiSpec,
     ArchitectureComponent,
+    CodeModule,
+    DbColumn,
+    DbTable,
+    DesignItem,
     IntegrationTest,
     Screen,
     UnitTest,
@@ -29,6 +35,9 @@ from proposal_agent.models.enums import (
     BlockType,
     ChangeStatus,
     ChangeType,
+    DecisionKind,
+    DecisionStatus,
+    DefectStatus,
     DeliverableKind,
     DependencyType,
     Difficulty,
@@ -39,6 +48,7 @@ from proposal_agent.models.enums import (
     FileFormat,
     GateStatus,
     IntegrityStatus,
+    NegotiationStatus,
     Priority,
     ProjectMode,
     ProjectStatus,
@@ -50,6 +60,9 @@ from proposal_agent.models.enums import (
     ScopeClass,
     SourceTrust,
     StepStatus,
+    TechSelectionMode,
+    TestCaseStatus,
+    TestLevel,
     TraceTargetType,
     ValidationLevel,
     ValidationTargetType,
@@ -87,6 +100,9 @@ from proposal_agent.models.research import (
     TechAlternativeRecord,
     TechnologyResearch,
 )
+from proposal_agent.models.settings import SETTINGS_KEY, ProjectSettings, TechStack
+from proposal_agent.models.strategy import ProposalStrategy
+from proposal_agent.models.testing import Defect, TestCase
 from proposal_agent.models.verification import (
     FINDING_KINDS,
     GateEvaluation,
@@ -97,6 +113,26 @@ from proposal_agent.models.verification import (
 
 __all__ = [
     "FINDING_KINDS",
+    "SETTINGS_KEY",
+    "ApiSpec",
+    "CodeModule",
+    "DbColumn",
+    "DbTable",
+    "Decision",
+    "DecisionKind",
+    "DecisionStatus",
+    "Defect",
+    "DefectStatus",
+    "DesignItem",
+    "Negotiation",
+    "NegotiationStatus",
+    "ProjectSettings",
+    "ProposalStrategy",
+    "TechSelectionMode",
+    "TechStack",
+    "TestCase",
+    "TestCaseStatus",
+    "TestLevel",
     "AcceptanceStatus",
     "ActorKind",
     "AgentOutput",

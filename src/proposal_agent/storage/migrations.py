@@ -340,4 +340,110 @@ MIGRATIONS: tuple[Migration, ...] = (
         CREATE INDEX ix_architecture_components_project ON architecture_components(project_id);
         """,
     ),
+    Migration(
+        8,
+        "directive_stage1_entities",
+        # 단계 1 (지시문 §17): 전략·DB·API·설계 항목·코드 모듈·테스트 케이스·결함·결정·협상.
+        # 사람이 읽는 코드(STR-001 등)는 프로젝트 안에서 유일, 내부 id 는 전역 유일.
+        f"""
+        CREATE TABLE proposal_strategies (
+            id TEXT NOT NULL,
+            {_FK_PROJECT},
+            code TEXT NOT NULL,
+            status TEXT NOT NULL,
+            {_COMMON},
+            PRIMARY KEY (project_id, id)
+        );
+        CREATE UNIQUE INDEX ux_proposal_strategies_code ON proposal_strategies(project_id, code);
+        CREATE INDEX ix_proposal_strategies_project ON proposal_strategies(project_id, created_at);
+
+        CREATE TABLE db_tables (
+            id TEXT NOT NULL,
+            {_FK_PROJECT},
+            code TEXT NOT NULL,
+            name TEXT NOT NULL, status TEXT NOT NULL,
+            {_COMMON},
+            PRIMARY KEY (project_id, id)
+        );
+        CREATE UNIQUE INDEX ux_db_tables_code ON db_tables(project_id, code);
+        CREATE INDEX ix_db_tables_project ON db_tables(project_id, created_at);
+
+        CREATE TABLE api_specs (
+            id TEXT NOT NULL,
+            {_FK_PROJECT},
+            code TEXT NOT NULL,
+            name TEXT NOT NULL, status TEXT NOT NULL,
+            {_COMMON},
+            PRIMARY KEY (project_id, id)
+        );
+        CREATE UNIQUE INDEX ux_api_specs_code ON api_specs(project_id, code);
+        CREATE INDEX ix_api_specs_project ON api_specs(project_id, created_at);
+
+        CREATE TABLE design_items (
+            id TEXT NOT NULL,
+            {_FK_PROJECT},
+            code TEXT NOT NULL,
+            name TEXT NOT NULL, category TEXT NOT NULL, status TEXT NOT NULL,
+            {_COMMON},
+            PRIMARY KEY (project_id, id)
+        );
+        CREATE UNIQUE INDEX ux_design_items_code ON design_items(project_id, code);
+        CREATE INDEX ix_design_items_project ON design_items(project_id, created_at);
+
+        CREATE TABLE code_modules (
+            id TEXT NOT NULL,
+            {_FK_PROJECT},
+            code TEXT NOT NULL,
+            name TEXT NOT NULL, status TEXT NOT NULL,
+            {_COMMON},
+            PRIMARY KEY (project_id, id)
+        );
+        CREATE UNIQUE INDEX ux_code_modules_code ON code_modules(project_id, code);
+        CREATE INDEX ix_code_modules_project ON code_modules(project_id, created_at);
+
+        CREATE TABLE test_cases (
+            id TEXT NOT NULL,
+            {_FK_PROJECT},
+            code TEXT NOT NULL,
+            name TEXT NOT NULL, level TEXT NOT NULL, status TEXT NOT NULL,
+            {_COMMON},
+            PRIMARY KEY (project_id, id)
+        );
+        CREATE UNIQUE INDEX ux_test_cases_code ON test_cases(project_id, code);
+        CREATE INDEX ix_test_cases_project ON test_cases(project_id, created_at);
+
+        CREATE TABLE defects (
+            id TEXT NOT NULL,
+            {_FK_PROJECT},
+            code TEXT NOT NULL,
+            status TEXT NOT NULL, severity TEXT NOT NULL,
+            {_COMMON},
+            PRIMARY KEY (project_id, id)
+        );
+        CREATE UNIQUE INDEX ux_defects_code ON defects(project_id, code);
+        CREATE INDEX ix_defects_project ON defects(project_id, created_at);
+
+        CREATE TABLE decisions (
+            id TEXT NOT NULL,
+            {_FK_PROJECT},
+            code TEXT NOT NULL,
+            kind TEXT NOT NULL, status TEXT NOT NULL,
+            {_COMMON},
+            PRIMARY KEY (project_id, id)
+        );
+        CREATE UNIQUE INDEX ux_decisions_code ON decisions(project_id, code);
+        CREATE INDEX ix_decisions_project ON decisions(project_id, created_at);
+
+        CREATE TABLE negotiations (
+            id TEXT NOT NULL,
+            {_FK_PROJECT},
+            code TEXT NOT NULL,
+            status TEXT NOT NULL,
+            {_COMMON},
+            PRIMARY KEY (project_id, id)
+        );
+        CREATE UNIQUE INDEX ux_negotiations_code ON negotiations(project_id, code);
+        CREATE INDEX ix_negotiations_project ON negotiations(project_id, created_at);
+        """,
+    ),
 )

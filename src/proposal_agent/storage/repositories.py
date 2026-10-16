@@ -15,12 +15,18 @@ from typing import Any, ClassVar, cast
 from proposal_agent.config.errors import NotFoundError, StorageError
 from proposal_agent.models import (
     AgentOutput,
+    ApiSpec,
     Approval,
     ArchitectureComponent,
     AuditEvent,
     ChangeRequest,
+    CodeModule,
+    DbTable,
+    Decision,
+    Defect,
     Deliverable,
     Dependency,
+    DesignItem,
     Entity,
     ExtractedBlock,
     ExtractionRun,
@@ -28,8 +34,10 @@ from proposal_agent.models import (
     GateEvaluation,
     GateResult,
     IntegrationTest,
+    Negotiation,
     Project,
     ProjectScoped,
+    ProposalStrategy,
     QaRun,
     Requirement,
     RequirementChange,
@@ -41,6 +49,7 @@ from proposal_agent.models import (
     StaffRole,
     StepRun,
     TechnologyResearch,
+    TestCase,
     UnitTest,
     ValidationResult,
     WBSItem,
@@ -474,6 +483,77 @@ class QaRunRepository(BaseRepository[QaRun]):
         return rows[0] if rows else None
 
 
+# --- 단계 1 (지시문 §17) 신규 엔티티: 프로젝트 안에서 유일한 사람 읽는 코드(code) + 내부 id ------------------
+
+
+class _CodedRepository[T: Entity](BaseRepository[T]):
+    """``code`` 조회 컬럼을 가진 프로젝트 범위 저장소 (복합 PK)."""
+
+    composite_key = True
+
+    def get_by_code(self, project_id: str, code: str) -> T:
+        row = self.db.conn.execute(
+            f"SELECT data FROM {self.table} WHERE project_id = ? AND code = ?", (project_id, code)
+        ).fetchone()
+        if row is None:
+            raise NotFoundError(f"{self.table}에 {code} 없음")
+        return self._from_row(row)
+
+
+class ProposalStrategyRepository(_CodedRepository[ProposalStrategy]):
+    table = "proposal_strategies"
+    model = ProposalStrategy
+    columns = {"code": "code", "status": "status"}
+
+
+class DbTableRepository(_CodedRepository[DbTable]):
+    table = "db_tables"
+    model = DbTable
+    columns = {"code": "code", "name": "name", "status": "status"}
+
+
+class ApiSpecRepository(_CodedRepository[ApiSpec]):
+    table = "api_specs"
+    model = ApiSpec
+    columns = {"code": "code", "name": "name", "status": "status"}
+
+
+class DesignItemRepository(_CodedRepository[DesignItem]):
+    table = "design_items"
+    model = DesignItem
+    columns = {"code": "code", "name": "name", "category": "category", "status": "status"}
+
+
+class CodeModuleRepository(_CodedRepository[CodeModule]):
+    table = "code_modules"
+    model = CodeModule
+    columns = {"code": "code", "name": "name", "status": "status"}
+
+
+class TestCaseRepository(_CodedRepository[TestCase]):
+    table = "test_cases"
+    model = TestCase
+    columns = {"code": "code", "name": "name", "level": "level", "status": "status"}
+
+
+class DefectRepository(_CodedRepository[Defect]):
+    table = "defects"
+    model = Defect
+    columns = {"code": "code", "status": "status", "severity": "severity"}
+
+
+class DecisionRepository(_CodedRepository[Decision]):
+    table = "decisions"
+    model = Decision
+    columns = {"code": "code", "kind": "kind", "status": "status"}
+
+
+class NegotiationRepository(_CodedRepository[Negotiation]):
+    table = "negotiations"
+    model = Negotiation
+    columns = {"code": "code", "status": "status"}
+
+
 class SequenceRepository:
     """프로젝트별 단조 증가 시퀀스 (요구사항 ID 발급 등). 값은 낮아지지 않는다."""
 
@@ -553,3 +633,18 @@ class Repositories:
         self.integration_tests = IntegrationTestRepository(db)
         self.change_requests = ChangeRequestRepository(db)
         self.qa_runs = QaRunRepository(db)
+        # 단계 1 신규
+        self.strategies = ProposalStrategyRepository(db)
+        self.db_tables = DbTableRepository(db)
+        self.api_specs = ApiSpecRepository(db)
+        self.design_items = DesignItemRepository(db)
+        self.code_modules = CodeModuleRepository(db)
+        self.test_cases = TestCaseRepository(db)
+        self.defects = DefectRepository(db)
+        self.decisions = DecisionRepository(db)
+        self.negotiations = NegotiationRepository(db)
+
+    def next_code(self, project_id: str, prefix: str, *, width: int = 3) -> str:
+        """프로젝트 안에서 단조 증가하는 사람 읽는 코드 (예: STR-001). 시퀀스 키는 ``code:<prefix>``."""
+        n = self.sequences.next(project_id, f"code:{prefix}")
+        return f"{prefix}-{n:0{width}d}"

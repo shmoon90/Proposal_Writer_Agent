@@ -254,6 +254,88 @@ class TraceTargetType(StrEnum):
     INTEGRATION_TEST = "integration_test"
     COMPONENT = "component"
     DELIVERABLE = "deliverable"
+    # 단계 1 (지시문 §9.2 추적 사슬): 전략 → 화면 → API → DB → 설계 항목 → WBS → 코드 모듈 → 테스트 → 검수
+    STRATEGY = "strategy"
+    API = "api"
+    DB_TABLE = "db_table"
+    DESIGN_ITEM = "design_item"
+    CODE_MODULE = "code_module"
+    TEST_CASE = "test_case"
+    ACCEPTANCE = "acceptance"
+
+
+class TechSelectionMode(StrEnum):
+    """기술 선택 모드 (지시문 §3). RFP 명시 기술이 있으면 rfp_specified 가 기본."""
+
+    RFP_SPECIFIED = "rfp_specified"
+    KEEP_EXISTING = "keep_existing"
+    AI_RECOMMEND = "ai_recommend"
+    USER_SPECIFIED = "user_specified"
+    MIXED = "mixed"
+
+    @property
+    def label(self) -> str:
+        return {
+            "rfp_specified": "RFP 지정 기술 준수",
+            "keep_existing": "기존 시스템 기술 유지",
+            "ai_recommend": "AI 대안 비교·추천",
+            "user_specified": "사용자 지정 기술",
+            "mixed": "기존·신규 혼합",
+        }[self.value]
+
+
+class DecisionKind(StrEnum):
+    """회의·인터뷰 기록의 성격 (지시문 §10.1): 고객 요청·내부 의견·공식 결정·미확정 질문을 구분."""
+
+    CUSTOMER_REQUEST = "customer_request"
+    INTERNAL_OPINION = "internal_opinion"
+    OFFICIAL_DECISION = "official_decision"
+    OPEN_QUESTION = "open_question"
+    RISK_ISSUE = "risk_issue"
+    ACTION_ITEM = "action_item"
+
+
+class DecisionStatus(StrEnum):
+    PROPOSED = "proposed"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    DEFERRED = "deferred"
+    RESOLVED = "resolved"
+
+
+class NegotiationStatus(StrEnum):
+    PROPOSED = "proposed"
+    AGREED = "agreed"
+    REJECTED = "rejected"
+    APPLIED = "applied"  # 승인된 뒤 기준선에 반영됨
+
+
+class TestLevel(StrEnum):
+    UNIT = "unit"
+    INTEGRATION = "integration"
+    UI = "ui"
+    PERFORMANCE = "performance"
+    SECURITY = "security"
+    ACCEPTANCE = "acceptance"
+    REGRESSION = "regression"
+
+
+class TestCaseStatus(StrEnum):
+    DRAFT = "draft"
+    READY = "ready"
+    PASSED = "passed"
+    FAILED = "failed"
+    BLOCKED = "blocked"
+    UNVERIFIED = "unverified"  # 실행하지 못함 — 완료로 보지 않는다
+
+
+class DefectStatus(StrEnum):
+    OPEN = "open"
+    ANALYZING = "analyzing"
+    FIXING = "fixing"
+    RETEST = "retest"
+    CLOSED = "closed"
+    REJECTED = "rejected"
 
 
 class WBSLevel(StrEnum):
