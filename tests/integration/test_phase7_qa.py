@@ -95,7 +95,7 @@ def test_proposal_full_flow_independent_qa_gates_and_finalize(services: Services
         run is not None
         and run.counts["executed"] == 53
         and run.counts["not_run"]
-        == 4  # QA-RFP-07(ID 체계 없음), QA-FILE-11(템플릿 미등록), QA-FILE-14(렌더링 꺼짐), QA-CON-15(상세 설계 없음)
+        == 5  # QA-RFP-07(ID 체계 없음), QA-FILE-11(템플릿 미등록), QA-FILE-14(렌더링 꺼짐), QA-CON-15(상세 설계 없음), QA-CON-16(테스트 없음)
         and run.counts["fail"] == 0
     )
     rfp07 = next(c for c in run.checks if c.check_id == "QA-RFP-07")

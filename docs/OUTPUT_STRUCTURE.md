@@ -27,6 +27,7 @@
 | `04_Technology_Research` | 기술 조사 결과, 요구사항별 구현 방안(approach_writer), 요구사항 묶음별 구현 설계(design_writer, Phase 23: 구조·절차·적용 기술·근거) | `research_vX.Y.json`, `approach_report_vX.Y.json`, `implementation_design_vX.Y.json` |
 | `05_Architecture_Design` | 아키텍처 에이전트 결과 | `architecture_vX.Y.json` |
 | `05_Architecture_Design` (단계 6 추가분) | 설계서 Excel/MD, 코드 생성 입력 패키지 | `설계서_vX.Y.xlsx`(화면목록·화면항목·화면기능·DB테이블·DB컬럼·API목록·API상세·모듈·업무규칙·요구-설계추적), `설계서_vX.Y.md`, `codegen_package_vX.Y.json`, `detail_design_vX.Y.json`(에이전트 원본) |
+| `14_Generated_App` (단계 7) | Spring Boot 프로토타입(납품 코드 아님)·테스트 결과 | `pom.xml`, `src/main/java/com/app/**`, `src/main/resources/static/**`, `src/test/java/com/app/**`, `test_results/testing-N.json`; 테스트 계획서·결과서는 `11_QA_Validation_Reports/테스트계획서_vX.md`·`테스트결과서_vX.md`, 검수 결과서·운영 이관 체크리스트는 `13_Final_Deliverables/` |
 | `06_WBS_Effort_Schedule` | WBS·간트, 인력 투입계획 Excel | 제안: `WBS_간트_vX.Y.xlsx`, `인력투입계획_vX.Y.xlsx` · 구축: `WBS_Gantt_YYYYMMDDHHMM.xlsx`, `Staffing_Plan_YYYYMMDDHHMM.xlsx` |
 | `07_Submission_Proposal_PPT` | 제출용 PPT(템플릿이 있으면 그 용지·마스터), 목차 결정 기록(`sections`·`chapters`(장/절/소절 계획)·`templates`(사용 템플릿 파일명)), **목차·전략 브리프**(Phase 18: 에이전트 JSON `strategy_brief_vX.Y.json` + 검토용 Markdown `전략브리프_vX.Y.md`, Gate P 승인 대상), **슬라이드 명세**(Phase 19: 슬라이드별 제목·소절·결론형 제목·목적·독자·계획/실제 레이아웃·도식·근거·요구사항 ID·연결·도형 수와 요약) | `제안서_제출용_vX.Y.pptx`, `목차결정_vX.Y.json`, `전략브리프_vX.Y.md`, `슬라이드명세_제출용_vX.Y.json` |
 | `08_Presentation_PPT` | 발표용 PPT, 슬라이드 명세(Phase 19) | `제안서_발표용_vX.Y.pptx`, `슬라이드명세_발표용_vX.Y.json` |

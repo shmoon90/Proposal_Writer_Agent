@@ -173,6 +173,14 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
             gate="gate5",
             fix_suggestion="설계 화면에서 상세 설계를 다시 실행하거나 설계 객체를 수정해 연결·참조를 맞춤",
         ),
+        _check(
+            "QA-CON-16",
+            cat,
+            "요구 → 설계 → 테스트 → 결함 추적 사슬",
+            "테스트 케이스·결함이 존재하는 요구·테스트를 가리키고, 통과 상태에는 실행 기록이 있는가(실패). 필수 기능 요구에 테스트 케이스 없음·실행되지 않은(미검증·초안) 테스트·미해결 결함·생성 모듈에 테스트 없음은 검토 (단계 7, 지시문 §14·§17)",
+            gate="gate5",
+            fix_suggestion="개발·테스트 화면에서 테스트 계획을 세우고 Docker 테스트를 실행하거나 검수 결과를 기록",
+        ),
     ]
     f = art.outcome.findings
     by_rule: dict[str, list[tuple[ValidationLevel, str]]] = {}
@@ -434,6 +442,16 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
             review=_cap(r15, 12),
             req_ids=[x.split(" ")[0] for x in f15 if x.split(" ")[0] in all_reqs],
         )
+    # 16: 추적 사슬 (단계 7) — 테스트 케이스나 결함이 있을 때만
+    if not (inp.test_cases or inp.defects):
+        _not_run(checks[15], "테스트 케이스·결함 없음 (테스트 계획 전)")
+    else:
+        from proposal_agent.testing.service import trace_chain_issues
+
+        f16, r16 = trace_chain_issues(
+            list(inp.requirements), list(inp.code_modules), list(inp.test_cases), list(inp.defects)
+        )
+        _finish(checks[15], fail=_cap(f16), review=_cap(r16, 12))
     # 10·11: 제안 문안 추상 표현·근거 없는 수치, 약어 미설명 (Phase 19)
     if inp.mode != ProjectMode.PROPOSAL:
         for i in (9, 10, 11, 12):

@@ -70,6 +70,14 @@ PROPOSAL_STEPS = _steps(
     ("finalize", "최종 산출물 확정", None, None),
 )
 
+EXTRA_STEPS = _steps(  # 단계 7: 구축·프로토타입 보조 단계 (두 모드 공통, 진행률 분모 제외)
+    ("wbs_decompose", "WBS 설계 모듈 분해", None, None),
+    ("test_plan", "테스트 케이스 계획", None, None),
+    ("code_generation", "코드 생성 (Spring Boot 프로토타입)", None, "developer"),
+    ("code_test", "Docker 격리 JUnit 실행", None, None),
+    ("code_fix", "테스트 실패 분석·수정 루프", None, "code_qa"),
+)
+
 BUILD_STEPS = _steps(
     ("upload", "기존 산출물 업로드", None, None),
     ("doc_structure", "문서 구조 분석·컬럼 매핑", None, None),
@@ -157,7 +165,7 @@ class PipelineService:
 
     @classmethod
     def definition(cls, mode: ProjectMode, step_key: str) -> StepDefinition:
-        for d in cls.definitions(mode):
+        for d in (*cls.definitions(mode), *EXTRA_STEPS):  # 보조 단계(단계 7)는 두 모드 공통
             if d.key == step_key:
                 return d
         raise ValidationError(f"알 수 없는 단계: {step_key}", cause=f"mode={mode}")

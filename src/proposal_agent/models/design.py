@@ -164,6 +164,10 @@ class CodeModule(ProjectScoped):
     )
     review_checklist: list[str] = Field(default_factory=list)
     depends_on: list[str] = Field(default_factory=list, description="의존 모듈 path (단계 6)")
+    implementation_map: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="요구사항 → 타입/메서드 구현 위치 (단계 7, developer 출력·정적 검사로 확인)",
+    )
     related_requirement_ids: list[str] = Field(default_factory=list)
     related_api_ids: list[str] = Field(default_factory=list)
     related_screen_ids: list[str] = Field(default_factory=list)

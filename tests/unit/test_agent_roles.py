@@ -31,7 +31,10 @@ EXPECTED_ROLES = {
     "design_writer",  # Phase 23: 요구사항 묶음별 구현 설계 (구조·절차·적용 기술)
     "bid_reviewer",
     "meeting_analyzer",
-    "detail_designer",  # 단계 2: 사업 참여 타당성 검토
+    "detail_designer",
+    "developer",
+    "code_qa",
+    "code_fixer",  # 단계 2: 사업 참여 타당성 검토
 }
 
 

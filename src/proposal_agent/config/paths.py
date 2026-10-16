@@ -31,6 +31,7 @@ OUTPUT_SUBDIRS: tuple[str, ...] = (
     "11_QA_Validation_Reports",
     "12_Revision_History",
     "13_Final_Deliverables",
+    "14_Generated_App",  # 단계 7: 생성 프로토타입(Spring Boot)·테스트 결과
 )
 
 # 프로젝트 workspace 하위 폴더 (임시 파일)

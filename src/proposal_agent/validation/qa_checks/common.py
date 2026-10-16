@@ -180,6 +180,8 @@ class QaInputs:
     db_tables: list[Any] = field(default_factory=list)
     api_specs: list[Any] = field(default_factory=list)
     code_modules: list[Any] = field(default_factory=list)
+    test_cases: list[Any] = field(default_factory=list)  # 단계 7
+    defects: list[Any] = field(default_factory=list)
     negotiations: list[Any] = field(default_factory=list)  # 단계 5: Negotiation(NEG)
     rfp_analysis: dict[str, Any] | None = None
     id_prefixes: dict[str, str] = field(default_factory=dict)

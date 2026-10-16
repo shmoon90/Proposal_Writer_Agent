@@ -9,6 +9,7 @@ from proposal_agent.changes.baseline_service import BaselineService
 from proposal_agent.changes.service import ChangeService
 from proposal_agent.decisions.service import DecisionService
 from proposal_agent.design.service import DetailDesignService
+from proposal_agent.development.service import DevelopmentService
 from proposal_agent.feasibility.service import FeasibilityService
 from proposal_agent.generators.service import GenerationService
 from proposal_agent.ingest.ocr import OcrEngine
@@ -28,6 +29,7 @@ from proposal_agent.services.pipeline_service import PipelineService
 from proposal_agent.services.project_service import ProjectService
 from proposal_agent.services.strategy_service import StrategyService
 from proposal_agent.services.template_service import TemplateService
+from proposal_agent.testing.service import TestingService
 from proposal_agent.validation.qa_service import QaService
 
 
@@ -57,6 +59,8 @@ class Services:
     feasibility: FeasibilityService
     decisions: DecisionService
     detail_design: DetailDesignService
+    testing: TestingService
+    development: DevelopmentService
 
     @classmethod
     def from_context(
@@ -84,6 +88,7 @@ class Services:
             templates=templates,
         )
         documents = DocumentService(ctx.repos, ctx.files, audit)
+        testing = TestingService(ctx.repos, audit, ctx.paths, ctx.files)
         baseline = BaselineService(ctx.repos, ctx.paths, ctx.settings, audit, ctx.files)
         changes = ChangeService(
             ctx.repos,
@@ -138,6 +143,10 @@ class Services:
                 ctx.repos, audit, steps, extraction=extraction, paths=ctx.paths
             ),
             detail_design=DetailDesignService(ctx.repos, audit, steps, ctx.paths, ctx.files),
+            testing=testing,
+            development=DevelopmentService(
+                ctx.repos, audit, steps, ctx.paths, ctx.files, ctx.settings, testing=testing
+            ),
         )
 
 

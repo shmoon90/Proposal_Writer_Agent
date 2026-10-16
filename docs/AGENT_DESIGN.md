@@ -4,6 +4,8 @@
 
 ---
 
+> 단계 7(2026-10-16, D-22·D-23): 역할 `developer`(배치별 Spring Boot 코드 — 파일 내용을 구조화 출력, `CodeBatchReport`), `code_qa`(테스트 실패 원인 분류·수정 지시, `CodeQaReport`), `code_fixer`(기존 파일만 전체 내용으로 수정, `CodeFixReport`) 추가. 파일 도구·Bash 는 여전히 금지이며 코드가 쓰기·정적 검사·Docker 테스트를 담당한다.
+
 > 단계 6(2026-10-16): 역할 `detail_designer`(화면·DB·API·모듈 상세 설계, `DetailDesignReport`, Gate 1 뒤 `detail_design` 단계) 추가. `approach_writer`·`design_writer`·`detail_designer` 프롬프트에 `<client_context>`(발주처 업무·기존 시스템 문맥) 주입(D-21).
 
 > 단계 5(2026-10-16): 역할 `meeting_analyzer`(회의록·인터뷰 구조화, `MeetingNoteReport`) 추가 — 논의 사실과 결정을 구분하고 권한·날짜·담당을 추정하지 않으며 확정은 사람이 한다. `semantic_differ` 출력에 `change_kind` 추가.

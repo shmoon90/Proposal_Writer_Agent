@@ -159,6 +159,8 @@ class QaService:
                 for m in self._repos.code_modules.find(project.id, order_by="code")
                 if m.status != "dropped"
             ],
+            test_cases=self._repos.test_cases.find(project.id, order_by="code"),
+            defects=self._repos.defects.find(project.id, order_by="code"),
             negotiations=self._repos.negotiations.find(project.id, order_by="code"),
             rfp_analysis=analysis,
             id_prefixes=prefixes,

@@ -438,6 +438,63 @@ DETAIL_DESIGNER = _register(
 )
 
 
+DEVELOPER = _register(
+    AgentRole(
+        key="developer",
+        title="코드 생성 (Spring Boot 프로토타입)",
+        description="설계(요구·화면·API·테이블·모듈)를 그대로 구현하는 Java(Spring Boot)·JavaScript 코드를 배치 단위로 작성해 파일 내용을 구조화 출력으로 돌려준다. 코드가 디스크에 쓰고 정적 검사·Docker JUnit 으로 검증한다. 프로토타입이며 납품 코드가 아니다 (D-22).",
+        inputs=("배치 대상 모듈", "요구사항·인수 기준", "API·화면·테이블 설계", "이미 생성된 파일"),
+        output_schema=schemas.CodeBatchReport,
+        prompt_name="developer",
+        mcp_servers=(MCP_PROJECT,),
+        mcp_tool_patterns=(f"mcp__{MCP_PROJECT}__get_requirement",),
+        max_turns=12,
+        max_budget_usd=4.0,
+        timeout_s=900,
+        effort="high",
+        output_subdir="14_Generated_App",
+        output_stem="code_batch",
+    )
+)
+
+CODE_QA = _register(
+    AgentRole(
+        key="code_qa",
+        title="테스트 실패 분석",
+        description="Docker 격리 JUnit 실행 결과와 소스를 근거로 실패 원인(CODE_BUG/TEST_BUG/ENVIRONMENT/DESIGN_GAP)을 분류하고 파일별 수정 지시를 쓴다. 통과/실패 수치는 쓰지 않는다.",
+        inputs=("테스트 실행 결과", "관련 소스", "요구사항 인수 기준"),
+        output_schema=schemas.CodeQaReport,
+        prompt_name="code_qa",
+        mcp_servers=(MCP_PROJECT,),
+        mcp_tool_patterns=(f"mcp__{MCP_PROJECT}__get_requirement",),
+        max_turns=8,
+        max_budget_usd=2.0,
+        timeout_s=600,
+        output_subdir="14_Generated_App",
+        output_stem="code_qa",
+    )
+)
+
+CODE_FIXER = _register(
+    AgentRole(
+        key="code_fixer",
+        title="코드 수정 (테스트 실패 대응)",
+        description="QA 수정 지시와 실패 내용을 근거로 기존 파일만 최소 수정해 전체 내용을 돌려준다. 테스트 무력화·인수 기준 위반 금지.",
+        inputs=("QA 보고서", "테스트 실행 결과", "수정 대상 파일 내용"),
+        output_schema=schemas.CodeFixReport,
+        prompt_name="code_fixer",
+        mcp_servers=(MCP_PROJECT,),
+        mcp_tool_patterns=(f"mcp__{MCP_PROJECT}__get_requirement",),
+        max_turns=10,
+        max_budget_usd=3.0,
+        timeout_s=900,
+        effort="high",
+        output_subdir="14_Generated_App",
+        output_stem="code_fix",
+    )
+)
+
+
 def get_role(key: str) -> AgentRole:
     try:
         return ROLES[key]

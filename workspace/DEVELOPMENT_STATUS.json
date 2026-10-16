@@ -2,13 +2,14 @@
  "updated": "2026-10-16",
  "main_commit": "ab75fba",
  "plan": "docs/IMPROVEMENT_PLAN_2026-10.md",
- "status": "directive_stage6_done_stage7_in_progress",
+ "status": "directive_stage7_done_stage8_in_progress",
  "analysis_done": [
   "existing project structure, agents, MCP, outputs, tests (Phase 1-15)",
   "gap analysis against the quality/editability directive (19 sections)",
   "environment: PowerPoint COM registered, pywin32 installed, LibreOffice absent, no API credit"
  ],
  "implemented": [
+  "지시문 단계 7: development/(constants·inspector·test_runner·workspace·plan·templates·service), docker/, developer·code_qa·code_fixer 역할·스키마, testing/service(TC·DEF·검수·문서), planning/decompose, 보조 단계 5종(EXTRA_STEPS), QA-CON-16(58항목), 개발·테스트 화면, 대행 Java fixture",
   "지시문 단계 6: design/(context·consistency·service), detail_designer 역할·DetailDesignReport, Screen 확장·CodeModule.depends_on, detail_design 파이프라인 단계, 설계서 Excel/MD(design_docs)·codegen_package JSON, QA-TECH-09·QA-CON-15(57항목), 설계 화면, 대행 fixture 상세 설계",
   "지시문 단계 5: decisions/service(회의록 구조화·권한 규칙·협상 통제·변경 요청 전환), changes/compare(Excel ID 기준 6종·PPT/Word 불확실), ChangeStatus 8종, 영향 확장, 선택 재생성·회귀 비교, QA-CON-14(55항목), 회의·결정·협상 화면, meeting_analyzer 역할",
   "지시문 단계 4: ProjectSettings 분량 모드·장 수 상한, deployment·decision 도식·배포 구조 소절, planning/cost.estimate_cost·비용산정 시트·사업성 평가 공유, GenerationContext.settings/design_links·추적표 7열·정의서 기술검토 열, 렌더링 미리보기 화면, 대행 스크립트 --rate/--budget/--detail/--group-cap",
@@ -52,7 +53,7 @@
   "failed": 0,
   "skipped": 1,
   "deselected": 2,
-  "pytest": "- pytest 329 passed, 1 skipped(전체, llm 제외; 단계 5 대비 +5: 신규 tests/unit/test_stage6",
+  "pytest": "- pytest 337 passed, 2 skipped(전체, llm 제외; 단계 6 대비 +8: 신규 tests/unit/test_stage7",
   "ruff": "pass",
   "mypy": "pass (117 files)"
  },
@@ -100,12 +101,11 @@
   "check": "QA-FILE-12 (tagged photos allowed), QA-FILE-03/04 flatten groups"
  },
  "next": [
-  "단계 7: WBS 를 설계 항목까지 분해, 코드 모듈 리뷰 체크리스트, 테스트 케이스·결함·검수·운영 이관, RFP_JAVA 발췌 이식(development/: 배치 계획·템플릿·정적 검사·Docker JUnit·Developer/QA 역할·MCP 도구), 패키지 test_plan 채우기",
-  "단계 8: 통합 품질·최종 보고",
+  "단계 8: 통합 품질·성능·안정성 — 전체 흐름 통합 테스트(제안 → 기준선 → 변경 → 설계 → 테스트), 회귀, 대용량 RFP 측정, 복원, 최종 보고서(§20)",
   "main 병합은 단계 8 뒤 맨 마지막"
  ],
  "qa_checks": {
-  "total": 57,
+  "total": 58,
   "categories": {
    "RFP": 8,
    "TECH": 7,
@@ -116,7 +116,7 @@
   "by_category": {
    "RFP": 9,
    "TECH": 9,
-   "CON": 15,
+   "CON": 16,
    "FILE": 14,
    "EDIT": 10
   }
@@ -141,8 +141,8 @@
  },
  "branch": "feature/major-revision",
  "directive": {
-  "stage": 6,
-  "stage_name": "화면·DB·API·아키텍처 설계",
+  "stage": 7,
+  "stage_name": "WBS·개발·테스트·검수·운영 이관 + RFP_JAVA 발췌 이식",
   "done": true,
   "documents": [
    "workspace/PROJECT_ANALYSIS.md",
@@ -161,7 +161,7 @@
    "not_implemented": 8
   },
   "approvals_pending": [],
-  "next_stage": 7,
+  "next_stage": 8,
   "last_run": "2026-10-16",
   "approvals_granted": [
    "A-1",
@@ -177,6 +177,7 @@
   "stage3_report": "docs/DIRECTIVE_STAGE3_REPORT.md",
   "stage4_report": "docs/DIRECTIVE_STAGE4_REPORT.md",
   "stage5_report": "docs/DIRECTIVE_STAGE5_REPORT.md",
-  "stage6_report": "docs/DIRECTIVE_STAGE6_REPORT.md"
+  "stage6_report": "docs/DIRECTIVE_STAGE6_REPORT.md",
+  "stage7_report": "docs/DIRECTIVE_STAGE7_REPORT.md"
  }
 }

@@ -361,6 +361,10 @@ stateDiagram-v2
 
 - `Screen` 확장: purpose·user_roles·layout·fields·actions·states·functions·related_requirement_ids·source(baseline|design)·version. `CodeModule.depends_on`. 상세 설계(detail_designer, `DetailDesignReport`) 결과가 `DetailDesignService.persist` 로 SCR/TBL/API/MOD/DSG(business_rule) 에 저장되고 요구 ↔ 화면 `RequirementTrace` 가 연결된다. `DeliverableKind.DESIGN_DOC_XLSX/MD`(05_Architecture_Design/설계서). 코드 생성 입력 패키지 `05_Architecture_Design/codegen_package_vX.json`(requirements·ui_design·architecture; test_plan 은 단계 7).
 
+## 6.9 단계 7 추가 (스키마 변경 없음)
+
+- `CodeModule.implementation_map`(요구 → 타입/메서드), 상태 planned → generated/failed. `TestCase` 는 테스트 계획(draft)·JUnit 결과(passed/failed/unverified)·검수(level acceptance, 사람 기록)로 채워지고 `Defect` 는 실패 TC 마다 open → analyzing → retest → closed 로 전이(`found_in_test_case_id`). 생성 앱은 `14_Generated_App/`(템플릿 + 생성 파일 + `test_results/testing-N.json`). 설정 `docker_test_image`·`test_timeout_seconds`·`max_test_output_chars`·`codegen_max_files`·`code_fix_rounds`.
+
 ## 7. 데이터 흐름 요약
 
 | 단계 | 입력 | 처리 주체 | 출력(저장) |

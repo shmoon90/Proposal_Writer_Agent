@@ -217,6 +217,11 @@ class StepRunner:
     STEP_STRATEGY = "strategy_brief"
     STEP_DESIGN = "impl_design"
     STEP_DETAIL_DESIGN = "detail_design"
+    STEP_WBS_DECOMPOSE = "wbs_decompose"
+    STEP_TEST_PLAN = "test_plan"
+    STEP_CODE_GENERATION = "code_generation"
+    STEP_CODE_TEST = "code_test"
+    STEP_CODE_FIX = "code_fix"
 
     def run_strategy_brief(
         self,
@@ -353,6 +358,95 @@ class StepRunner:
                 + self._s.detail_design.summary(project)
             )
         return outcome
+
+    def _plain_step(self, project: Project, step_key: str, actor: str, body: Any) -> StepOutcome:
+        """에이전트 1회가 아닌 코드 단계(단계 7): StepRun 기록 + 본문 실행."""
+        pipeline = self._s.pipeline
+        run = pipeline.start_step(project, step_key, actor=actor)
+        try:
+            summary, refs = body()
+            pipeline.complete_step(project, run, summary=summary, actor=actor, output_refs=refs)
+            return StepOutcome(run=run, summary=summary)
+        except PWAError as exc:
+            pipeline.fail_step(project, run, exc, actor=actor)
+            raise
+
+    def run_wbs_decompose(self, project: Project, *, actor: str = "user") -> StepOutcome:
+        """WBS 를 설계 모듈까지 분해 (단계 7 ①)."""
+        from proposal_agent.planning.decompose import decompose_wbs_to_modules
+
+        def body() -> tuple[str, dict[str, Any]]:
+            if self._s.planning.plan_missing(project):  # planner 초안이 있으면 계획을 먼저 세운다
+                draft_json = self._s.steps.prior_output(project, "planner")
+                if draft_json:
+                    from proposal_agent.agents.schemas import WBSDraft
+
+                    self._s.planning.build_plan(
+                        project,
+                        WBSDraft.model_validate(draft_json),
+                        self._s.steps.prior_output(project, "rfp_analyst"),
+                        actor=actor,
+                    )
+            added, warnings = decompose_wbs_to_modules(self._s.ctx.repos, project, actor=actor)
+            if added:  # 공수가 바뀌었으므로 투입 배정을 다시 만든다 (QA-CON-05 정합)
+                self._s.planning.rebuild_allocations(project)
+            return (
+                f"WBS 분해: 모듈 Task {len(added)}건 추가"
+                + (f", 경고 {len(warnings)}건: {warnings[0]}" if warnings else ""),
+                {"added": [a.code for a in added], "warnings": warnings},
+            )
+
+        return self._plain_step(project, self.STEP_WBS_DECOMPOSE, actor, body)
+
+    def run_test_plan(self, project: Project, *, actor: str = "user") -> StepOutcome:
+        """설계·인수 기준에서 테스트 케이스 계획 (단계 7 ③)."""
+
+        def body() -> tuple[str, dict[str, Any]]:
+            counts = self._s.testing.plan_from_design(project, actor=actor)
+            return (
+                f"테스트 계획: 통합 {counts['integration']}·화면 {counts['ui']}·인수 {counts['acceptance']}건",
+                dict(counts),
+            )
+
+        return self._plain_step(project, self.STEP_TEST_PLAN, actor, body)
+
+    def run_code_generation(
+        self, project: Project, *, actor: str = "user", cancel: CancellationToken | None = None
+    ) -> StepOutcome:
+        """설계 모듈을 배치로 나눠 developer 에이전트로 생성 → 정적 검사 (단계 7 ⑦, D-22)."""
+
+        def body() -> tuple[str, dict[str, Any]]:
+            out = self._s.development.generate(project, actor=actor, cancel=cancel)
+            return out.summary(), {
+                "files": out.files_written,
+                "errors": out.errors,
+                "warnings": out.warnings[:20],
+            }
+
+        return self._plain_step(project, self.STEP_CODE_GENERATION, actor, body)
+
+    def run_code_test(self, project: Project, *, actor: str = "user") -> StepOutcome:
+        """Docker 격리 JUnit 실행 → TC·DEF 반입 (단계 7 ③)."""
+
+        def body() -> tuple[str, dict[str, Any]]:
+            result = self._s.development.run_tests(project, actor=actor)
+            return f"테스트 {result.label}: {result.summary()}", {
+                "label": result.label,
+                "outcome": result.outcome.value,
+            }
+
+        return self._plain_step(project, self.STEP_CODE_TEST, actor, body)
+
+    def run_code_fix(self, project: Project, *, actor: str = "user") -> StepOutcome:
+        """QA 분석·수정·재테스트 루프 (단계 7)."""
+
+        def body() -> tuple[str, dict[str, Any]]:
+            notes = self._s.development.qa_fix_loop(project, actor=actor)
+            return "수정 루프: " + (" | ".join(notes) if notes else "실행할 것 없음"), {
+                "rounds": notes
+            }
+
+        return self._plain_step(project, self.STEP_CODE_FIX, actor, body)
 
     def run_role_step(
         self,
@@ -582,6 +676,11 @@ class StepRunner:
         "impl_design",
         "detail_design",
         "wbs_schedule",
+        "wbs_decompose",
+        "test_plan",
+        "code_generation",
+        "code_test",
+        "code_fix",
         "generate_docs",
         "proposal_ppt",
         "qa",
@@ -625,6 +724,16 @@ class StepRunner:
             return self.run_design_writing(project, actor=actor, cancel=cancel)
         if step_key == "detail_design":
             return self.run_detail_design(project, actor=actor, cancel=cancel)
+        if step_key == "wbs_decompose":
+            return self.run_wbs_decompose(project, actor=actor)
+        if step_key == "test_plan":
+            return self.run_test_plan(project, actor=actor)
+        if step_key == "code_generation":
+            return self.run_code_generation(project, actor=actor, cancel=cancel)
+        if step_key == "code_test":
+            return self.run_code_test(project, actor=actor)
+        if step_key == "code_fix":
+            return self.run_code_fix(project, actor=actor)
         if step_key == "wbs_schedule":
             return self.run_role_step(
                 project, self.STEP_WBS, "planner", "WBS 초안", actor=actor, cancel=cancel

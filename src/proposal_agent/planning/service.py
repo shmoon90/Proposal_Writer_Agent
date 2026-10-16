@@ -565,6 +565,58 @@ class PlanningService:
         return max(total, 1.0) if item.roles else 1.0
 
     # --- 조회 ------------------------------------------------------------------------------
+    def plan_missing(self, project: Project) -> bool:
+        """WBS 가 아직 없는가 (단계 7 분해 전에 오케스트레이터가 계획을 먼저 세운다)."""
+        return not self._repos.wbs.tree(project.id)
+
+    def rebuild_allocations(self, project: Project, *, holidays: str | None = None) -> int:
+        """WBS leaf Task 의 역할·공수·일정으로 월별 투입을 다시 만든다 (WBS 분해·변경 뒤 투입계획 갱신). 배정 수를 돌려준다."""
+        from proposal_agent.models import StaffingAllocation, StaffRole
+        from proposal_agent.models.planning import TaskStatus
+        from proposal_agent.planning.staffing import distribute_by_month
+
+        self._repos.allocations.clear_project(project.id)
+        roles = {r.role_name: r for r in self._repos.staff_roles.find(project.id)}
+        calendar = BusinessCalendar(
+            parse_holidays(holidays if holidays is not None else self._settings.holidays)
+        )
+        items = self._repos.wbs.tree(project.id)
+        parents = {w.parent_id for w in items if w.parent_id}
+        count = 0
+        for w in items:
+            if (
+                w.id in parents
+                or w.status == TaskStatus.ON_HOLD
+                or w.effort_md <= 0
+                or not (w.planned_start and w.planned_end)
+            ):
+                continue
+            role_name = w.role or "(미지정)"
+            role = roles.get(role_name)
+            if role is None:
+                role = StaffRole(
+                    project_id=project.id,
+                    role_name=role_name,
+                    notes="WBS 분해·변경 반영 시 추가된 역할 — 등급·단가 입력 필요",
+                )
+                self._repos.staff_roles.insert(role)
+                roles[role_name] = role
+            monthly = distribute_by_month(w.effort_md, w.planned_start, w.planned_end, calendar)
+            self._repos.allocations.insert(
+                StaffingAllocation(
+                    project_id=project.id,
+                    wbs_item_id=w.id,
+                    staff_role_id=role.id,
+                    start=w.planned_start,
+                    end=w.planned_end,
+                    effort_md=w.effort_md,
+                    monthly_md={m: str(v) for m, v in monthly.items()},
+                    estimate_basis=w.estimate_basis,
+                )
+            )
+            count += 1
+        return count
+
     def current_plan(
         self, project: Project
     ) -> tuple[list[WBSItem], list[Dependency], list[StaffRole], list[StaffingAllocation]]:

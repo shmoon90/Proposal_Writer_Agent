@@ -951,6 +951,67 @@ class DetailDesignReport(_Strict):
     notes: str = ""
 
 
+# --- 단계 7: 코드 생성·QA·수정 (RFP_JAVA 발췌, 파일 도구 없이 구조화 출력으로 내용 전달) -----------------------
+
+
+class CodeFileDraft(_Strict):
+    path: str = Field(min_length=1, description="생성 앱 루트 기준 상대 경로")
+    content: str = Field(min_length=1, description="파일 전체 내용 (생략 없음)")
+    purpose: str = ""
+    requirement_ids: list[str] = Field(default_factory=list)
+
+
+class ImplementationLinkDraft(_Strict):
+    requirement_id: str
+    path: str
+    symbols: list[str] = Field(default_factory=list, description="Type 또는 Type.method")
+    description: str = ""
+
+
+class CodeBatchReport(_Strict):
+    files: list[CodeFileDraft] = Field(default_factory=list)
+    implementation_map: list[ImplementationLinkDraft] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class CodeFailureAnalysis(_Strict):
+    test_node_ids: list[str] = Field(default_factory=list)
+    category: str = Field(description="CODE_BUG | TEST_BUG | ENVIRONMENT | DESIGN_GAP | UNKNOWN")
+    root_cause: str = ""
+    reproduction: str = ""
+    related_requirement_ids: list[str] = Field(default_factory=list)
+
+
+class CodeFixInstruction(_Strict):
+    path: str
+    instruction: str
+    reason: str = ""
+    related_test_node_ids: list[str] = Field(default_factory=list)
+    requirement_ids: list[str] = Field(default_factory=list)
+
+
+class CodeQaReport(_Strict):
+    summary: str = ""
+    failures: list[CodeFailureAnalysis] = Field(default_factory=list)
+    fix_recommended: bool = False
+    fix_instructions: list[CodeFixInstruction] = Field(default_factory=list)
+    not_fixable_reason: str = ""
+    risks: list[str] = Field(default_factory=list)
+
+
+class CodeEditDraft(_Strict):
+    path: str
+    content: str = Field(min_length=1, description="수정 후 파일 전체 내용")
+    change_reason: str = ""
+    requirement_ids: list[str] = Field(default_factory=list)
+
+
+class CodeFixReport(_Strict):
+    edits: list[CodeEditDraft] = Field(default_factory=list)
+    implementation_map: list[ImplementationLinkDraft] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
 class MeetingItemDraft(_Strict):
     """회의록 항목 (단계 5, 지시문 §10.1)."""
 

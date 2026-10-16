@@ -93,6 +93,14 @@ class Settings:
         False  # 통합 QA에서 PowerPoint COM으로 실제 렌더링·재열기(QA-FILE-14)를 수행할지 (PWA_QA_RENDER_CHECK=1).
         # 기본 False: 테스트·서버 환경에서 PowerPoint를 띄우지 않는다. 화면의 QA 버튼은 COM이 있으면 기본 켬. 꺼져 있으면 '미실행'으로 기록
     )
+    # 단계 7 (D-22): 코드 생성·Docker 격리 테스트
+    docker_test_image: str = (
+        "rfp-java-test-runner:jdk21-1"  # PWA_DOCKER_TEST_IMAGE (JDK 21 + Maven 오프라인)
+    )
+    test_timeout_seconds: int = 420  # PWA_TEST_TIMEOUT_SECONDS
+    max_test_output_chars: int = 200_000  # PWA_MAX_TEST_OUTPUT_CHARS
+    codegen_max_files: int = 3  # PWA_CODEGEN_MAX_FILES: Developer 호출 1회당 파일 수
+    code_fix_rounds: int = 2  # PWA_CODE_FIX_ROUNDS: QA 분석·수정·재테스트 최대 회수
     env_file: Path | None = field(default=None, repr=False)
 
     @property

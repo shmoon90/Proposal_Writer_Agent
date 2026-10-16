@@ -13,6 +13,7 @@ Claude)이 직접 작성한 JSON**으로 넣고, 나머지(추출·ID 발급·�
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from datetime import date
@@ -616,6 +617,423 @@ DESIGNS: dict[str, Any] = {
 }
 
 
+# --- 7-1. 코드 생성 대행 응답 (단계 7, D-22) — 계산기 Spring Boot 프로토타입 (실제 컴파일·JUnit 가능) ----------------
+DEVELOPER_FILES: dict[str, str] = {
+    "src/main/java/com/app/calc/CalcService.java": """package com.app.calc;
+
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+
+/** 고정밀 계산 엔진: 토큰화 → 후위 표기(Shunting-yard) → BigDecimal 평가. FR-001·FR-002·NFR-001 */
+public class CalcService {
+    public static final int PRECISION = 21;
+    private static final MathContext MC = new MathContext(PRECISION, RoundingMode.HALF_UP);
+    private static final BigDecimal LIMIT = new BigDecimal("1E25");
+
+    /** 수식 문법 오류·범위 초과를 코드로 구분한다 (E001 문법, E002 0 나누기, E003 범위 초과). */
+    public static class CalcException extends RuntimeException {
+        private final String code;
+
+        public CalcException(String code, String message) {
+            super(message);
+            this.code = code;
+        }
+
+        public String getCode() {
+            return code;
+        }
+    }
+
+    public BigDecimal evaluate(String expression) {
+        if (expression == null || expression.isBlank() || expression.length() > 200) {
+            throw new CalcException("E001", "수식은 1~200자여야 합니다");
+        }
+        List<String> tokens = tokenize(expression);
+        List<String> rpn = toPostfix(tokens);
+        BigDecimal result = evalPostfix(rpn);
+        if (result.abs().compareTo(LIMIT) > 0) {
+            throw new CalcException("E003", "결과가 범위(10^25)를 초과합니다");
+        }
+        return result.round(MC).stripTrailingZeros();
+    }
+
+    private List<String> tokenize(String expr) {
+        List<String> out = new ArrayList<>();
+        int i = 0;
+        while (i < expr.length()) {
+            char c = expr.charAt(i);
+            if (Character.isWhitespace(c)) {
+                i++;
+            } else if (Character.isDigit(c) || c == '.') {
+                int j = i;
+                while (j < expr.length() && (Character.isDigit(expr.charAt(j)) || expr.charAt(j) == '.')) {
+                    j++;
+                }
+                out.add(expr.substring(i, j));
+                i = j;
+            } else if ("+-*/()".indexOf(c) >= 0) {
+                out.add(String.valueOf(c));
+                i++;
+            } else {
+                throw new CalcException("E001", "허용되지 않은 문자: " + c);
+            }
+        }
+        return out;
+    }
+
+    private int precedence(String op) {
+        return (op.equals("*") || op.equals("/")) ? 2 : 1;
+    }
+
+    private List<String> toPostfix(List<String> tokens) {
+        List<String> out = new ArrayList<>();
+        Deque<String> ops = new ArrayDeque<>();
+        int depth = 0;
+        for (String t : tokens) {
+            if (t.equals("(")) {
+                ops.push(t);
+                depth++;
+            } else if (t.equals(")")) {
+                depth--;
+                if (depth < 0) {
+                    throw new CalcException("E001", "괄호 짝이 맞지 않습니다");
+                }
+                while (!ops.isEmpty() && !ops.peek().equals("(")) {
+                    out.add(ops.pop());
+                }
+                ops.pop();
+            } else if ("+-*/".contains(t)) {
+                while (!ops.isEmpty() && !ops.peek().equals("(") && precedence(ops.peek()) >= precedence(t)) {
+                    out.add(ops.pop());
+                }
+                ops.push(t);
+            } else {
+                out.add(t);
+            }
+        }
+        if (depth != 0) {
+            throw new CalcException("E001", "괄호 짝이 맞지 않습니다");
+        }
+        while (!ops.isEmpty()) {
+            out.add(ops.pop());
+        }
+        return out;
+    }
+
+    private BigDecimal evalPostfix(List<String> rpn) {
+        Deque<BigDecimal> stack = new ArrayDeque<>();
+        for (String t : rpn) {
+            if ("+-*/".contains(t)) {
+                if (stack.size() < 2) {
+                    throw new CalcException("E001", "연산자 위치가 잘못되었습니다");
+                }
+                BigDecimal b = stack.pop();
+                BigDecimal a = stack.pop();
+                switch (t) {
+                    case "+" -> stack.push(a.add(b, MC));
+                    case "-" -> stack.push(a.subtract(b, MC));
+                    case "*" -> stack.push(a.multiply(b, MC));
+                    default -> {
+                        if (b.signum() == 0) {
+                            throw new CalcException("E002", "0 으로 나눌 수 없습니다");
+                        }
+                        stack.push(a.divide(b, MC));
+                    }
+                }
+            } else {
+                try {
+                    stack.push(new BigDecimal(t));
+                } catch (NumberFormatException e) {
+                    throw new CalcException("E001", "숫자 형식 오류: " + t);
+                }
+            }
+        }
+        if (stack.size() != 1) {
+            throw new CalcException("E001", "수식이 완전하지 않습니다");
+        }
+        return stack.pop();
+    }
+}
+""",
+    "src/main/java/com/app/calc/CalcController.java": """package com.app.calc;
+
+import java.math.BigDecimal;
+import java.util.Map;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+import com.app.history.HistoryRepository;
+
+/** 계산 실행 API (POST /api/calc). FR-002·FR-006·NFR-002 */
+@RestController
+public class CalcController {
+    private final CalcService service;
+    private final HistoryRepository history;
+
+    public CalcController(HistoryRepository history) {
+        this.service = new CalcService();
+        this.history = history;
+    }
+
+    @PostMapping("/api/calc")
+    public Map<String, Object> calc(@RequestBody Map<String, String> body) {
+        String expression = body.getOrDefault("expression", "");
+        BigDecimal result = service.evaluate(expression);
+        history.add(expression, result.toPlainString(), null);
+        return Map.of("result", result.toPlainString());
+    }
+
+    @ExceptionHandler(CalcService.CalcException.class)
+    public ResponseEntity<Map<String, String>> onCalcError(CalcService.CalcException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("code", e.getCode(), "message", e.getMessage()));
+    }
+}
+""",
+    "src/main/java/com/app/history/HistoryRepository.java": """package com.app.history;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import org.springframework.stereotype.Repository;
+
+/** 계산 이력 저장소 (메모리, 최근 순). FR-004·FR-005 — 프로토타입은 메모리 보관, 운영은 CALC_HISTORY 테이블 */
+@Repository
+public class HistoryRepository {
+    private final List<Map<String, Object>> items = Collections.synchronizedList(new ArrayList<>());
+    private final AtomicLong seq = new AtomicLong();
+
+    public Map<String, Object> add(String expression, String result, String errorCode) {
+        Map<String, Object> row = Map.of(
+                "history_id", seq.incrementAndGet(),
+                "expression", expression,
+                "result", result == null ? "" : result,
+                "error_code", errorCode == null ? "" : errorCode,
+                "created_at", LocalDateTime.now().toString());
+        items.add(0, row);
+        return row;
+    }
+
+    public List<Map<String, Object>> list(String keyword, int page, int size) {
+        List<Map<String, Object>> filtered = new ArrayList<>();
+        synchronized (items) {
+            for (Map<String, Object> row : items) {
+                if (keyword == null || keyword.isBlank() || String.valueOf(row.get("expression")).contains(keyword)) {
+                    filtered.add(row);
+                }
+            }
+        }
+        int from = Math.min(page * size, filtered.size());
+        int to = Math.min(from + size, filtered.size());
+        return new ArrayList<>(filtered.subList(from, to));
+    }
+
+    public int total() {
+        return items.size();
+    }
+
+    public boolean delete(long id) {
+        synchronized (items) {
+            return items.removeIf(row -> Long.valueOf(id).equals(row.get("history_id")));
+        }
+    }
+}
+""",
+    "src/main/java/com/app/history/HistoryController.java": """package com.app.history;
+
+import java.util.Map;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+/** 이력 조회·삭제 API. FR-005·FR-008 */
+@RestController
+public class HistoryController {
+    private final HistoryRepository history;
+
+    public HistoryController(HistoryRepository history) {
+        this.history = history;
+    }
+
+    @GetMapping("/api/history")
+    public ResponseEntity<Map<String, Object>> list(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        if (size > 20 || page < 0) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("code", "E101", "message", "잘못된 페이지"));
+        }
+        return ResponseEntity.ok(Map.of("items", history.list(keyword, page, size), "total", history.total()));
+    }
+
+    @DeleteMapping("/api/history/{id}")
+    public ResponseEntity<Map<String, Object>> delete(@PathVariable long id) {
+        boolean deleted = history.delete(id);
+        if (!deleted) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("code", "E102", "message", "없는 이력"));
+        }
+        return ResponseEntity.ok(Map.of("deleted", true));
+    }
+}
+""",
+    "src/main/resources/static/index.html": """<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>공학용 계산기 (프로토타입)</title>
+  <style>
+    body { font-family: sans-serif; margin: 16px; }
+    #expression { width: 100%; font-size: 1.2em; }
+    #result { font-size: 1.4em; min-height: 1.6em; }
+    .state { color: #555; }
+    .error { color: #b00; }
+  </style>
+</head>
+<body>
+  <h1>공학용 계산기</h1>
+  <input id="expression" placeholder="수식 입력 (예: (1+2)*3/4)" maxlength="200">
+  <button id="calc">계산</button>
+  <div id="state" class="state"></div>
+  <div id="result"></div>
+  <h2>계산 이력</h2>
+  <ul id="history"></ul>
+  <script>
+    const expr = document.getElementById('expression');
+    const state = document.getElementById('state');
+    const result = document.getElementById('result');
+    const history = document.getElementById('history');
+    function validate(v) {
+      if (!v.trim()) return '수식을 입력하십시오';
+      if (v.length > 200) return '수식은 200자 이내';
+      let depth = 0;
+      for (const ch of v) { if (ch === '(') depth++; if (ch === ')') depth--; if (depth < 0) return '괄호 짝 오류'; }
+      return depth === 0 ? '' : '괄호 짝 오류';
+    }
+    async function loadHistory() {
+      const res = await fetch('/api/history?size=20');
+      const data = await res.json();
+      history.innerHTML = '';
+      if (!data.items || data.items.length === 0) { history.innerHTML = '<li class="state">계산 이력이 없습니다</li>'; return; }
+      for (const item of data.items) {
+        const li = document.createElement('li');
+        li.textContent = item.expression + ' = ' + item.result;
+        li.onclick = () => { expr.value = item.expression; };
+        history.appendChild(li);
+      }
+    }
+    document.getElementById('calc').onclick = async () => {
+      const msg = validate(expr.value);
+      if (msg) { state.textContent = msg; state.className = 'error'; return; }
+      state.textContent = '계산 중…'; state.className = 'state';
+      const res = await fetch('/api/calc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expression: expr.value }) });
+      const data = await res.json();
+      if (res.ok) { result.textContent = data.result; state.textContent = ''; }
+      else { result.textContent = ''; state.textContent = '계산할 수 없는 수식입니다 (' + data.code + ')'; state.className = 'error'; }
+      loadHistory();
+    };
+    loadHistory();
+  </script>
+</body>
+</html>
+""",
+    "src/test/java/com/app/calc/CalcServiceTest.java": """package com.app.calc;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import java.math.BigDecimal;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+/** FR-002 계산 엔진 단위 테스트 */
+class CalcServiceTest {
+    private final CalcService service = new CalcService();
+
+    @Test
+    @DisplayName("FR-002 TC-001: 사칙연산과 괄호 우선순위를 계산한다")
+    void evaluatesArithmetic() {
+        assertEquals(new BigDecimal("2.25"), service.evaluate("(1+2)*3/4"));
+    }
+
+    @Test
+    @DisplayName("NFR-001 TC-002: 21자리 유효 숫자로 반올림한다")
+    void roundsToPrecision() {
+        BigDecimal v = service.evaluate("1/3");
+        assertEquals(21, v.precision());
+    }
+
+    @Test
+    @DisplayName("FR-001 TC-003: 괄호 짝이 맞지 않으면 E001 오류")
+    void rejectsBrokenParentheses() {
+        CalcService.CalcException e = assertThrows(CalcService.CalcException.class, () -> service.evaluate("(1+2"));
+        assertEquals("E001", e.getCode());
+    }
+
+    @Test
+    @DisplayName("FR-002 TC-004: 0 으로 나누면 E002 오류")
+    void rejectsDivisionByZero() {
+        CalcService.CalcException e = assertThrows(CalcService.CalcException.class, () -> service.evaluate("1/0"));
+        assertEquals("E002", e.getCode());
+    }
+}
+""",
+}
+
+
+def developer_responder(request: Any) -> dict[str, Any]:
+    """배치 프롬프트의 target_paths 에 해당하는 파일만 돌려준다 (실제 모델 대신)."""
+    import json as _json
+    import re as _re
+
+    m = _re.search(r"target_paths=(\[[^\]]*\])", request.prompt)
+    targets = _json.loads(m.group(1)) if m else []
+    files = [
+        {
+            "path": p_,
+            "content": DEVELOPER_FILES[p_],
+            "purpose": "설계 구현",
+            "requirement_ids": ["FR-002"] if "calc" in p_ else ["FR-005"],
+        }
+        for p_ in targets
+        if p_ in DEVELOPER_FILES
+    ]
+    links = []
+    for f in files:
+        if f["path"].endswith("CalcService.java"):
+            links.append(
+                {
+                    "requirement_id": "FR-002",
+                    "path": f["path"],
+                    "symbols": ["CalcService.evaluate"],
+                    "description": "수식 평가",
+                }
+            )
+        elif f["path"].endswith("HistoryRepository.java"):
+            links.append(
+                {
+                    "requirement_id": "FR-005",
+                    "path": f["path"],
+                    "symbols": ["HistoryRepository.list"],
+                    "description": "이력 조회",
+                }
+            )
+    return {"files": files, "implementation_map": links, "notes": []}
+
+
 # --- 6-1. 상세 설계 대행 응답 (단계 6, 지시문 §12) — 계산기 샘플 ------------------------------------------
 DETAIL_DESIGNS: dict[str, Any] = {
     "screens": [
@@ -839,7 +1257,7 @@ DETAIL_DESIGNS: dict[str, Any] = {
             "logging_audit": "수식·결과·소요 시간 로그",
             "screen_refs": ["계산기 메인 화면"],
             "table_refs": ["CALC_HISTORY"],
-            "module_path": "app/api/calc.py",
+            "module_path": "src/main/java/com/app/calc/CalcController.java",
             "requirement_ids": ["FR-002", "FR-006", "NFR-001", "NFR-002"],
         },
         {
@@ -858,7 +1276,7 @@ DETAIL_DESIGNS: dict[str, Any] = {
             "logging_audit": "조회 로그",
             "screen_refs": ["계산 이력 화면", "계산기 메인 화면"],
             "table_refs": ["CALC_HISTORY"],
-            "module_path": "app/api/history.py",
+            "module_path": "src/main/java/com/app/history/HistoryController.java",
             "requirement_ids": ["FR-005"],
         },
         {
@@ -877,35 +1295,38 @@ DETAIL_DESIGNS: dict[str, Any] = {
             "logging_audit": "삭제 로그",
             "screen_refs": ["계산 이력 화면"],
             "table_refs": ["CALC_HISTORY"],
-            "module_path": "app/api/history.py",
+            "module_path": "src/main/java/com/app/history/HistoryController.java",
             "requirement_ids": ["FR-005"],
         },
     ],
     "modules": [
         {
-            "path": "app/api/calc.py",
+            "path": "src/main/java/com/app/calc/CalcController.java",
             "layer": "controller",
             "responsibility": "계산 API 엔드포인트·입력 검증",
-            "depends_on": ["app/engine/evaluator.py", "app/repo/history_repo.py"],
+            "depends_on": [
+                "src/main/java/com/app/calc/CalcService.java",
+                "src/main/java/com/app/history/HistoryRepository.java",
+            ],
             "requirement_ids": ["FR-002", "FR-006"],
             "api_refs": ["계산 실행 API"],
             "screen_refs": ["계산기 메인 화면"],
             "table_refs": ["CALC_HISTORY"],
         },
         {
-            "path": "app/api/history.py",
+            "path": "src/main/java/com/app/history/HistoryController.java",
             "layer": "controller",
             "responsibility": "이력 조회·삭제 API",
-            "depends_on": ["app/repo/history_repo.py"],
+            "depends_on": ["src/main/java/com/app/history/HistoryRepository.java"],
             "requirement_ids": ["FR-005"],
             "api_refs": ["이력 조회 API", "이력 삭제 API"],
             "screen_refs": ["계산 이력 화면"],
             "table_refs": ["CALC_HISTORY"],
         },
         {
-            "path": "app/engine/evaluator.py",
-            "layer": "domain",
-            "responsibility": "토큰화·후위 표기 평가·decimal 고정밀 연산",
+            "path": "src/main/java/com/app/calc/CalcService.java",
+            "layer": "service",
+            "responsibility": "토큰화·후위 표기 평가·BigDecimal 고정밀 연산",
             "depends_on": [],
             "requirement_ids": ["FR-001", "FR-002", "NFR-001"],
             "api_refs": [],
@@ -913,7 +1334,7 @@ DETAIL_DESIGNS: dict[str, Any] = {
             "table_refs": [],
         },
         {
-            "path": "app/repo/history_repo.py",
+            "path": "src/main/java/com/app/history/HistoryRepository.java",
             "layer": "repository",
             "responsibility": "CALC_HISTORY 저장·조회·삭제",
             "depends_on": [],
@@ -923,7 +1344,7 @@ DETAIL_DESIGNS: dict[str, Any] = {
             "table_refs": ["CALC_HISTORY"],
         },
         {
-            "path": "web/src/CalculatorPage.tsx",
+            "path": "src/main/resources/static/index.html",
             "layer": "web",
             "responsibility": "메인 화면·수식 검증·API 호출",
             "depends_on": [],
@@ -932,18 +1353,28 @@ DETAIL_DESIGNS: dict[str, Any] = {
             "screen_refs": ["계산기 메인 화면"],
             "table_refs": [],
         },
+        {
+            "path": "src/test/java/com/app/calc/CalcServiceTest.java",
+            "layer": "test",
+            "responsibility": "계산 엔진 단위 테스트 (JUnit 5)",
+            "depends_on": ["src/main/java/com/app/calc/CalcService.java"],
+            "requirement_ids": ["FR-002", "NFR-001"],
+            "api_refs": [],
+            "screen_refs": [],
+            "table_refs": [],
+        },
     ],
     "business_rules": [
         {
             "rule_id": "BR-001",
             "description": "수식은 200자 이내, 허용 토큰만 포함, 괄호 짝이 맞아야 한다",
-            "enforced_in": "app/engine/evaluator.py",
+            "enforced_in": "src/main/java/com/app/calc/CalcService.java",
             "requirement_ids": ["FR-001"],
         },
         {
             "rule_id": "BR-002",
             "description": "결과는 유효 숫자 21자리, 10^25 초과는 E003 오류",
-            "enforced_in": "app/engine/evaluator.py",
+            "enforced_in": "src/main/java/com/app/calc/CalcService.java",
             "requirement_ids": ["FR-002", "NFR-001"],
         },
     ],
@@ -2061,6 +2492,7 @@ def main() -> int:
             "strategy_planner": STRATEGY,
             "design_writer": DESIGNS,
             "detail_designer": DETAIL_DESIGNS,
+            "developer": developer_responder,
             "bid_reviewer": BID_REVIEW,
             "meeting_analyzer": MEETING_REPORT,
         },
@@ -2192,6 +2624,32 @@ def main() -> int:
     log.append(r.run_detail_design(p, actor=ACTOR).summary)  # 단계 6
     log.append("코드 생성 패키지: " + s.detail_design.export_codegen_package(p, actor=ACTOR))
     log.append(r.run_role_step(p, StepRunner.STEP_WBS, "planner", "WBS 초안", actor=ACTOR).summary)
+    # 단계 7: WBS 모듈 분해 → 테스트 계획 → 코드 생성(대행) → Docker 테스트(이미지 있을 때) → 문서
+    log.append(r.run_wbs_decompose(p, actor=ACTOR).summary)
+    log.append(r.run_test_plan(p, actor=ACTOR).summary)
+    _batches, _bw = s.development.plan(p)
+    _covered = bool(_batches) and all(
+        t_ in DEVELOPER_FILES for b_ in _batches for t_ in b_.target_paths
+    )  # 대행 파일이 모든 배치를 덮을 때만 (실모델이면 항상 실행)
+    if _covered:
+        log.append(r.run_code_generation(p, actor=ACTOR).summary)
+        _ds = s.development.docker_status()
+        if _ds.ready and os.environ.get("PWA_SKIP_DOCKER") != "1":
+            log.append(r.run_code_test(p, actor=ACTOR).summary)
+        else:
+            log.append(f"Docker 테스트 생략: {_ds.message}")
+    else:
+        log.append(
+            "코드 생성 생략: " + ("; ".join(_bw)[:200] or "대행 파일이 없는 모듈(실모델 실행 필요)")
+        )
+    log.append(
+        "테스트·검수·이관 문서: "
+        + ", ".join(
+            s.testing.write_documents(
+                p, s.development.test_results(p), decisions=s.decisions.open_items(p), actor=ACTOR
+            )
+        )
+    )
     s.steps.run_role(p, "proposal_writer", "제안 문안", actor=ACTOR)
     log.append(r.run_generation(p, actor=ACTOR).summary)
     log.append(r.run_qa(p, actor=ACTOR).summary)

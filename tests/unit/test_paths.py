@@ -22,11 +22,11 @@ def test_project_dir_name_format() -> None:
     assert project_dir_name("테스트 사업", date(2026, 10, 15)) == "Project_20261015_테스트_사업"
 
 
-def test_create_project_output_dir_creates_all_14_subdirs(paths: ProjectPaths) -> None:
+def test_create_project_output_dir_creates_all_subdirs(paths: ProjectPaths) -> None:
     created = paths.create_project_output_dir("사업", date(2026, 10, 15))
     assert created.name == "Project_20261015_사업"
     assert sorted(p.name for p in created.iterdir()) == sorted(OUTPUT_SUBDIRS)
-    assert len(OUTPUT_SUBDIRS) == 14
+    assert len(OUTPUT_SUBDIRS) == 15  # 단계 7: 14_Generated_App 추가
 
 
 def test_duplicate_project_name_gets_unique_suffix(paths: ProjectPaths) -> None:
