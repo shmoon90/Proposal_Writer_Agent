@@ -131,12 +131,30 @@ FIELD_SYNONYMS: dict[DocumentKind, dict[str, tuple[str, ...]]] = {
         "review_reason": ("변경 사유", "사유"),
     },
     DocumentKind.WBS: {
-        "wbs_id": ("WBS ID", "WBS 코드", "WBS", "ID", "코드"),
+        "wbs_id": ("WBS ID", "WBS 코드", "WBS", "ID", "코드", "No"),
         "parent_id": ("상위 WBS ID", "상위 WBS", "상위", "상위 코드"),
         "requirement_id": ("요구사항 ID", "요구사항ID", "요구사항"),
-        "name": ("Task 명", "Task명", "작업명", "작업 명", "활동", "업무명", "과업"),
+        "name": (
+            "Task 명",
+            "Task명",
+            "작업명",
+            "작업 명",
+            "개발 항목",
+            "세부 항목",
+            "활동",
+            "업무명",
+            "과업",
+            "항목",
+        ),
         "description": ("Task 상세 내용", "상세 내용", "내용", "설명"),
-        "role": ("담당 역할", "담당", "역할", "담당자"),
+        "category": ("구분", "업무 구분", "대분류", "업무 영역"),
+        "stage": ("단계", "공정"),
+        "sub_name": ("세부 항목", "세부항목", "상세 항목", "세부"),
+        "organization": ("개발 조직", "수행 조직", "조직", "소속"),
+        "role": ("담당 역할", "역할"),
+        "assignee": ("개발자", "담당자", "담당", "개발 담당"),
+        "quantity": ("수량", "규모", "수량/규모"),
+        "progress": ("진척율(%)", "진척율", "진척률", "진행률(%)", "진행률"),
         "predecessors": ("선행 업무", "선행", "선행 작업"),
         "successors": ("후행 업무", "후행", "후행 작업"),
         "work_type": ("업무 유형", "유형"),
@@ -145,21 +163,22 @@ FIELD_SYNONYMS: dict[DocumentKind, dict[str, tuple[str, ...]]] = {
         "actual_start": ("실제 시작일", "실제시작"),
         "actual_end": ("실제 종료일", "실제종료"),
         "duration": ("기간(영업일)", "기간", "일수"),
-        "status": ("진행 상태", "상태", "진행률"),
+        "status": ("진행 상태", "상태"),
         "basis": ("산정 근거", "산정근거", "근거"),
         "effort_md": ("공수(M/D)", "공수", "MD", "M/D"),
         "notes": ("비고", "참고"),
     },
     DocumentKind.STAFFING_PLAN: {
-        "organization": ("조직", "소속"),
-        "role": ("역할", "직무", "담당 역할"),
+        "organization": ("조직", "소속", "수행 조직"),
+        "role": ("역할", "구분", "직무", "담당 역할"),
+        "member": ("구성원", "성명", "이름"),
         "grade": ("기술 등급", "등급"),
         "skills": ("필요 기술", "기술", "스킬"),
         "headcount": ("투입 인원", "인원", "인력"),
         "duties": ("담당 업무", "업무"),
-        "start": ("투입 시작일", "시작일", "투입시작"),
-        "end": ("투입 종료일", "종료일", "투입종료"),
-        "effort_mm": ("예상 공수(MM)", "공수(MM)", "MM", "공수"),
+        "start": ("투입 시작일", "시작일", "투입시작", "투입 시작월"),
+        "end": ("투입 종료일", "종료일", "투입종료", "투입 종료월"),
+        "effort_mm": ("예상 공수(MM)", "공수(MM)", "계(MM)", "MM", "공수", "계", "합계"),
         "effort_md": ("예상 공수(M/D)", "공수(M/D)"),
         "basis": ("산정 근거", "근거"),
         "unit_cost": ("단가(원/MM, 입력)", "단가", "단가(원/MM)"),
@@ -193,7 +212,7 @@ def required_for(kind: DocumentKind, sheet: str) -> tuple[str, ...]:
 REQUIRED_FIELDS: dict[DocumentKind, tuple[str, ...]] = {
     DocumentKind.REQUIREMENT_SPEC: ("requirement_id", "name", "description"),
     DocumentKind.TRACE_MATRIX: ("requirement_id",),
-    DocumentKind.WBS: ("wbs_id", "name"),
+    DocumentKind.WBS: ("name",),  # WBS ID가 없는 고객 양식은 구분·단계 계층으로 코드를 발급한다
     DocumentKind.STAFFING_PLAN: ("role",),
 }
 # 표준 시트명 (이 시스템이 생성). 시트 → 종류 힌트
@@ -203,8 +222,10 @@ STANDARD_SHEETS: dict[str, DocumentKind] = {
     "제약·평가·제출조건": DocumentKind.REQUIREMENT_SPEC,
     "추적표": DocumentKind.TRACE_MATRIX,
     "WBS": DocumentKind.WBS,
+    "약식WBS": DocumentKind.WBS,
     "의존관계": DocumentKind.WBS,
     "투입계획": DocumentKind.STAFFING_PLAN,
+    "역할요약": DocumentKind.STAFFING_PLAN,
 }
 SKIP_SHEETS = {
     "변경이력",
@@ -347,6 +368,26 @@ def propose_mapping(ws: Any, kind: DocumentKind) -> SheetMapping:
         if chosen.column_index is not None:
             used.add(chosen.column_index)
         mapping.columns.append(chosen)
+    if kind == DocumentKind.WBS and mapping.index_of("sub_name") is None:
+        ni = mapping.index_of(
+            "name"
+        )  # '항목' 머리글이 두 열에 병합된 고객 양식: 옆의 머리글 없는 열이 세부 항목
+        if ni is not None and ni + 1 < len(headers) and not headers[ni + 1] and ni + 1 not in used:
+            has_data = any(
+                ws.cell(row=r, column=ni + 2).value is not None
+                for r in range(header_row + 1, min(ws.max_row, header_row + 30) + 1)
+            )
+            if has_data:
+                for c in mapping.columns:
+                    if c.field == "sub_name":
+                        c.header, c.column_index, c.confidence, c.needs_confirmation, c.reason = (
+                            "(항목 세부)",
+                            ni + 1,
+                            0.8,
+                            False,
+                            "'항목' 병합 머리글 옆의 머리글 없는 열",
+                        )
+                        used.add(ni + 1)
     for row in ws.iter_rows(min_row=header_row + 1, max_row=min(ws.max_row, header_row + 5)):
         values = [c.value for c in row]
         if any(v is not None for v in values):
@@ -410,6 +451,22 @@ def profile_workbook(data: bytes, declared_kind: DocumentKind) -> WorkbookProfil
             continue
         _check_quality(ws, mapping, profile)
         profile.sheets.append(mapping)
+    if not profile.sheets:
+        # 다른 종류로 더 잘 보이는 시트뿐이면, 사용자가 선언한 종류로 간주해 매핑을 제안한다(확인 필요로 표시됨)
+        vocab = {
+            normalize_header(s) for syns in FIELD_SYNONYMS[declared_kind].values() for s in syns
+        }
+        for ws in wb.worksheets:
+            if ws.title in SKIP_SHEETS:
+                continue
+            row = _find_header_row(ws, declared_kind)
+            if sum(1 for c in ws[row] if normalize_header(c.value) in vocab) >= 1:
+                mapping = propose_mapping(ws, declared_kind)
+                mapping.warnings.append(
+                    f"시트 '{ws.title}'는 {declared_kind.value} 양식과 다르게 보이지만 선언한 종류로 간주했습니다 — 매핑 확인 필요"
+                )
+                _check_quality(ws, mapping, profile)
+                profile.sheets.append(mapping)
     if not profile.sheets:
         profile.quality.append(
             f"{declared_kind.value} 구조로 인식되는 시트가 없습니다. 헤더 행과 컬럼명을 확인하십시오."

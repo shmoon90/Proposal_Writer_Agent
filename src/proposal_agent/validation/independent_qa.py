@@ -14,14 +14,21 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 from proposal_agent.config.errors import PathSecurityError
 from proposal_agent.config.paths import ProjectPaths, ensure_within
 from proposal_agent.generators.base import GenerationContext
-from proposal_agent.generators.excel.wbs_gantt import SHEET_GANTT, SHEET_WBS
+from proposal_agent.generators.excel.style import HEADER_ROW
+from proposal_agent.generators.excel.wbs_gantt import (
+    SHEET_REPORT,
+    SHEET_WBS,
+    gantt_first_col,
+    read_week_header,
+    span_weeks,
+)
 from proposal_agent.models import (
     AcceptanceStatus,
     ArchitectureComponent,
@@ -1278,56 +1285,62 @@ def _check_gantt(inp: QaInputs, art: CheckArtifacts) -> list[str]:
         wb = load_workbook(path)
     except Exception as exc:  # noqa: BLE001
         return [f"간트 파일 열기 실패: {exc}"]
-    if SHEET_GANTT not in wb.sheetnames or SHEET_WBS not in wb.sheetnames:
-        return ["간트 또는 WBS 시트 없음"]
-    ws_w, ws_g = wb[SHEET_WBS], wb[SHEET_GANTT]
-    wh = [c.value for c in ws_w[1]]
+    if SHEET_WBS not in wb.sheetnames or SHEET_REPORT not in wb.sheetnames:
+        return ["WBS 또는 약식WBS 시트 없음"]
+    ws_w, ws_r = wb[SHEET_WBS], wb[SHEET_REPORT]
+    wh = [c.value for c in ws_w[HEADER_ROW]]  # Phase 15: 1행 묶음 머리글·월, 2행 컬럼·주차
     if "WBS ID" not in wh or "계획 시작일" not in wh:
         return ["WBS 시트 헤더 없음"]
     ci, si, ei = wh.index("WBS ID"), wh.index("계획 시작일"), wh.index("계획 종료일")
-    wbs_dates: dict[str, tuple[Any, Any]] = {}
-    for row in ws_w.iter_rows(min_row=2, values_only=True):
-        if row[ci] is None:
-            break
-        wbs_dates[str(row[ci])] = (_as_date(row[si]), _as_date(row[ei]))
-    gh = [c.value for c in ws_g[1]]
-    weeks: list[date] = []
-    year_hint = min((s for s, _ in wbs_dates.values() if s), default=None)
-    yr = year_hint.year if year_hint else 0
-    for h in gh[4:]:
-        if isinstance(h, str) and re.fullmatch(r"\d{2}/\d{2}", h) and year_hint:
-            m, dd = int(h[:2]), int(h[3:])
-            if weeks and m < weeks[-1].month:
-                yr += 1  # 연도 경계를 넘으면 이어서 증가
-            weeks.append(date(yr, m, dd))
+    first_col = gantt_first_col(ws_w)
+    if first_col is None:
+        return ["WBS 시트에 간트 열 없음"]
+    weeks = read_week_header(ws_w, first_col)
+    # 기준 데이터(WBS 항목)의 날짜와 시트 날짜·채움 구간을 대조한다
+    items = {w.code: w for w in inp.ctx.wbs}
     problems: list[str] = []
     seen: set[str] = set()
-    for row in ws_g.iter_rows(min_row=2):
-        code = row[0].value
+    for row in ws_w.iter_rows(min_row=HEADER_ROW + 1):
+        code = row[ci].value
         if code is None:
             break
         code = str(code)
         seen.add(code)
-        if code not in wbs_dates:
-            problems.append(f"간트 행 {code}가 WBS 시트에 없음")
+        w = items.get(code)
+        if w is None:
+            problems.append(f"WBS 시트 행 {code}가 기준 데이터에 없음")
             continue
-        gs, ge = _as_date(row[2].value), _as_date(row[3].value)
-        ws_s, ws_e = wbs_dates[code]
-        if (gs, ge) != (ws_s, ws_e):
-            problems.append(f"{code}: 간트 {gs}~{ge} ≠ WBS {ws_s}~{ws_e}")
+        ws_s, ws_e = _as_date(row[si].value), _as_date(row[ei].value)
+        if (ws_s, ws_e) != (w.planned_start, w.planned_end):
+            problems.append(f"{code}: 시트 {ws_s}~{ws_e} ≠ 기준 {w.planned_start}~{w.planned_end}")
             continue
         if ws_s and ws_e and weeks:
-            filled = [i for i, cell in enumerate(row[4 : 4 + len(weeks)]) if _is_filled(cell)]
-            expected = [
-                i for i, wk in enumerate(weeks) if wk <= ws_e and wk + timedelta(days=6) >= ws_s
+            cells = row[first_col - 1 : first_col - 1 + len(weeks)]
+            filled = [
+                i for i, cell in enumerate(cells) if _is_filled(cell) or cell.value is not None
             ]
+            expected = span_weeks(weeks, ws_s, ws_e)
             if filled != expected:
                 problems.append(
                     f"{code}: 간트 채움 주 {len(filled)}개 ≠ 일정 기준 {len(expected)}개"
                 )
-    missing = sorted(set(wbs_dates) - seen)
+    missing = sorted(set(items) - seen)
     if missing:
-        problems.append(f"간트에 없는 WBS: {', '.join(missing[:6])}")
+        problems.append(f"WBS 시트에 없는 항목: {', '.join(missing[:6])}")
+    # 약식WBS: 시작·종료일이 기준 데이터의 어떤 항목과 일치해야 한다
+    rh = [c.value for c in ws_r[HEADER_ROW]]
+    if "항목" in rh and "시작일" in rh:
+        ni, rs, re_ = rh.index("항목"), rh.index("시작일"), rh.index("종료일")
+        by_name = {w.name: w for w in inp.ctx.wbs}
+        for row in ws_r.iter_rows(min_row=HEADER_ROW + 1, values_only=True):
+            name = row[ni]
+            if name is None:
+                break
+            w = by_name.get(str(name))
+            if w and (_as_date(row[rs]), _as_date(row[re_])) != (w.planned_start, w.planned_end):
+                problems.append(f"약식WBS '{str(name)[:20]}' 날짜가 기준 데이터와 다름")
+    else:
+        problems.append("약식WBS 시트 헤더 없음")
     return _cap(problems)
 
 

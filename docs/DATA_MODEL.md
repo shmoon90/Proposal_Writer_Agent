@@ -191,6 +191,9 @@ erDiagram
 | `planned_start`, `planned_end` | date \| None | `scheduler.py` 계산 결과 |
 | `duration_days` | int \| None | 영업일 |
 | `effort_md` | Decimal | 공수(M/D) |
+| `category` / `organization` / `assignee` / `quantity` | str | (Phase 15) 구분(업무 영역) / 개발 조직 / 개발자 이름 / 수량·규모 |
+| `progress_pct` | int 0~100 | (Phase 15) 진척율. 간트 채움의 진척 구간, 구축 단계에서 사람이 갱신 |
+| `milestone` | bool | (Phase 15) 마일스톤 항목(코드 `0`·`0.n`, 공수 0, 보고용 WBS 첫 행) |
 | `estimate_basis` | str | **산정 근거(필수)** |
 | `deliverable_names` | list[str] | |
 | `order` | int | 표시 순서 |
@@ -201,7 +204,7 @@ erDiagram
 
 | 엔티티 | 주요 필드 |
 |---|---|
-| `StaffRole` | `id`, `project_id`, `role_name`(PM, PL, 개발자…), `grade`(특급/고급/중급/초급), `unit_cost_per_mm`(Decimal \| None), `headcount_planned` |
+| `StaffRole` | `id`, `project_id`, `role_name`(PM, PL, 개발자…), `organization`, `grade`(특급/고급/중급/초급), `unit_cost_per_mm`(Decimal \| None), `headcount_planned`, `members`(Phase 15: 구성원 이름, `member_names()`가 인원 수만큼 `역할N` 자리표시를 채움) |
 | `StaffingAllocation` | `id`, `project_id`, `wbs_item_id`, `staff_role_id`, `person_name`(None 허용), `start`, `end`, `allocation_ratio`(0~1), `effort_md`(계산값) |
 
 월별 M/M 집계와 비용은 `planning/staffing.py`가 계산한다.

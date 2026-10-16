@@ -17,7 +17,7 @@
 | 3 | `requirement_verifier` | 청크 + 요구사항 | `VerificationReport` | 없음 | 없음 | 8 / $2 / 600s | — |
 | 4 | `tech_researcher` | 요구사항·RFP 분석·주제 | `ResearchReport` | **WebSearch, WebFetch** | `pwa.get_requirement`, `pwa.list_research` | 30 / $6 / 1200s | rfp_analyst |
 | 5 | `architect` | 요구사항·조사 | `ArchitectureDraft` | 없음 | pwa 읽기 9종 | 12 / $3 / 600s | tech_researcher, rfp_analyst |
-| 6 | `planner` | 요구사항·아키텍처·기간 | `WBSDraft` (날짜 없음) | 없음 | pwa 읽기 9종 | 12 / $3 / 600s | architect, rfp_analyst |
+| 6 | `planner` | 요구사항·아키텍처·기간 | `WBSDraft` (날짜 없음; Phase 15: items[].category/organization/assignee/quantity, `team[]`(조직·역할·등급·인원·이름), `milestones[]`(name·timing)) | 없음 | pwa 읽기 9종 | 12 / $3 / 600s | architect, rfp_analyst |
 | 7 | `proposal_writer` | 기준 데이터 + `<proposal_template>`(템플릿 관행) + `<rfp_toc>`(RFP 지정 목차, Phase 12) | `ProposalContent` (섹션에 chapter/section/number/lead_message/table/requirement_ids/footnotes) | 없음 | pwa 읽기 9종 | 15 / $4 / 600s | 1·4·5·6 |
 | 8 | `document_generator` | 기준 데이터 | `DocumentPlan` (파일은 코드 생성) | 없음 | pwa 읽기 9종 | 10 / $2 / 600s | 7·6·5 |
 | 9 | `qa_reviewer` | 산출물 텍스트·기준·변경 요청 | `QaReport` | 없음 | pwa 읽기 9종 + `verify_deliverable_file` | 12 / $3 / 600s | 8·7 |
@@ -116,6 +116,7 @@
 - 입력 문서 텍스트는 `<document id="…" page="…">` 블록으로 감싸 데이터임을 명시한다.
 - 요구사항 ID, 날짜, 금액은 프롬프트에서 "계산하지 말고 비워 두라"고 지시하고 스키마에서도 받지 않는다.
 - 독립 검증 프롬프트는 추출 프롬프트와 어휘·순서를 달리 작성해 동일 편향을 줄인다.
+- (Phase 15) `planner`는 WBS 항목에 구분·개발 조직·개발자·수량을 붙이고, 수행 조직(`team`: 조직·역할·등급·인원·이름)과 보고용 마일스톤(`milestones`: 착수·보고·오픈·종료, timing = start/mid/end/after:<code>/±Nw)을 제안한다. 코드(`planning/service.py`)가 team을 `StaffRole`(조직·등급·인원·구성원)로, 마일스톤을 WBS 코드 `0` 아래 공수 0 항목으로 만들고 날짜를 계산한다. 투입계획의 구성원별 월별 공수는 코드가 역할 배분을 인원 수로 나눠 산출한다.
 - (Phase 14) `approach_writer`는 요구사항 정의서의 **구현방안·구현 난이도·검증 방법·검사 기준**을 요구사항마다 짧게 쓴다(`requirements/approach.py`, 단계 `impl_approach`). 조사·구성 요소·기술 선택에 근거가 있는 내용만 구체화하고, 새로 열람한 출처는 조사 기록(`TechnologyResearch`)으로 저장해 QA-TECH-07의 근거 연결에 쓰인다. 빠뜨린 항목은 코드가 프로젝트 데이터만으로 규칙 초안을 만들어 `[자동 초안]`(`approach_source=rule`)으로 표시하고, 사람이 쓴 방안(`user`)은 덮어쓰지 않는다. `semantic_differ`는 변경 항목마다 문맥 관점(범위·대상 사용자·입출력·업무 규칙·수치 조건·화면·연계·성능/보안·데이터)과 난이도를 내고, 코드는 이를 공수 추정 가중치(`changes/impact.py`)에 반영한다.
 - (Phase 13) `proposal_writer`는 `<feasibility>`(필수 요구사항별 구현 방안·근거 조사·구현 가능성·출처 수)를 받아 **구현 가능(feasible/with_risk) 조사 근거가 있는 것만** 구체적 구현 방안으로 쓰고, 조사가 없으면 "조사 후 확정"으로 쓰며 소절마다 `feasibility_basis`를 적는다(규칙 9). 작성 단계는 기술 조사 기록이 없으면 실행되지 않는다(`StepRunner.run_proposal_writing`). 소절 도식은 `visual`(VisualSpec: cards/flow/process/two_column/dataflow/screen/kpis/compare)로 지정하고 코드가 편집 가능한 도형으로 그린다(규칙 10, `generators/pptx/shapes.py`). 조사 결과는 `ResearchService._fill_implementation_approach`가 관련 요구사항의 구현 방안을 채운다.
 - (Phase 12) 제안서 작성(`proposal_writer`)은 `GenerationService.proposal_brief()`가 만든 `<proposal_template>`(템플릿 PPTX에서 읽은 관행: 용지·머리글 2단·리드·번호 체계·RFP ID 카드·표 유형·글꼴)과 `<rfp_toc>`(RFP 지정 목차 장/절·작성방법)를 받아 소절 단위 문안을 쓴다. 장·절 배치와 번호 매기기, 슬라이드 분할, 표 그리기는 코드(`outline.plan_chapters`, `TemplateDeckBuilder`)가 한다. `qa_reviewer`에도 같은 요약이 들어가고 코드 검사 QA-FILE-11이 용지·머리글·장 순서·글꼴을 대조한다.

@@ -223,13 +223,17 @@ def test_wbs_gantt_and_staffing_consistency(services: Services, ready: Project) 
         io.BytesIO(_path(services, latest[DeliverableKind.WBS_GANTT_XLSX]).read_bytes())
     )
     ws = wb["WBS"]
-    headers = [c.value for c in ws[1]]
+    headers = [c.value for c in ws[2]]  # Phase 15: 1행 묶음 머리글(+간트 월), 2행 컬럼(+주차)
     for col in (
         "WBS ID",
         "상위 WBS ID",
+        "구분",
         "요구사항 ID",
         "Task 명",
+        "수량",
+        "개발 조직",
         "담당 역할",
+        "개발자",
         "선행 업무",
         "후행 업무",
         "업무 유형",
@@ -238,28 +242,41 @@ def test_wbs_gantt_and_staffing_consistency(services: Services, ready: Project) 
         "실제 시작일",
         "실제 종료일",
         "기간(영업일)",
+        "진척율(%)",
         "진행 상태",
         "산정 근거",
         "비고",
     ):
         assert col in headers
-    assert "간트" in wb.sheetnames and "의존관계" in wb.sheetnames and "산정근거" in wb.sheetnames
-    gantt = wb["간트"]
-    assert (
-        gantt.cell(row=2, column=1).value == ws.cell(row=2, column=1).value
-        and gantt.cell(row=2, column=3).value == ws.cell(row=2, column=10).value
-    )
+    assert {"약식WBS", "의존관계", "산정근거"} <= set(wb.sheetnames) and "간트" not in wb.sheetnames
+    gantt_col = headers.index("비고") + 2  # 비고 다음 열부터 주 단위 간트
+    assert ws.cell(row=2, column=gantt_col).value in (1, 2, 3, 4, 5)  # 월 내 주차
+    assert str(ws.cell(row=1, column=gantt_col).value).count("-") == 1  # YYYY-MM
     filled = sum(
         1
-        for c in gantt[2]
+        for c in ws[3][gantt_col - 1 :]
         if c.fill and c.fill.fgColor and c.fill.fgColor.rgb not in (None, "00000000")
     )
     assert filled >= 1
+    report = wb["약식WBS"]
+    rh = [c.value for c in report[2]]
+    assert rh[:5] == ["구분", "단계", "항목", "시작일", "종료일"]
+    assert report.cell(row=3, column=1).value == "사업관리"  # 마일스톤 행이 첫 행
     sp = load_workbook(
         io.BytesIO(_path(services, latest[DeliverableKind.STAFFING_PLAN_XLSX]).read_bytes())
     )
     plan = sp["투입계획"]
-    ph = [c.value for c in plan[1]]
+    ph = [c.value for c in plan[2]]  # 구성원별 월별 공수 (묶음 머리글 1행)
+    for col in ("조직", "역할", "구성원", "기술 등급", "담당 업무", "계(MM)", "비고"):
+        assert col in ph
+    total_col = ph.index("계(MM)") + 1
+    assert str(plan.cell(row=3, column=total_col).value).startswith("=SUM(")
+    total_row = next(
+        r for r in range(3, plan.max_row + 1) if plan.cell(row=r, column=1).value == "합계"
+    )
+    assert str(plan.cell(row=total_row, column=total_col).value).startswith("=SUM(")
+    roles_sheet = sp["역할요약"]
+    rh2 = [c.value for c in roles_sheet[1]]
     for col in (
         "조직",
         "역할",
@@ -275,9 +292,11 @@ def test_wbs_gantt_and_staffing_consistency(services: Services, ready: Project) 
         "비용 합계(원)",
         "비고",
     ):
-        assert col in ph
-    cost_col = ph.index("비용 합계(원)") + 1
-    assert str(plan.cell(row=2, column=cost_col).value).startswith("=IF(")  # 단가 없으면 빈 값
+        assert col in rh2
+    cost_col = rh2.index("비용 합계(원)") + 1
+    assert str(roles_sheet.cell(row=2, column=cost_col).value).startswith(
+        "=IF("
+    )  # 단가 없으면 빈 값
     summary = sp["공수요약"]
     total_row = next(
         r for r in range(2, summary.max_row + 1) if summary.cell(row=r, column=1).value == "합계"

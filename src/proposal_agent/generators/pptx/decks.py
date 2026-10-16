@@ -162,7 +162,7 @@ def _timeline_items(ctx: GenerationContext) -> list[tuple[str, Any, Any]]:
     return [
         (f"{w.code} {w.name[:22]}", w.planned_start, w.planned_end)
         for w in ctx.wbs
-        if w.code.count(".") <= 1
+        if w.code.count(".") <= 1 and not w.milestone
     ]
 
 

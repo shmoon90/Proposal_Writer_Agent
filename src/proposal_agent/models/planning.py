@@ -48,6 +48,13 @@ class WBSItem(ProjectScoped):
     description: str = ""
     related_requirement_ids: list[str] = Field(default_factory=list)
     role: str = Field(default="", description="담당 역할")
+    # Phase 15: 고객 WBS 관행(구분·개발 조직·개발자·수량·진척율·마일스톤)
+    category: str = Field(default="", description="구분 (업무 영역·시스템 단위)")
+    organization: str = Field(default="", description="개발 조직 (수행사·협력사·팀)")
+    assignee: str = Field(default="", description="개발자·담당자 이름 (미정이면 빈값)")
+    quantity: str = Field(default="", description="수량·규모 (예: 화면 12개)")
+    progress_pct: int = Field(default=0, ge=0, le=100, description="진척율(%)")
+    milestone: bool = Field(default=False, description="마일스톤(착수·보고·오픈 등) 여부")
     work_type: WorkType = WorkType.STANDALONE
     planned_start: date | None = None
     planned_end: date | None = None
@@ -89,7 +96,19 @@ class StaffRole(ProjectScoped):
         default=None, description="단가(원/MM). 입력 없으면 비용 계산하지 않음"
     )
     headcount_planned: int = 1
+    members: list[str] = Field(
+        default_factory=list,
+        description="구성원 이름 (Phase 15). 비어 있으면 투입계획에 '역할N' 자리표시로 표시",
+    )
     notes: str = ""
+
+    def member_names(self) -> list[str]:
+        """투입계획 행에 쓸 구성원 이름 목록 (인원 수만큼, 부족하면 자리표시)."""
+        n = max(1, self.headcount_planned, len(self.members))
+        names = [m for m in self.members if m][:n]
+        for i in range(len(names), n):
+            names.append(f"{self.role_name}{i + 1}" if n > 1 else self.role_name)
+        return names
 
 
 class StaffingAllocation(ProjectScoped):

@@ -166,6 +166,15 @@ class WbsItemDraft(_Strict):
     deliverables: list[str] = Field(default_factory=list)
     roles: list[dict[str, str]] = Field(default_factory=list, description="[{role, ratio}]")
     related_requirement_ids: list[str] = Field(default_factory=list)
+    category: str = Field(
+        default="", description="구분 (업무 영역·시스템 단위, 예: 공통/민원/통계)"
+    )
+    organization: str = Field(default="", description="개발 조직 (수행사 팀·협력사)")
+    assignee: str = Field(
+        default="",
+        description="개발자·담당자 이름. 제안 단계에서 미정이면 빈값(코드가 역할로 표시)",
+    )
+    quantity: str = Field(default="", description="수량·규모 (예: 화면 12개, 인터페이스 3건)")
 
 
 class DependencyDraft(_Strict):
@@ -175,11 +184,39 @@ class DependencyDraft(_Strict):
     lag_days: int = 0
 
 
+class TeamMemberDraft(_Strict):
+    """수행 조직 구성 (투입계획 행). 월별 공수는 코드가 WBS 배분으로 계산한다."""
+
+    organization: str = Field(default="수행사", description="조직 (수행사·협력사·고객)")
+    role: str = Field(description="역할 (items[].roles의 role과 같은 이름)")
+    grade: str = Field(default="미정", description="기술 등급: 특급/고급/중급/초급/미정")
+    name: str = Field(default="", description="구성원 이름 (미정이면 빈값)")
+    headcount: int = Field(default=1, ge=1)
+    skills: list[str] = Field(default_factory=list)
+    duties: str = ""
+
+
+class MilestoneDraft(_Strict):
+    name: str = Field(description="예: 착수, 착수보고, 중간보고, 완료보고, 오픈, 종료")
+    timing: str = Field(
+        default="end",
+        description="start | mid | end | after:<WBS code> (해당 항목 종료 직후) | +Nw (착수 N주 후)",
+    )
+
+
 class WBSDraft(_Strict):
     """날짜는 받지 않는다. 일정은 planning/scheduler.py가 계산한다."""
 
     items: list[WbsItemDraft] = Field(default_factory=list)
     dependencies: list[DependencyDraft] = Field(default_factory=list)
+    team: list[TeamMemberDraft] = Field(
+        default_factory=list,
+        description="수행 조직 구성 (역할·등급·인원). 비우면 코드가 역할 부하로 산출",
+    )
+    milestones: list[MilestoneDraft] = Field(
+        default_factory=list,
+        description="보고용 WBS 마일스톤. 비우면 코드 기본값(착수·착수보고·중간보고·완료보고·종료)",
+    )
     assumptions: list[str] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)
 

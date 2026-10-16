@@ -10,7 +10,7 @@
 
 명령: `python -m pytest -q -rs` (기본 `-m 'not llm'`)
 
-결과: **249 passed, 1 skipped, 2 deselected** (60.7s, 2026-10-15 Phase 14 반영. Phase 13 243, Phase 12 238, Phase 11 231, Phase 8 215)
+결과: **253 passed, 1 skipped, 2 deselected** (63.8s, 2026-10-16 Phase 15 반영. Phase 14 249, Phase 13 243, Phase 12 238, Phase 11 231, Phase 8 215)
 
 - skipped 1: `tests/unit/test_paths.py::test_ensure_within_blocks_symlink` — 이 PC 계정에 심볼릭 링크 생성 권한이 없음(WinError 1314). 코드 결함이 아니라 환경 제약.
 - deselected 2: `tests/integration/llm/` — 실제 Claude API 호출이 필요한 LLM 계약 테스트. **크레딧 부족으로 실행하지 않음.**
@@ -53,6 +53,8 @@
 **Phase 13 실샘플 점검 (저장소 밖 고객 샘플, 커밋·공개 금지)**: 고객 제공 발표용 샘플(30.3×21.6 cm, 35장) 프로파일 — 머리글 1단 `NN/ 제목`(top 1.1 cm, 굵은 고딕), 큰따옴표 리드(top 4.06 cm, 16pt), 장 Ⅰ~Ⅴ, 표기 `{no:02d}/ {title}`·`({i}/{n})`, 경고 0. 제출용(Ⅰ장)+발표용 샘플 템플릿을 함께 등록한 계산기 RFP 전체 흐름(모든 수정 반영 후 재실행): 발표용 19장·제출용 18장, 그림 도형 0, 통합 QA 34항목 중 33 실행·29 통과·0 실패·4 검토 필요(기술 조사 미확인 3·QA-TECH-07 1)·1 미실행(QA-RFP-07), gate3·gate4 PASS, gate2·gate5 NEEDS_HUMAN_REVIEW. 겹침·넘침 검토 항목(QA-FILE-03/04)은 해소됨. 실제 모델 호출은 여전히 미검증.
 
 **Phase 14 실샘플 점검 (저장소 밖 고객 정의서 2건·추적표 1건, 커밋·공개 금지)**: 샘플 구조 분석 결과([REQUIREMENT_DOCS_ANALYSIS.md](REQUIREMENT_DOCS_ANALYSIS.md), 식별 정보 없음)를 정의서 31열·추적표 25열 양식과 재적재 동의어에 반영했다. 계산기 RFP + 고객 템플릿 2종(제출용 Ⅰ장·발표용) 전체 흐름(API 키 없이 대행 응답): 구현 방안 **12건 에이전트 작성·0건 규칙 초안**(평가·제출 조건 제외, 정의서 '구현방안' 빈 칸 0), 난이도 상/중/하 기재, 통합 QA **35항목 중 34 실행·30 통과·0 실패·4 검토 필요**(QA-TECH-01/02/05 조사 위험·미확인, QA-TECH-07 근거 조사 없음 2건)·1 미실행(QA-RFP-07), gate3·gate4 PASS, gate2·gate5 NEEDS_HUMAN_REVIEW, QA-CON-09 통과. pytest 249 passed(신규 Phase 14 테스트 6건 포함). 실제 모델 호출(`approach_writer`·`semantic_differ`)은 미검증.
+
+**Phase 15 실샘플 점검 (저장소 밖 고객 WBS 2건·월별 투입계획 1건, 커밋·공개 금지, 2026-10-16)**: 샘플 구조([WBS_STAFFING_ANALYSIS.md](WBS_STAFFING_ANALYSIS.md))를 WBS(상세 25열 + 주 단위 간트)·약식WBS(보고용, 마일스톤 행)·투입계획(구성원별 월별 MM·계/합계 수식)·역할요약 양식과 재적재(WBS ID 없는 양식 코드 발급)에 반영했다. 계산기 RFP + 고객 템플릿 2종 전체 흐름(API 키 없이 대행 응답, planner 초안에 team·milestones 포함): WBS 30행(마일스톤 6 + 항목 24)·간트 13주, 약식WBS 14행, 투입계획 구성원 4행 + 합계 행, 통합 QA **35항목 중 34 실행·30 통과·0 실패·4 검토 필요**(QA-TECH-01/02/05/07)·1 미실행(QA-RFP-07), gate3·gate4 PASS, QA-FILE-08(간트 ↔ 일정) 통과. pytest 253 passed(신규 Phase 15 테스트 4건 포함). 실제 모델 호출(`planner` team·milestones)은 미검증.
 
 ## 2. 정적 검사
 

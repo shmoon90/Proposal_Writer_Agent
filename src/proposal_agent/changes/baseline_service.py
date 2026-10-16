@@ -626,6 +626,16 @@ class BaselineService:
         preds: dict[str, list[str]] = {}
         dep_rows: list[tuple[str, str, str, int]] = []
         order = 0
+        wbs_rows = [pr for pr in rows if pr.sheet != "의존관계"]
+        # 고객 양식(구분·단계·항목, WBS ID 없음): 병합 셀을 아래로 채우고 구분>단계>항목 계층으로 코드를 발급한다
+        synth = wbs_rows and not any(_text(pr.values.get("wbs_id")) for pr in wbs_rows)
+        if synth:
+            warnings.append(
+                "WBS ID 컬럼이 없어 구분·단계·항목 계층으로 코드(1, 1.1, 1.1.1)를 발급했습니다. 주 단위 간트 채움(날짜 없음)은 읽지 않습니다."
+            )
+            self._synthesize_codes(wbs_rows)
+            rows = wbs_rows + [pr for pr in rows if pr.sheet == "의존관계"]  # 발급된 상위 행 포함
+        seen_sheets: set[str] = set()
         for pr in rows:
             v = pr.values
             if pr.sheet == "의존관계":
@@ -635,6 +645,9 @@ class BaselineService:
                         (a, b, _text(v.get("dep_type")) or "FS", int(_decimal(v.get("lag"))))
                     )
                 continue
+            if seen_sheets and pr.sheet not in seen_sheets and items:
+                continue  # 약식WBS 같은 두 번째 시트는 같은 항목의 요약이므로 첫 시트만 적재
+            seen_sheets.add(pr.sheet)
             code = _text(v.get("wbs_id"))
             name = _text(v.get("name"))
             if not code or code in items:
@@ -656,6 +669,12 @@ class BaselineService:
                 status = TaskStatus(status_text) if status_text else TaskStatus.PLANNED
             except ValueError:
                 status = TaskStatus.PLANNED
+            progress = int(_decimal(str(v.get("progress") or "0").replace("%", "")))
+            if status == TaskStatus.PLANNED and progress >= 100:
+                status = TaskStatus.DONE
+            elif status == TaskStatus.PLANNED and progress > 0:
+                status = TaskStatus.IN_PROGRESS
+            stage = _text(v.get("stage"))
             items[code] = WBSItem(
                 project_id=project.id,
                 code=code,
@@ -664,6 +683,12 @@ class BaselineService:
                 description=_text(v.get("description")),
                 related_requirement_ids=split_ids(v.get("requirement_id")),
                 role=_text(v.get("role")),
+                category=_text(v.get("category")),
+                organization=_text(v.get("organization")),
+                assignee=_text(v.get("assignee")),
+                quantity=_text(v.get("quantity")),
+                progress_pct=max(0, min(100, progress)),
+                milestone=stage == "마일스톤" or code.startswith("0.") or code == "0",
                 planned_start=start,
                 planned_end=end,
                 actual_start=parse_date(v.get("actual_start")),
@@ -714,30 +739,108 @@ class BaselineService:
             dep_count += 1
         return len(items), dep_count
 
+    @staticmethod
+    def _synthesize_codes(rows: list[ParsedRow]) -> None:
+        """WBS ID가 없는 행에 구분(1) > 단계·항목(1.1) > 세부 항목(1.1.1) 코드를 넣는다.
+
+        병합 셀(빈 값)은 위 값을 잇는다. 세부 열(sub_name, 항목 머리글 병합 옆 열)이 있으면 항목이 2단계·세부가 3단계,
+        없으면 단계(stage)가 2단계·항목이 3단계다.
+        """
+        cat_codes: dict[str, str] = {}
+        mid_codes: dict[tuple[str, str], str] = {}
+        leaf_count: dict[str, int] = {}
+        last_cat = last_mid = ""
+        for pr in rows:
+            v = pr.values
+            cat = _text(v.get("category")) or last_cat
+            name = _text(v.get("name"))
+            sub = _text(v.get("sub_name"))
+            stage = _text(v.get("stage"))
+            if not (cat or name or sub or stage):
+                continue
+            if cat != last_cat:
+                last_mid = ""
+            last_cat = cat
+            mid = (name if sub else stage) or (last_mid if (sub or (stage == "" and name)) else "")
+            leaf = sub or (name if not sub else "")
+            if sub:
+                mid = name or last_mid
+            if mid:
+                last_mid = mid
+            cat_key = cat or "(구분 없음)"
+            if cat_key not in cat_codes:
+                cat_codes[cat_key] = str(len(cat_codes) + 1)
+            if mid:
+                key = (cat_key, mid)
+                if key not in mid_codes:
+                    n = len([k for k in mid_codes if k[0] == cat_key]) + 1
+                    mid_codes[key] = f"{cat_codes[cat_key]}.{n}"
+                parent = mid_codes[key]
+            else:
+                parent = cat_codes[cat_key]
+            if not leaf:  # 구분 또는 단계만 있는 행
+                v["wbs_id"], v["name"], v["category"], v["stage"] = parent, mid or cat_key, cat, mid
+                continue
+            leaf_count[parent] = leaf_count.get(parent, 0) + 1
+            v["wbs_id"] = f"{parent}.{leaf_count[parent]}"
+            v["name"], v["category"], v["stage"] = leaf, cat, mid
+        existing = {_text(pr.values.get("wbs_id")) for pr in rows}
+        extra: list[ParsedRow] = []
+        sheet = rows[0].sheet if rows else ""
+        for cat_key, code in cat_codes.items():
+            if code not in existing:
+                extra.append(
+                    ParsedRow(
+                        sheet=sheet,
+                        row=0,
+                        values={"wbs_id": code, "name": cat_key, "category": cat_key},
+                    )
+                )
+        for (cat_key, mid), code in mid_codes.items():
+            if code not in existing:
+                extra.append(
+                    ParsedRow(
+                        sheet=sheet,
+                        row=0,
+                        values={"wbs_id": code, "name": mid, "category": cat_key, "stage": mid},
+                    )
+                )
+        if extra:
+            rows[0:0] = extra
+
     # 인력 -------------------------------------------------------------------------------------
     def _load_roles(self, project: Project, rows: list[ParsedRow], warnings: list[str]) -> int:
+        """역할 단위로 적재. 구성원별 행(Phase 15 투입계획)은 같은 역할로 묶어 인원·구성원 이름을 센다."""
         self._repos.staff_roles.clear_project(project.id)
-        count = 0
-        seen: set[str] = set()
+        grouped: dict[str, list[dict[str, Any]]] = {}
         for pr in rows:
             v = pr.values
             role = _text(v.get("role"))
-            if not role or role in seen or role in ("합계", "총계"):
+            if not role or role in ("합계", "총계", "계"):
                 continue
-            seen.add(role)
-            unit = _decimal(v.get("unit_cost"))
-            mm = _decimal(v.get("effort_mm"))
+            grouped.setdefault(role, []).append(v)
+        count = 0
+        for role, vs in grouped.items():
+            first = vs[0]
+            members = [
+                m for m in (_text(v.get("member")) for v in vs) if m and not m.startswith(role)
+            ]
+            explicit_hc = max((int(_decimal(v.get("headcount")) or 0) for v in vs), default=0)
+            headcount = explicit_hc or (len(vs) if any(_text(v.get("member")) for v in vs) else 1)
+            unit = max((_decimal(v.get("unit_cost")) for v in vs), default=Decimal("0"))
+            mm = sum((_decimal(v.get("effort_mm")) for v in vs), Decimal("0"))
             self._repos.staff_roles.insert(
                 StaffRole(
                     project_id=project.id,
                     role_name=role,
-                    organization=_text(v.get("organization")),
-                    grade=_text(v.get("grade")) or None,
-                    skills=split_ids(v.get("skills")),
-                    duties=_text(v.get("duties")),
+                    organization=_text(first.get("organization")),
+                    grade=_text(first.get("grade")) or None,
+                    skills=split_ids(first.get("skills")),
+                    duties=_text(first.get("duties")),
                     unit_cost_per_mm=unit if unit > 0 else None,
-                    headcount_planned=max(1, int(_decimal(v.get("headcount")) or 1)),
-                    notes=f"기준 공수 {mm} MM; 투입 {parse_date(v.get('start'))}~{parse_date(v.get('end'))}"
+                    headcount_planned=max(1, headcount),
+                    members=members,
+                    notes=f"기준 공수 {mm} MM; 투입 {parse_date(first.get('start'))}~{parse_date(first.get('end'))}"
                     if mm
                     else "",
                 )

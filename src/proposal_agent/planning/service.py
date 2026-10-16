@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from proposal_agent.agents.schemas import WBSDraft, WbsItemDraft
+from proposal_agent.agents.schemas import MilestoneDraft, WBSDraft, WbsItemDraft
 from proposal_agent.config.errors import ValidationError
 from proposal_agent.config.logging import get_logger
 from proposal_agent.config.settings import Settings
@@ -40,6 +40,49 @@ if TYPE_CHECKING:
 log = get_logger("planning.service")
 
 _MONTHS_RE = re.compile(r"(\d+)\s*개월")
+# 보고용 WBS 마일스톤 기본값 (에이전트가 milestones를 주지 않을 때). 코드 '0' 아래에 들어간다.
+MILESTONE_PHASE_CODE = "0"
+MILESTONE_PHASE_NAME = "사업관리(마일스톤)"
+DEFAULT_MILESTONES: tuple[tuple[str, str], ...] = (
+    ("착수", "start"),
+    ("착수보고", "+2w"),
+    ("중간보고", "mid"),
+    ("완료보고", "-2w"),
+    ("종료", "end"),
+)
+_REL_WEEK_RE = re.compile(r"^([+-])(\d+)w$")
+
+
+def milestone_date(
+    timing: str,
+    *,
+    start: date,
+    end: date,
+    ends_by_code: dict[str, date],
+    calendar: BusinessCalendar,
+) -> date | None:
+    """마일스톤 시점 표기 → 날짜. start | mid | end | after:<code> | +Nw(착수 후) | -Nw(종료 전)."""
+    t = (timing or "end").strip()
+    if t == "start":
+        return calendar.next_business_day(start)
+    if t == "end":
+        return end if calendar.is_business_day(end) else calendar.next_business_day(end)
+    if t == "mid":
+        total = calendar.business_days_between(start, end)
+        return calendar.add_business_days(start, max(0, total // 2))
+    if t.startswith("after:"):
+        d = ends_by_code.get(t[6:].strip())
+        return calendar.next_business_day(d + timedelta(days=1)) if d else None
+    m = _REL_WEEK_RE.match(t)
+    if m:
+        weeks = int(m.group(2))
+        base = start if m.group(1) == "+" else end
+        d = base + timedelta(days=7 * weeks * (1 if m.group(1) == "+" else -1))
+        d = max(start, min(end, d))
+        return d if calendar.is_business_day(d) else calendar.next_business_day(d)
+    return None
+
+
 DEFAULT_EFFORT_BY_TYPE: dict[RequirementType, Decimal] = {
     RequirementType.FUNCTIONAL: Decimal("8"),
     RequirementType.NON_FUNCTIONAL: Decimal("5"),
@@ -304,6 +347,10 @@ class PlanningService:
                 description=d.description,
                 related_requirement_ids=d.related_requirement_ids,
                 role=", ".join(role_names),
+                category=d.category,
+                organization=d.organization,
+                assignee=d.assignee,
+                quantity=d.quantity,
                 work_type=work_type,
                 planned_start=schedule.starts.get(d.code),
                 planned_end=schedule.ends.get(d.code),
@@ -327,6 +374,23 @@ class PlanningService:
         for item in by_code.values():
             self._repos.wbs.insert(item)
             result.items.append(item)
+        # 보고용 마일스톤 (코드 '0' 단계 아래, 공수 0·1일). 에이전트가 주지 않으면 기본값(검토 필요)
+        milestone_items = self._milestone_items(
+            project,
+            draft.milestones or [MilestoneDraft(name=n, timing=t) for n, t in DEFAULT_MILESTONES],
+            period,
+            schedule,
+            calendar,
+            actor=actor,
+            auto=not draft.milestones,
+        )
+        for item in milestone_items:
+            self._repos.wbs.insert(item)
+            result.items.append(item)
+        if not draft.milestones:
+            result.review_notes.append(
+                "보고용 마일스톤(착수·착수보고·중간보고·완료보고·종료)은 코드 기본값입니다. 고객 보고 일정에 맞춰 조정하십시오."
+            )
         for e in draft.dependencies:
             dep = Dependency(
                 project_id=project.id,
@@ -353,14 +417,30 @@ class PlanningService:
         loads = aggregate_roles(leaf_allocs, calendar)
         result.role_loads = loads
         catalog = dict(DEFAULT_ROLE_CATALOG)
+        team = {t.role: t for t in draft.team}
         role_records: dict[str, StaffRole] = {}
-        for name, load in loads.items():
+        for name in [*loads, *[r for r in team if r not in loads]]:
+            load = loads.get(name)
+            t = team.get(name)
+            # 수행 조직(에이전트 team)이 있으면 조직·등급·인원·구성원을 쓰고, 부하로 계산한 필요 인원보다 적으면 경고
+            headcount = (load.headcount if load else 0) or 1
+            if t is not None:
+                if load and t.headcount < load.headcount:
+                    result.review_notes.append(
+                        f"역할 '{name}' 투입 인원 {t.headcount}명이 월 최대 부하 기준 필요 인원 {load.headcount}명보다 적습니다."
+                    )
+                headcount = max(t.headcount, 1)
             rec = StaffRole(
                 project_id=project.id,
                 role_name=name,
-                duties=catalog.get(name, ""),
-                headcount_planned=load.headcount,
-                notes="단가 미입력 — 비용 미계산" if name else "",
+                organization=t.organization if t else "수행사",
+                grade=(t.grade if t and t.grade and t.grade != "미정" else None),
+                skills=list(t.skills) if t else [],
+                duties=(t.duties if t and t.duties else catalog.get(name, "")),
+                headcount_planned=headcount,
+                members=[t.name] if t and t.name else [],
+                notes=("단가 미입력 — 비용 미계산" if name else "")
+                + ("" if load else "; WBS 배분 공수 없음(조직 구성에만 있음)"),
                 created_by=actor,
             )
             self._repos.staff_roles.insert(rec)
@@ -402,6 +482,77 @@ class PlanningService:
             },
         )
         return result
+
+    def _milestone_items(
+        self,
+        project: Project,
+        drafts: list[MilestoneDraft],
+        period: ProjectPeriod,
+        schedule: ScheduleResult,
+        calendar: BusinessCalendar,
+        *,
+        actor: str,
+        auto: bool,
+    ) -> list[WBSItem]:
+        """마일스톤을 코드 '0'(사업관리) 단계와 '0.n' 항목으로 만든다. 날짜는 timing 표기로 계산한다."""
+        dated: list[tuple[str, date]] = []
+        for m in drafts:
+            d = milestone_date(
+                m.timing,
+                start=period.start,
+                end=period.end,
+                ends_by_code=schedule.ends,
+                calendar=calendar,
+            )
+            if d is None:
+                log.warning("마일스톤 '%s' 시점 '%s'을 해석하지 못해 제외", m.name, m.timing)
+                continue
+            dated.append((m.name, d))
+        if not dated:
+            return []
+        dated.sort(key=lambda x: x[1])
+        phase = WBSItem(
+            project_id=project.id,
+            code=MILESTONE_PHASE_CODE,
+            level=WBSLevel.PHASE,
+            name=MILESTONE_PHASE_NAME,
+            description="고객 보고·검수 시점 (보고용 WBS 첫 행)",
+            role="PM",
+            organization="수행사",
+            planned_start=dated[0][1],
+            planned_end=dated[-1][1],
+            duration_days=calendar.business_days_between(dated[0][1], dated[-1][1]),
+            effort_md=Decimal("0"),
+            estimate_basis="마일스톤(공수 없음)",
+            milestone=True,
+            order=-100,
+            auto_generated=auto,
+            notes="코드 기본값 — 검토 필요" if auto else "",
+            created_by=actor,
+        )
+        items = [phase]
+        for i, (name, d) in enumerate(dated, start=1):
+            items.append(
+                WBSItem(
+                    project_id=project.id,
+                    code=f"{MILESTONE_PHASE_CODE}.{i}",
+                    parent_id=phase.id,
+                    level=WBSLevel.ACTIVITY,
+                    name=name,
+                    role="PM",
+                    organization="수행사",
+                    planned_start=d,
+                    planned_end=d,
+                    duration_days=calendar.business_days_between(d, d),
+                    effort_md=Decimal("0"),
+                    estimate_basis="마일스톤(공수 없음)",
+                    milestone=True,
+                    order=-100 + i,
+                    auto_generated=auto,
+                    created_by=actor,
+                )
+            )
+        return items
 
     @staticmethod
     def _concurrency(item: WbsItemDraft) -> float:

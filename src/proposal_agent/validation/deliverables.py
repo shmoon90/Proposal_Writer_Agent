@@ -24,13 +24,18 @@ from proposal_agent.generators.excel.requirement_spec import (
     SHEET_NON_FUNCTIONAL,
     SHEET_OTHER,
 )
-from proposal_agent.generators.excel.staffing_plan import SHEET_MONTHLY, SHEET_PLAN, SHEET_SUMMARY
+from proposal_agent.generators.excel.staffing_plan import (
+    SHEET_MONTHLY,
+    SHEET_PLAN,
+    SHEET_ROLES,
+    SHEET_SUMMARY,
+)
 from proposal_agent.generators.excel.style import find_header_row
 from proposal_agent.generators.excel.trace_matrix import SHEET_MAIN, SHEET_TESTS, SHEET_UNTRACED
 from proposal_agent.generators.excel.wbs_gantt import (
     SHEET_BASIS,
     SHEET_DEPS,
-    SHEET_GANTT,
+    SHEET_REPORT,
     SHEET_WBS,
 )
 from proposal_agent.generators.pptx.decks import key_figures
@@ -68,12 +73,13 @@ REQUIRED_SHEETS: dict[DeliverableKind, dict[str, tuple[str, ...]]] = {
             "진행 상태",
             "산정 근거",
         ),
-        SHEET_GANTT: ("WBS ID",),
+        SHEET_REPORT: ("구분", "단계", "항목", "시작일", "종료일"),
         SHEET_DEPS: ("선행 WBS", "후행 WBS"),
         SHEET_BASIS: ("WBS ID", "산정 근거"),
     },
     DeliverableKind.STAFFING_PLAN_XLSX: {
-        SHEET_PLAN: (
+        SHEET_PLAN: ("조직", "역할", "구성원", "기술 등급", "담당 업무", "계(MM)", "비고"),
+        SHEET_ROLES: (
             "역할",
             "기술 등급",
             "투입 인원",

@@ -189,7 +189,18 @@ def test_default_draft_and_build_plan(services: Services) -> None:
     result = services.planning.build_plan(p, None, None)
     assert result.auto_generated and result.period and result.period.source == "ui"
     wbs, deps, roles, allocs = services.planning.current_plan(p)
-    assert len(wbs) == len(draft.items) and len(deps) == 2
+    milestones = [w for w in wbs if w.milestone]
+    assert len(wbs) == len(draft.items) + len(milestones) and len(deps) == 2
+    assert [m.code for m in milestones][:2] == ["0", "0.1"] and all(
+        m.effort_md == 0 for m in milestones
+    )
+    assert [m.name for m in milestones if m.parent_id] == [
+        "착수",
+        "착수보고",
+        "중간보고",
+        "완료보고",
+        "종료",
+    ]
     leaf_total = sum((a.effort_md for a in allocs), Decimal("0"))
     assert leaf_total == result.total_effort_md > 0
     assert {r.role_name for r in roles} >= {"백엔드", "QA"}
