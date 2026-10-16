@@ -211,3 +211,36 @@ if reqs:
         width="stretch",
         hide_index=True,
     )
+
+# --- 4. Revision 복원 (단계 8) -------------------------------------------------------------------------------
+st.divider()
+st.subheader("4. Revision 복원")
+_revs = services.ctx.repos.revisions.find(project.id, order_by="created_at")
+if _revs:
+    _pick = st.selectbox(
+        "되돌릴 Revision",
+        list(reversed(_revs)),
+        format_func=lambda r: f"{r.number} {r.label} ({r.created_at:%Y-%m-%d %H:%M})",
+        key="bb_restore_pick",
+    )
+    _reason = st.text_input("복원 사유 (필수)", key="bb_restore_reason")
+    if st.button(
+        "이 Revision 으로 복원",
+        key="bb_restore",
+        icon=":material/history:",
+        disabled=not _reason.strip(),
+    ):
+        try:
+            rev = services.baseline.restore_revision(
+                project, _pick.id, actor=actor_name(), reason=_reason
+            )
+        except PWAError as exc:
+            show_error(exc, context="Revision 복원")
+        else:
+            st.success(
+                f"복원 완료 → 새 Revision {rev.number} (복원 전 상태도 스냅샷으로 보존)",
+                icon=":material/check:",
+            )
+            st.rerun()
+else:
+    st.caption("Revision 이 없습니다 (기준 데이터 적재 후 생깁니다).")

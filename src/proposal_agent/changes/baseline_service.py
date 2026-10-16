@@ -895,6 +895,78 @@ class BaselineService:
         self._repos.projects.update(project)
         return rev
 
+    def restore_revision(
+        self, project: Project, revision_id: str, *, actor: str = "user", reason: str = ""
+    ) -> Revision:
+        """Revision 스냅샷으로 기준 데이터를 되돌린다 (단계 8 복원 절차).
+
+        - 추적·WBS·의존·역할·배정은 스냅샷으로 통째로 교체한다.
+        - 요구사항은 ID 가 보존되는 데이터라 물리 삭제 없이 갱신·삽입하고, 스냅샷에 없는 요구는 ``change_state="deleted"`` 로 표시한다.
+        - 복원 자체를 새 Revision(라벨 '복원') 으로 기록하므로 되돌리기 전 상태도 스냅샷으로 남는다.
+        """
+        from proposal_agent.models import RequirementTrace, StaffRole, WBSItem
+
+        target = self._repos.revisions.get(revision_id, project.id)
+        if not target.snapshot_path:
+            raise ValidationError(f"Revision {target.number} 에 스냅샷이 없어 복원할 수 없습니다.")
+        try:
+            data = json.loads(
+                self._paths.resolve_output(target.snapshot_path).read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError) as exc:
+            raise ValidationError(
+                f"스냅샷을 읽을 수 없습니다: {target.snapshot_path}", cause=str(exc)
+            ) from exc
+        before = self._record_revision(project, {}, actor)  # 되돌리기 전 상태 보존
+        before.label, before.reason = "복원 전 상태", f"{target.number} 로 복원하기 직전"
+        self._repos.revisions.update(before)
+        with self._repos.db.transaction():
+            current = {r.id: r for r in self._repos.requirements.find(project.id)}
+            restored_ids: set[str] = set()
+            for raw in data.get("requirements", []):
+                req = Requirement.model_validate(raw)
+                restored_ids.add(req.id)
+                if req.id in current:
+                    self._repos.requirements.update(req)
+                else:
+                    self._repos.requirements.insert(req)
+            stamp = utcnow().isoformat()
+            for rid, r in current.items():
+                if rid not in restored_ids and r.change_state != "deleted":
+                    r.change_state = "deleted"
+                    r.change_summary = f"{target.number} 복원으로 제거 ({stamp[:10]})"
+                    r.touch()
+                    self._repos.requirements.update(r)
+            targets: list[tuple[Any, str, Any]] = [
+                (self._repos.traces, "traces", RequirementTrace),
+                (self._repos.wbs, "wbs", WBSItem),
+                (self._repos.dependencies, "dependencies", Dependency),
+                (self._repos.staff_roles, "roles", StaffRole),
+            ]
+            for repo, key, model in targets:
+                repo.clear_project(project.id)
+                for raw in data.get(key, []):
+                    repo.insert(model.model_validate(raw))
+            self._repos.allocations.clear_project(project.id)
+        rev = self._record_revision(project, {}, actor)
+        rev.label, rev.reason = "복원", reason or f"{target.number} 스냅샷으로 복원"
+        rev.parent_revision_id = before.id
+        self._repos.revisions.update(rev)
+        self._audit.record(
+            project.id,
+            "baseline.restored",
+            actor=actor,
+            actor_kind=ActorKind.USER,
+            entity_type="Revision",
+            entity_id=rev.id,
+            payload={
+                "from": target.id,
+                "from_number": target.number,
+                "requirements": len(restored_ids),
+            },
+        )
+        return rev
+
     def snapshot(self, project: Project) -> dict[str, Any]:
         """현재 기준 데이터 전체 스냅샷 (Revision 비교·롤백 근거)."""
         return {

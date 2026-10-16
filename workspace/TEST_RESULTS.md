@@ -2,6 +2,10 @@
 
 상세 이력은 `docs/TEST_RESULTS.md`(Phase 1~23), 단계별 보고서는 `docs/PHASE*_REPORT.md`. 이 파일은 지시문 §19 요구에 따라 최신 상태만 짧게 유지한다.
 
+## 2026-10-16 단계 8 완료 시점
+
+pytest 342 passed, 3 skipped(llm 제외, Docker 실행 테스트는 PWA_RUN_DOCKER_TESTS=1 로 1회 통과) | ruff·mypy 통과 | 단계 8 신규 테스트: 보안 5건(업로드·경로·로그·프롬프트 데이터 선언/읽기 전용 MCP·SQL 바인딩), 전체 흐름 통합 1건(제안→기준선 적재→변경 승인·반영→설계→JUnit 반입→구축 QA 실패 0→복원) | 회귀(run_regression.py --skip-pytest): 회귀_제안 58항목 중 53 실행·실패 0, 회귀_구축 23 실행·실패 0 | 성능(measure_large_rfp.py, 모의 에이전트): 요구 50건 11.8초/11.7MB(QA 53 실행·42 통과·0 실패), 200건 59.6초/32MB(53·41·1), 500건 353.5초(생성 60.6·QA 286)/120.9MB(53·41·1) — 실패 1건은 QA-FILE-13 분량 초과(합성 지침 100쪽 대비 116장·261장), 코드 결함 아님 | 프롬프트 3종(requirement_extractor·requirement_verifier·tech_researcher) 입력 데이터 선언 보강 | 실제 모델 호출 없음(A-6 미검증)
+
 ## 2026-10-16 단계 7 완료 시점
 
 - pytest 337 passed, 2 skipped(전체, llm 제외; 단계 6 대비 +8: 신규 tests/unit/test_stage7_development.py — 정적 검사 규칙(package·금지 import·금지 호출·중괄호·테스트 ID·내부 import·JS 금지 패턴·중첩 제네릭 메서드), 배치 계획(의존 순서·테스트 마지막·규칙 밖 모듈 제외), 작업 폴더 안전성(경로 탈출·절대 경로·패키지 밖·확장자·배치 밖·새 파일 금지·크기·복원)·템플릿, 생성→검사→모듈 상태→실행기 스텁 테스트→TC 실패·DEF 생성→QA 수정 루프(스텁)→DEF 종료·정적 오류 시 테스트 금지, surefire 해석·결과 판정, 테스트 계획(중복 없음)·검수 규칙·추적 사슬 판정·문서 4종, WBS 모듈 분해(상위 공수 재계산·재실행 중복 없음)·보조 단계 디스패처; Docker 실제 실행 테스트는 PWA_RUN_DOCKER_TESTS=1 일 때만(이 PC 에서 1회 실행: JUnit 1건 통과, 5.9초). 기존 테스트 3곳 갱신(역할 목록 +3, E2E not_run 5, 산출물 폴더 15). ruff·mypy(163 파일) 통과. 민감 용어 검사 통과.

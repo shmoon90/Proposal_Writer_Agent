@@ -2,13 +2,14 @@
  "updated": "2026-10-16",
  "main_commit": "ab75fba",
  "plan": "docs/IMPROVEMENT_PLAN_2026-10.md",
- "status": "directive_stage7_done_stage8_in_progress",
+ "status": "directive_all_stages_done_merge_pending",
  "analysis_done": [
   "existing project structure, agents, MCP, outputs, tests (Phase 1-15)",
   "gap analysis against the quality/editability directive (19 sections)",
   "environment: PowerPoint COM registered, pywin32 installed, LibreOffice absent, no API credit"
  ],
  "implemented": [
+  "지시문 단계 8: 전체 흐름 통합 테스트, 보안 점검 테스트, BaselineService.restore_revision + 화면, scripts/measure_large_rfp.py + PERFORMANCE.md, 프롬프트 3종 데이터 선언 보강, 최종 보고서(§20)",
   "지시문 단계 7: development/(constants·inspector·test_runner·workspace·plan·templates·service), docker/, developer·code_qa·code_fixer 역할·스키마, testing/service(TC·DEF·검수·문서), planning/decompose, 보조 단계 5종(EXTRA_STEPS), QA-CON-16(58항목), 개발·테스트 화면, 대행 Java fixture",
   "지시문 단계 6: design/(context·consistency·service), detail_designer 역할·DetailDesignReport, Screen 확장·CodeModule.depends_on, detail_design 파이프라인 단계, 설계서 Excel/MD(design_docs)·codegen_package JSON, QA-TECH-09·QA-CON-15(57항목), 설계 화면, 대행 fixture 상세 설계",
   "지시문 단계 5: decisions/service(회의록 구조화·권한 규칙·협상 통제·변경 요청 전환), changes/compare(Excel ID 기준 6종·PPT/Word 불확실), ChangeStatus 8종, 영향 확장, 선택 재생성·회귀 비교, QA-CON-14(55항목), 회의·결정·협상 화면, meeting_analyzer 역할",
@@ -53,7 +54,7 @@
   "failed": 0,
   "skipped": 1,
   "deselected": 2,
-  "pytest": "- pytest 337 passed, 2 skipped(전체, llm 제외; 단계 6 대비 +8: 신규 tests/unit/test_stage7",
+  "pytest": "pytest 342 passed, 3 skipped(llm 제외, Docker 실행 테스트는 PWA_RUN_DOCKER_TESTS=1 로 1회 ",
   "ruff": "pass",
   "mypy": "pass (117 files)"
  },
@@ -101,8 +102,11 @@
   "check": "QA-FILE-12 (tagged photos allowed), QA-FILE-03/04 flatten groups"
  },
  "next": [
-  "단계 8: 통합 품질·성능·안정성 — 전체 흐름 통합 테스트(제안 → 기준선 → 변경 → 설계 → 테스트), 회귀, 대용량 RFP 측정, 복원, 최종 보고서(§20)",
-  "main 병합은 단계 8 뒤 맨 마지막"
+  "main 병합(사용자 결정)",
+  "크레딧 확보 후 실제 모델 1회 실행(A-6)·결과 검토",
+  "QA 성능 최적화(대형 RFP)",
+  "설계·TC·DEF 를 Revision 스냅샷에 포함",
+  "발주처 환경(전자정부 프레임워크) 코드 템플릿"
  ],
  "qa_checks": {
   "total": 58,
@@ -141,8 +145,8 @@
  },
  "branch": "feature/major-revision",
  "directive": {
-  "stage": 7,
-  "stage_name": "WBS·개발·테스트·검수·운영 이관 + RFP_JAVA 발췌 이식",
+  "stage": 8,
+  "stage_name": "통합 품질·성능·안정성",
   "done": true,
   "documents": [
    "workspace/PROJECT_ANALYSIS.md",
@@ -161,7 +165,7 @@
    "not_implemented": 8
   },
   "approvals_pending": [],
-  "next_stage": 8,
+  "next_stage": null,
   "last_run": "2026-10-16",
   "approvals_granted": [
    "A-1",
@@ -178,6 +182,8 @@
   "stage4_report": "docs/DIRECTIVE_STAGE4_REPORT.md",
   "stage5_report": "docs/DIRECTIVE_STAGE5_REPORT.md",
   "stage6_report": "docs/DIRECTIVE_STAGE6_REPORT.md",
-  "stage7_report": "docs/DIRECTIVE_STAGE7_REPORT.md"
+  "stage7_report": "docs/DIRECTIVE_STAGE7_REPORT.md",
+  "stage8_report": "docs/DIRECTIVE_STAGE8_REPORT.md",
+  "final_report": "docs/DIRECTIVE_FINAL_REPORT.md"
  }
 }

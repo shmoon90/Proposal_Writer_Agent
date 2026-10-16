@@ -365,6 +365,10 @@ stateDiagram-v2
 
 - `CodeModule.implementation_map`(요구 → 타입/메서드), 상태 planned → generated/failed. `TestCase` 는 테스트 계획(draft)·JUnit 결과(passed/failed/unverified)·검수(level acceptance, 사람 기록)로 채워지고 `Defect` 는 실패 TC 마다 open → analyzing → retest → closed 로 전이(`found_in_test_case_id`). 생성 앱은 `14_Generated_App/`(템플릿 + 생성 파일 + `test_results/testing-N.json`). 설정 `docker_test_image`·`test_timeout_seconds`·`max_test_output_chars`·`codegen_max_files`·`code_fix_rounds`.
 
+## 6.10 단계 8 추가
+
+- `BaselineService.restore_revision`: Revision 스냅샷(요구·추적·WBS·의존·역할)으로 복원, 복원 전 상태를 먼저 Revision('복원 전 상태') 으로 기록하고 복원 결과를 Revision('복원') 으로 기록. 설계 객체·TC·DEF 는 스냅샷 범위 밖.
+
 ## 7. 데이터 흐름 요약
 
 | 단계 | 입력 | 처리 주체 | 출력(저장) |
