@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -169,7 +170,21 @@ class QaService:
                 if self._steps is not None and project.mode == ProjectMode.PROPOSAL
                 else None
             ),
+            render_check=bool(self._settings.qa_render_check),
+            page_limit=self._page_limit(project, analysis),
         )
+
+    def _page_limit(self, project: Project, analysis: dict[str, Any] | None) -> int | None:
+        """RFP 페이지 제한: 구조 프로파일(코드 파싱) → RFP 분석(에이전트) 순."""
+        if project.mode != ProjectMode.PROPOSAL:
+            return None
+        prof = self._extraction.rfp_profile(project) if self._extraction else None
+        limit = getattr(prof, "page_limit", None) if prof is not None else None
+        if limit:
+            return int(limit)
+        text = str((analysis or {}).get("page_limit", "") or "")
+        m = re.search(r"(\d{1,4})\s*(?:쪽|페이지|장|p)", text)
+        return int(m.group(1)) if m else None
 
     # --- 실행 ------------------------------------------------------------------------------------
     def run(
@@ -182,10 +197,18 @@ class QaService:
         use_agent: bool | None = None,
         tests_executed: list[dict[str, Any]] | None = None,
         max_fix_rounds: int | None = None,
+        render_check: bool | None = None,
+        categories: set[QaCategory] | None = None,
     ) -> QaRunResult:
+        """``render_check``로 실제 렌더링(QA-FILE-14)을 켜고 끄며, ``categories``를 주면 그 범주만 실행하고
+        나머지는 '범주 선택으로 미실행'으로 남긴다(통과로 세지 않음) (Phase 21)."""
         limit = self._settings.qa_max_fix_rounds if max_fix_rounds is None else max_fix_rounds
         inputs = self.collect_inputs(project, actor=actor, context=context)
+        if render_check is not None:
+            inputs.render_check = render_check
+        self._selected_categories = categories
         checks, art = run_all_checks(inputs)
+        checks = self._apply_category_filter(checks, categories)
         fixes: list[str] = []
         rounds = 0
         # 자동 수정·재검증 루프: 재생성으로 고칠 수 있는 실패만. 기준 데이터는 바꾸지 않는다.
@@ -213,6 +236,7 @@ class QaService:
             fixes.append(f"{rounds}회차: {note}")
             inputs = self.collect_inputs(project, actor=actor)
             new_checks, art = run_all_checks(inputs)
+            new_checks = self._apply_category_filter(new_checks, categories)
             by_id = {c.check_id: c for c in new_checks}
             for c in checks:
                 n = by_id.get(c.check_id)
@@ -302,8 +326,25 @@ class QaService:
             project_id=project.id,
             step_run_id=step_run_id,
             mode=project.mode.value,
-            scope=["RFP 적합성", "기술 타당성", "문서 간 일관성", "파일 품질"]
-            + (["에이전트 독립 검토"] if agent_review else []),
+            scope=[
+                c.label
+                for c in (
+                    QaCategory.RFP_FIT,
+                    QaCategory.TECH_FEASIBILITY,
+                    QaCategory.CONSISTENCY,
+                    QaCategory.FILE_QUALITY,
+                    QaCategory.EDITABILITY,
+                )
+                if categories is None or c in categories
+            ]
+            + (["에이전트 독립 검토"] if agent_review else [])
+            + (
+                [
+                    f"실제 렌더링: {', '.join(f'{k} {v.summary}' for k, v in art.render_results.items())}"
+                ]
+                if art.render_results
+                else []
+            ),
             checks=checks,
             gates={k: v.status.value for k, v in gate_evals.items()},
             counts=counts,
@@ -465,6 +506,21 @@ class QaService:
 
     # --- 기록 ------------------------------------------------------------------------------------
     @staticmethod
+    def _apply_category_filter(
+        checks: list[QaCheck], categories: set[QaCategory] | None
+    ) -> list[QaCheck]:
+        if not categories:
+            return checks
+        for c in checks:
+            if c.category not in categories:
+                c.executed = False
+                c.applicable = True
+                c.not_run_reason = "범주 선택으로 미실행"
+                c.result = QaResult.NEEDS_HUMAN_REVIEW
+                c.issues = []
+        return checks
+
+    @staticmethod
     def _counts(checks: list[QaCheck]) -> dict[str, int]:
         executed = [c for c in checks if c.executed]
         return {
@@ -575,6 +631,23 @@ def render_qa_report(project: Project, run: QaRun, review_items: list[str]) -> s
         "",
         "## 3. 건수",
         f"- 통과 {c.get('pass', 0)} · 실패 {c.get('fail', 0)} · 검토 필요 {c.get('needs_human_review', 0)} · 미실행 {c.get('not_run', 0)} · 자동 수정 후 통과 {c.get('fixed', 0)}",
+    ]
+    by_cat: dict[str, list[QaCheck]] = {}
+    for ch in run.checks:
+        by_cat.setdefault(ch.category.label, []).append(ch)
+    lines += [
+        "- 범주별 (내용 / 디자인·파일 / 편집 가능성 분리 집계): "
+        + " · ".join(
+            f"{k} {sum(1 for x in v if x.executed and x.final_result == QaResult.PASS)}/{sum(1 for x in v if x.executed)} 통과"
+            + (
+                f"(미실행 {sum(1 for x in v if not x.executed)})"
+                if any(not x.executed for x in v)
+                else ""
+            )
+            for k, v in by_cat.items()
+        )
+    ]
+    lines += [
         "",
         "## 4. 검증 항목별 결과",
         "",

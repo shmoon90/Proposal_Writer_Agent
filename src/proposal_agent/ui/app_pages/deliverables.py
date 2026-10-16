@@ -8,12 +8,13 @@ import pandas as pd
 import streamlit as st
 
 from proposal_agent.config.errors import PWAError
-from proposal_agent.models import GateStatus
+from proposal_agent.models import GateStatus, QaCategory
 from proposal_agent.orchestrator import StepRunner
 from proposal_agent.requirements.service import GATE1_KEY
 from proposal_agent.ui import components as ui
 from proposal_agent.ui.state import actor_name, current_project, get_services, show_error
 from proposal_agent.validation.qa_service import GATE4_KEY, GATE5_KEY
+from proposal_agent.validation.render import com_available
 
 services = get_services()
 project = current_project()
@@ -212,15 +213,44 @@ if a.button(
         else:
             status.update(label=outcome.summary, state="complete")
             st.rerun()
+_com_ok, _com_why = com_available()
+_cat_options = {
+    c.label: c
+    for c in (
+        QaCategory.RFP_FIT,
+        QaCategory.TECH_FEASIBILITY,
+        QaCategory.CONSISTENCY,
+        QaCategory.FILE_QUALITY,
+        QaCategory.EDITABILITY,
+    )
+}
+qa_render = st.checkbox(
+    f"실제 렌더링·재열기 검증 (PowerPoint COM — {_com_why})",
+    value=_com_ok,
+    key="dl_qa_render",
+    disabled=not _com_ok,
+    help="제출용·발표용 PPT를 PowerPoint로 열어 슬라이드마다 PNG(11_QA_Validation_Reports/render)로 내보내고 재열기를 확인합니다. PowerPoint가 없으면 QA-FILE-14는 '미실행'으로 기록됩니다.",
+)
+qa_cats = st.multiselect(
+    "QA 범주 (비우면 전체; 내용·파일/디자인·편집 가능성을 나눠 실행 가능)",
+    options=list(_cat_options),
+    default=[],
+    key="dl_qa_categories",
+)
 if b.button(
-    "QA 실행 (열기·서식·일관성·추적성)",
+    "QA 실행 (열기·서식·일관성·추적성·편집 가능성)",
     key="dl_qa",
     icon=":material/fact_check:",
     disabled=not gate1.passed,
 ):
     with st.status("QA 검사 중…", expanded=True) as status:
         try:
-            outcome = runner.run_qa(project, actor=actor_name())
+            outcome = runner.run_qa(
+                project,
+                actor=actor_name(),
+                render_check=bool(qa_render),
+                categories={_cat_options[x] for x in qa_cats} or None,
+            )
         except PWAError as exc:
             status.update(label="QA 실패", state="error")
             show_error(exc, context="QA")

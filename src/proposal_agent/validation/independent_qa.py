@@ -204,6 +204,10 @@ class QaInputs:
         ""  # Gate P(목차·전략 승인) 상태: PASS | NEEDS_HUMAN_REVIEW | FAIL | ''(미평가) (Phase 18)
     )
     strategy_brief: dict[str, Any] | None = None
+    # Phase 21
+    render_check: bool = False  # PowerPoint COM 실제 렌더링·재열기(QA-FILE-14) 수행 여부
+    render_dir: Path | None = None  # PNG 출력 폴더 (11_QA_Validation_Reports/render)
+    page_limit: int | None = None  # RFP 페이지 제한(쪽). 없으면 QA-FILE-13 미실행
 
     @property
     def mode(self) -> ProjectMode:
@@ -234,6 +238,7 @@ class CheckArtifacts:
     outcome: QaOutcome = field(default_factory=QaOutcome)
     excel: dict[DeliverableKind, dict[str, list[list[Any]]]] = field(default_factory=dict)
     ppt_texts: dict[str, list[str]] = field(default_factory=dict)
+    render_results: dict[str, Any] = field(default_factory=dict)  # 라벨 → RenderResult (Phase 21)
 
 
 def _check(
@@ -1379,6 +1384,23 @@ def run_file_checks(inp: QaInputs) -> tuple[list[QaCheck], CheckArtifacts]:
             fix_suggestion="산출물 재생성 (도식은 코드가 도형으로 그림)",
         ),
         _check(
+            "QA-FILE-13",
+            cat,
+            "페이지 제한 (RFP)",
+            "RFP가 지정한 제안서 페이지 제한(쪽 수) 안에 제출용 PPT 슬라이드 수(표지·목차 제외)가 드는가. 90% 이상이면 검토",
+            gate=gate,
+            fix_suggestion="소절 글머리·표 행을 줄여 재생성하거나 부록으로 이동",
+        ),
+        _check(
+            "QA-FILE-14",
+            cat,
+            "실제 렌더링·재열기",
+            "PowerPoint(COM)로 제출용·발표용 PPT를 실제로 열어 슬라이드마다 PNG로 내보내고, 슬라이드 수가 python-pptx와 같으며 저장 왕복 후 재열기가 되는가. PowerPoint가 없거나 설정이 꺼져 있으면 미실행",
+            gate=gate,
+            mandatory=False,
+            fix_suggestion="PNG(11_QA_Validation_Reports/render)를 보고 깨진 슬라이드를 확인한 뒤 재생성",
+        ),
+        _check(
             "QA-FILE-11",
             cat,
             "제안서 템플릿 준수",
@@ -1460,13 +1482,37 @@ def run_file_checks(inp: QaInputs) -> tuple[list[QaCheck], CheckArtifacts]:
         )
         # 허용 그림(사진·일러스트·장식·참고) 예외는 판정을 바꾸지 않고 보고서·manifest에 기록한다
         checks[10].issues.extend(x.message for x in out.findings if x.rule == "pptx.photo")
+    # 13: 페이지 제한 (Phase 21)
     if inp.mode != ProjectMode.PROPOSAL:
         _not_run(checks[11], "구축 단계는 PPT를 생성하지 않음")
-    elif not inp.template_profiles:
-        _not_run(checks[11], "제안서 템플릿(PPT) 미등록 — 코드 기본 양식으로 생성됨")
+    elif not inp.page_limit:
+        _not_run(checks[11], "RFP에 페이지 제한 문구 없음")
     else:
+        f13, r13 = _page_limit_issues(inp, art)
         _finish(
             checks[11],
+            fail=f13,
+            review=r13,
+            files=_kind_files(inp, DeliverableKind.SUBMISSION_PPTX),
+        )
+    # 14: 실제 렌더링·재열기 (Phase 21)
+    if inp.mode != ProjectMode.PROPOSAL:
+        _not_run(checks[12], "구축 단계는 PPT를 생성하지 않음")
+    elif not inp.render_check:
+        _not_run(checks[12], "렌더링 검증이 꺼져 있음 (PWA_QA_RENDER_CHECK=1 또는 화면에서 켜기)")
+    else:
+        f14, r14, files14 = _render_issues(inp, art)
+        if f14 is None:
+            _not_run(checks[12], r14[0] if r14 else "렌더링 엔진 없음", applicable=True)
+        else:
+            _finish(checks[12], fail=f14, review=r14, files=files14)
+    if inp.mode != ProjectMode.PROPOSAL:
+        _not_run(checks[13], "구축 단계는 PPT를 생성하지 않음")
+    elif not inp.template_profiles:
+        _not_run(checks[13], "제안서 템플릿(PPT) 미등록 — 코드 기본 양식으로 생성됨")
+    else:
+        _finish(
+            checks[13],
             fail=list(art.template_fails),
             review=list(art.template_reviews),
             files=_kind_files(
@@ -1531,6 +1577,339 @@ def run_file_checks(inp: QaInputs) -> tuple[list[QaCheck], CheckArtifacts]:
     _finish(checks[8], fail=path_fail, files=all_files)
     _finish(checks[9], fail=[f"산출물 없음: {k}" for k in missing])
     return checks, art
+
+
+def _deck_paths(inp: QaInputs) -> list[tuple[str, Path]]:
+    """(라벨, 절대 경로) — 제출용·발표용 덱 중 존재하는 것."""
+    out: list[tuple[str, Path]] = []
+    for kind, label in (
+        (DeliverableKind.SUBMISSION_PPTX, "제출용"),
+        (DeliverableKind.PRESENTATION_PPTX, "발표용"),
+    ):
+        d = inp.deliverables.get(kind)
+        if d is None:
+            continue
+        try:
+            path = inp.paths.resolve_output(d.file_path)
+        except PathSecurityError:
+            continue
+        if path.exists():
+            out.append((label, path))
+    return out
+
+
+def _content_slide_count(path: Path) -> tuple[int, int]:
+    """(전체 슬라이드, 본문 슬라이드). 표지·목차·장 구분(제목이 목차/CONTENTS/장 표지이거나 본문 텍스트가 거의 없는) 제외."""
+    from pptx import Presentation
+
+    prs = Presentation(str(path))
+    total = len(prs.slides)
+    body = 0
+    for idx, slide in enumerate(prs.slides, start=1):
+        texts = [sh.text_frame.text.strip() for sh in slide.shapes if sh.has_text_frame]
+        joined = " ".join(t for t in texts if t)
+        has_obj = any(
+            (getattr(sh, "has_table", False) and sh.has_table)
+            or (getattr(sh, "has_chart", False) and sh.has_chart)
+            or "GROUP" in str(sh.shape_type)
+            or "PICTURE" in str(sh.shape_type)
+            for sh in slide.shapes
+        )
+        first = (texts[0] if texts else "")[:20]
+        if idx == 1 or first in ("목차", "CONTENTS") or (len(joined) < 60 and not has_obj):
+            continue
+        body += 1
+    return total, body
+
+
+def _page_limit_issues(inp: QaInputs, art: CheckArtifacts) -> tuple[list[str], list[str]]:
+    limit = int(inp.page_limit or 0)
+    fails: list[str] = []
+    revs: list[str] = []
+    for label, path in _deck_paths(inp):
+        if label != "제출용":
+            continue
+        total, body = _content_slide_count(path)
+        msg = f"제출용 본문 슬라이드 {body}장 (전체 {total}장) / 제한 {limit}쪽"
+        if body > limit:
+            fails.append(msg + " — 초과")
+        elif body >= limit * 0.9:
+            revs.append(msg + " — 여유 10% 미만")
+    return fails, revs
+
+
+def _render_issues(
+    inp: QaInputs, art: CheckArtifacts
+) -> tuple[list[str] | None, list[str], list[str]]:
+    """QA-FILE-14. (None, [사유], []) 이면 엔진 없음 → 미실행."""
+    from proposal_agent.validation.render import com_available, render_pptx
+
+    ok, why = com_available()
+    if not ok:
+        return None, [why], []
+    fails: list[str] = []
+    revs: list[str] = []
+    files: list[str] = []
+    base = inp.render_dir or (
+        inp.paths.project_output_dir(inp.project.output_dir) / "11_QA_Validation_Reports" / "render"
+    )
+    for label, path in _deck_paths(inp):
+        res = render_pptx(path, base / path.stem)
+        art.render_results[label] = res
+        if not res.available:
+            return None, res.errors or ["렌더링 엔진 없음"], []
+        if res.ok:
+            try:
+                files.append(inp.paths.relative_output(base / path.stem))
+            except PathSecurityError:
+                files.append(str(base / path.stem))
+        else:
+            fails.append(f"{label}: {res.summary} — " + "; ".join(res.errors[:3]))
+    return fails, revs, files
+
+
+def check_editability(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]:
+    """QA-EDIT-01~10 편집 가능성 체크리스트 (Phase 21): 생성 PPT의 객체 구조를 사람이 PowerPoint에서 고칠 수 있는가."""
+    cat = QaCategory.EDITABILITY
+    gate = "gate4"
+    specs = [
+        (
+            "QA-EDIT-01",
+            "텍스트 편집",
+            "모든 글이 텍스트 상자·표 셀·도형 텍스트에 있고(글자가 든 그림 없음) 빈 텍스트 상자가 과다하지 않은가",
+            True,
+        ),
+        (
+            "QA-EDIT-02",
+            "표 객체",
+            "표는 네이티브 표 객체이며 표를 그림으로 넣은 슬라이드가 없는가 (제출용은 표 1개 이상)",
+            True,
+        ),
+        (
+            "QA-EDIT-03",
+            "도형·연결선",
+            "도식이 자동 도형·연결선·텍스트 상자로 그려져 개별 선택·이동·수정이 가능한가 (자유형 과다 없음)",
+            False,
+        ),
+        (
+            "QA-EDIT-04",
+            "차트 객체",
+            "차트는 네이티브 차트(데이터 시트 편집 가능)이며 차트 이미지가 없는가",
+            True,
+        ),
+        (
+            "QA-EDIT-05",
+            "그룹 해제 가능",
+            "그룹 도형이 자식 2개 이상의 평범한 그룹(중첩 3단 이하)이라 그룹 해제로 개별 편집이 되는가",
+            False,
+        ),
+        (
+            "QA-EDIT-06",
+            "그림 정책",
+            "그림은 허용 태그(photo/illustration/decoration/reference)가 붙은 사진·일러스트뿐인가 (정보성 자료 이미지 없음)",
+            True,
+        ),
+        (
+            "QA-EDIT-07",
+            "글꼴",
+            "본문 글꼴이 템플릿·기본 글꼴 집합(맑은 고딕·템플릿 글꼴) 안에 있어 글꼴 치환 없이 편집되는가",
+            False,
+        ),
+        (
+            "QA-EDIT-08",
+            "발표자 노트",
+            "발표용 본문 슬라이드에 발표자 노트가 절반 이상 있는가",
+            False,
+        ),
+        (
+            "QA-EDIT-09",
+            "레이아웃·마스터",
+            "모든 슬라이드가 레이아웃을 쓰고 슬라이드 밖·음수 좌표 도형이 없는가",
+            False,
+        ),
+        (
+            "QA-EDIT-10",
+            "재열기 안정성",
+            "python-pptx로 열고 저장 왕복 후 다시 열어도 슬라이드 수·도형 수가 같은가",
+            True,
+        ),
+    ]
+    checks = [
+        _check(
+            cid,
+            cat,
+            target,
+            criteria,
+            gate=gate,
+            mandatory=mand,
+            fixable=FIX_REGENERATE if mand else None,
+            fix_suggestion="산출물 재생성 (도식·표·차트는 코드가 객체로 그림)",
+        )
+        for cid, target, criteria, mand in specs
+    ]
+    if inp.mode != ProjectMode.PROPOSAL:
+        for c in checks:
+            _not_run(c, "구축 단계는 PPT를 생성하지 않음")
+        return checks
+    decks = _deck_paths(inp)
+    if not decks:
+        for c in checks:
+            _not_run(c, "생성된 PPT 없음", applicable=True)
+        return checks
+    from pptx import Presentation
+
+    from proposal_agent.generators.base import PICTURE_TAGS
+    from proposal_agent.validation.deliverables import _flatten
+
+    fails: dict[int, list[str]] = {i: [] for i in range(10)}
+    revs: dict[int, list[str]] = {i: [] for i in range(10)}
+    files = _kind_files(inp, DeliverableKind.SUBMISSION_PPTX, DeliverableKind.PRESENTATION_PPTX)
+    known_fonts = {"맑은 고딕", "Malgun Gothic", "Arial", "Calibri"}
+    for prof in inp.template_profiles.values():
+        for attr in ("title_font", "body_font"):
+            v = getattr(prof, attr, None)
+            if v:
+                known_fonts.add(str(v))
+    for label, path in decks:
+        try:
+            prs = Presentation(str(path))
+        except Exception as exc:  # noqa: BLE001
+            fails[9].append(f"{label}: 열기 실패 {exc}")
+            continue
+        n_slides = len(prs.slides)
+        empty_text = 0
+        tables = 0
+        charts = 0
+        freeform = 0
+        auto = 0
+        groups_bad: list[str] = []
+        pictures_bad: list[str] = []
+        pictures_info: list[str] = []
+        fonts: set[str] = set()
+        notes_body = 0
+        body_slides = 0
+        no_layout = 0
+        out_of_bounds = 0
+        sw, sh_ = int(prs.slide_width or 0), int(prs.slide_height or 0)
+        shape_total = 0
+        for idx, slide in enumerate(prs.slides, start=1):
+            if slide.slide_layout is None:
+                no_layout += 1
+            flat = _flatten(slide.shapes)
+            shape_total += len(flat)
+            slide_text = 0
+            for sh in flat:
+                st = str(sh.shape_type or "")
+                if sh.has_text_frame:
+                    t = sh.text_frame.text.strip()
+                    if t:
+                        slide_text += len(t)
+                        for para in sh.text_frame.paragraphs:
+                            for run in para.runs:
+                                if run.font.name:
+                                    fonts.add(str(run.font.name))
+                    elif "TEXT_BOX" in st:
+                        empty_text += 1
+                if getattr(sh, "has_table", False) and sh.has_table:
+                    tables += 1
+                elif getattr(sh, "has_chart", False) and sh.has_chart:
+                    charts += 1
+                elif "PICTURE" in st:
+                    name = str(sh.name or "")
+                    tag = name.split(":", 1)[0] if ":" in name else ""
+                    if tag in PICTURE_TAGS:
+                        pictures_info.append(f"{label} {idx}장 {name}")
+                    else:
+                        pictures_bad.append(f"{label} {idx}장 '{name or '(이름 없음)'}'")
+                elif "FREEFORM" in st:
+                    freeform += 1
+                elif "AUTO_SHAPE" in st or "LINE" in st or "CONNECTOR" in st:
+                    auto += 1
+                if sh.left is not None and sh.top is not None:
+                    if (
+                        int(sh.left) < 0
+                        or int(sh.top) < 0
+                        or int(sh.left) + int(sh.width or 0) > sw + 1000
+                        or int(sh.top) + int(sh.height or 0) > sh_ + 1000
+                    ):
+                        out_of_bounds += 1
+            for sh in slide.shapes:  # 그룹 구조 (최상위만)
+                if "GROUP" in str(sh.shape_type):
+                    kids = list(sh.shapes)
+                    depth = _group_depth(sh)
+                    if len(kids) < 2 or depth > 3:
+                        groups_bad.append(
+                            f"{label} {idx}장 '{sh.name}' 자식 {len(kids)}·깊이 {depth}"
+                        )
+            if idx > 1 and slide_text >= 60:
+                body_slides += 1
+                if slide.has_notes_slide and slide.notes_slide.notes_text_frame.text.strip():
+                    notes_body += 1
+        # 01 텍스트
+        if empty_text > max(3, n_slides):
+            revs[0].append(f"{label}: 빈 텍스트 상자 {empty_text}개")
+        # 02 표
+        if label == "제출용" and tables == 0:
+            fails[1].append(f"{label}: 네이티브 표가 없음")
+        # 03 도형
+        if freeform > auto:
+            revs[2].append(f"{label}: 자유형 {freeform} > 자동 도형 {auto}")
+        # 04 차트
+        if any("차트" in x or "chart" in x.lower() for x in pictures_bad):
+            fails[3].append(
+                f"{label}: 차트 그림 {[x for x in pictures_bad if '차트' in x or 'chart' in x.lower()][:2]}"
+            )
+        if charts == 0 and label == "제출용":
+            revs[3].append(f"{label}: 네이티브 차트 없음 (공수·통계·간트 데이터가 비어 있음)")
+        # 05 그룹
+        if groups_bad:
+            revs[4].extend(groups_bad[:5])
+        # 06 그림
+        if pictures_bad:
+            fails[5].append(
+                f"{label}: 태그 없는 그림 {len(pictures_bad)} — " + "; ".join(pictures_bad[:3])
+            )
+        # 07 글꼴
+        unknown = sorted(f for f in fonts if f not in known_fonts)
+        if unknown:
+            revs[6].append(f"{label}: 기본·템플릿 외 글꼴 {', '.join(unknown[:5])}")
+        # 08 노트
+        if label == "발표용" and body_slides and notes_body < body_slides * 0.5:
+            revs[7].append(f"{label}: 발표자 노트 {notes_body}/{body_slides} 본문 슬라이드")
+        # 09 레이아웃
+        if no_layout:
+            revs[8].append(f"{label}: 레이아웃 없는 슬라이드 {no_layout}")
+        if out_of_bounds:
+            fails[8].append(f"{label}: 슬라이드 밖 도형 {out_of_bounds}")
+        # 10 재열기
+        try:
+            import io as _io
+
+            buf = _io.BytesIO()
+            prs.save(buf)
+            again = Presentation(_io.BytesIO(buf.getvalue()))
+            again_total = sum(len(_flatten(sl.shapes)) for sl in again.slides)
+            if len(again.slides) != n_slides or again_total != shape_total:
+                fails[9].append(
+                    f"{label}: 저장 왕복 후 슬라이드 {len(again.slides)}/{n_slides}, 도형 {again_total}/{shape_total}"
+                )
+        except Exception as exc:  # noqa: BLE001
+            fails[9].append(f"{label}: 저장 왕복 실패 {type(exc).__name__}: {exc}")
+        checks[5].issues.extend(f"예외: {x}" for x in pictures_info[:6])
+    for i, c in enumerate(checks):
+        extra = list(c.issues)
+        _finish(c, fail=_cap(fails[i], 8), review=_cap(revs[i], 8), files=files)
+        if i == 5:
+            c.issues.extend(extra)
+    return checks
+
+
+def _group_depth(shape: Any, depth: int = 1) -> int:
+    best = depth
+    for kid in shape.shapes:
+        if "GROUP" in str(kid.shape_type):
+            best = max(best, _group_depth(kid, depth + 1))
+    return best
 
 
 def _invalid_ids(inp: QaInputs) -> list[str]:
@@ -1648,6 +2027,7 @@ def run_all_checks(inp: QaInputs) -> tuple[list[QaCheck], CheckArtifacts]:
         *check_tech_feasibility(inp, art.ppt_texts),
         *check_consistency_rules(inp, art),
         *file_checks,
+        *check_editability(inp, art),
     ]
     return checks, art
 

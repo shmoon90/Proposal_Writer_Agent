@@ -837,13 +837,18 @@ class TemplateDeckBuilder:
         align: PP_ALIGN | None = None,
         anchor: MSO_ANCHOR | None = None,
         fill: str | None = None,
+        wrap: bool = True,
+        margin_cm: float | None = None,
     ) -> Any:
         shape = slide.shapes.add_textbox(Cm(box.left), Cm(box.top), Cm(box.width), Cm(box.height))
         if fill:
             shape.fill.solid()
             shape.fill.fore_color.rgb = _rgb(fill)
         tf = shape.text_frame
-        tf.word_wrap = True
+        tf.word_wrap = wrap
+        if margin_cm is not None:
+            tf.margin_left = tf.margin_right = Cm(margin_cm)
+            tf.margin_top = tf.margin_bottom = Cm(margin_cm / 2)
         if anchor is not None:
             tf.vertical_anchor = anchor
         p = tf.paragraphs[0]
@@ -910,14 +915,17 @@ class TemplateDeckBuilder:
                 continue
             target = box
             if not is_numeral and box.font_size:
-                # 장 제목이 템플릿 라벨 상자 폭보다 길면 한 줄에 맞게 글꼴을 줄인다 (최소 10pt) — 넘침 방지 (Phase 18)
-                width_pt = box.width / 2.54 * 72
-                # 한글(전각) 글자 폭 ≈ 글꼴 크기, 영문 ≈ 0.6배. 여백 5%를 둔다.
+                # 장 제목이 템플릿 라벨 상자 폭보다 길면 한 줄에 맞게 글꼴을 줄인다 (최소 9pt) — 넘침 방지 (Phase 18).
+                # Phase 21: 실제 렌더링(PNG)에서 두 줄로 꺾이는 것을 확인 → 내부 여백(0.1cm×2)을 뺀 폭으로 계산하고 줄바꿈을 끈다
+                width_pt = max(box.width - 0.2, 0.5) / 2.54 * 72
+                # 한글(전각) 글자 폭 ≈ 글꼴 크기, 영문·공백 ≈ 0.6배. 여백 8%를 둔다.
                 cjk = sum(1 for ch in text if ord(ch) > 0x2E7F)
                 est_width_per_pt = (cjk * 1.0 + (len(text) - cjk) * 0.6) / max(1, len(text))
-                fit = width_pt * 0.95 / (est_width_per_pt * max(1, len(text)))
+                fit = width_pt * 0.92 / (est_width_per_pt * max(1, len(text)))
                 if fit < box.font_size:
                     target = box.model_copy(update={"font_size": max(9.0, round(fit, 1))})
+                # 레이아웃의 원래 장 라벨 글자가 상자 폭을 넘어 오른쪽에 남는 것을 렌더링에서 확인 → 덮개를 30% 넓힌다
+                target = target.model_copy(update={"width": round(box.width * 1.3, 2)})
             self._text(
                 slide,
                 target,
@@ -926,6 +934,8 @@ class TemplateDeckBuilder:
                 color=text_color,
                 anchor=MSO_ANCHOR.MIDDLE,
                 align=PP_ALIGN.CENTER if is_numeral else None,
+                wrap=is_numeral,
+                margin_cm=None if is_numeral else 0.1,
             )
 
     def _content_slide(

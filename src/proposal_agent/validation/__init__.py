@@ -19,6 +19,7 @@ from proposal_agent.validation.qa_service import (
     QaService,
     render_qa_report,
 )
+from proposal_agent.validation.render import RenderResult, com_available, render_pptx
 
 __all__ = [
     "GATE2_KEY",
@@ -26,6 +27,9 @@ __all__ = [
     "GATE4_KEY",
     "GATE5_KEY",
     "QaInputs",
+    "RenderResult",
+    "com_available",
+    "render_pptx",
     "gate_status",
     "render_qa_report",
     "run_all_checks",

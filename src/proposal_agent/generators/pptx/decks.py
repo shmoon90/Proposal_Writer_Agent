@@ -375,8 +375,30 @@ def _render_section(
         if _render_picture(b, f"{sec.title} — 참고 그림", pic, _footer(ctx, profile)):
             ctx.used_pictures.add(str(pic.get("file_name", "")))
     last = len(b.prs.slides)
+    if compact:
+        _fill_default_notes(b, sec, first, last)
     if last >= first:
         _log_slides(ctx, _spec_profile(compact), section_entry(sec, agent, first, last))
+
+
+def _fill_default_notes(b: Builder, sec: OutlineSection, first: int, last: int) -> None:
+    """발표용(Phase 21): 발표자 노트가 비어 있는 소절 슬라이드에 제목·리드·본문 요약을 기본 노트로 넣는다.
+    에이전트 speaker_notes 가 있으면 그대로 두고, 사람이 발표 전에 다듬을 초안임을 표시한다."""
+    slides = list(b.prs.slides)
+    for i in range(first - 1, min(last, len(slides))):
+        slide = slides[i]
+        if slide.has_notes_slide and slide.notes_slide.notes_text_frame.text.strip():
+            continue
+        texts = [
+            sh.text_frame.text.strip()
+            for sh in slide.shapes
+            if sh.has_text_frame and sh.text_frame.text.strip()
+        ]
+        body = [t for t in texts[1:] if len(t) > 1][:3]
+        note = f"[발표 노트 초안] {sec.title}" + (
+            ": " + " / ".join(x[:80] for x in body) if body else ""
+        )
+        slide.notes_slide.notes_text_frame.text = note[:600]
 
 
 def _glossary_rows(ctx: GenerationContext) -> list[list[object]]:

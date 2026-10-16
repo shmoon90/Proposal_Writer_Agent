@@ -7,7 +7,7 @@ Gate 0가 PASS가 아니면 요구사항 추출을 시작하지 않고, Gate 1�
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from proposal_agent.agents.control import CancellationToken
 from proposal_agent.config.errors import PWAError, ValidationError
@@ -444,12 +444,25 @@ class StepRunner:
                 pipeline.fail_step(project, run, exc, actor=actor)
             raise
 
-    def run_qa(self, project: Project, *, actor: str = "user") -> StepOutcome:
+    def run_qa(
+        self,
+        project: Project,
+        *,
+        actor: str = "user",
+        render_check: bool | None = None,
+        categories: set[Any] | None = None,
+    ) -> StepOutcome:
         self._s.gates.require(project, GATE1_KEY)
         pipeline = self._s.pipeline
         run = pipeline.start_step(project, self.STEP_QA, actor=actor)
         try:
-            result = self._s.qa.run(project, actor=actor, step_run_id=run.id)
+            result = self._s.qa.run(
+                project,
+                actor=actor,
+                step_run_id=run.id,
+                render_check=render_check,
+                categories=categories,
+            )
             c = result.qa_run.counts if result.qa_run else {}
             summary = (
                 f"통합 QA 통과 {c.get('pass', 0)}·실패 {c.get('fail', 0)}·검토 필요 {c.get('needs_human_review', 0)}·미실행 {c.get('not_run', 0)}, "

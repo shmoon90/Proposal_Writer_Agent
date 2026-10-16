@@ -26,7 +26,19 @@ class QaCategory(StrEnum):
     TECH_FEASIBILITY = "tech_feasibility"
     CONSISTENCY = "consistency"
     FILE_QUALITY = "file_quality"
+    EDITABILITY = "editability"  # Phase 21: 편집 가능성 체크리스트 (QA-EDIT-01~10)
     AGENT_REVIEW = "agent_review"
+
+    @property
+    def label(self) -> str:
+        return {
+            "rfp_fit": "RFP 적합성(내용)",
+            "tech_feasibility": "기술 타당성(내용)",
+            "consistency": "문서 간 일관성(내용)",
+            "file_quality": "파일 품질·디자인·안정성",
+            "editability": "편집 가능성",
+            "agent_review": "에이전트 독립 검토",
+        }[self.value]
 
 
 class QaCheck(BaseModel):

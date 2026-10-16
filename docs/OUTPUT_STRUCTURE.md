@@ -31,7 +31,7 @@
 | `08_Presentation_PPT` | 발표용 PPT, 슬라이드 명세(Phase 19) | `제안서_발표용_vX.Y.pptx`, `슬라이드명세_발표용_vX.Y.json` |
 | `09_Excel_Deliverables` | 요구사항 정의서·추적표 | 제안: `요구사항정의서_vX.Y.xlsx`, `요구사항추적표_vX.Y.xlsx` · 구축: `Requirements_Definition_YYYYMMDDHHMM.xlsx`, `Traceability_Matrix_YYYYMMDDHHMM.xlsx` |
 | `10_Diagrams_Charts_Images` | 구성도 3종·차트 PNG | `시스템구성도_vX.Y.png`, `SW구성도_vX.Y.png`, `서비스구성도_vX.Y.png`, `일정차트_vX.Y.png`, `공수차트_vX.Y.png` |
-| `11_QA_Validation_Reports` | 통합 QA 보고서, 에이전트 QA 결과 | `통합QA보고서_vX.Y.md` + `.json`, `qa_report_vX.Y.json` |
+| `11_QA_Validation_Reports` | 통합 QA 보고서, 에이전트 QA 결과, **실제 렌더링 PNG**(Phase 21: `render/<덱 파일명>/slide_NN.png`, PowerPoint COM 내보내기, QA-FILE-14) | `통합QA보고서_vX.Y.md` + `.json`, `qa_report_vX.Y.json`, `render/…/slide_NN.png` |
 | `12_Revision_History` | 기준선·변경 반영 스냅샷, 의미 비교 결과 | `baseline_snapshot_vX.Y.json`, `revision_CR-nnn_vX.Y.json`, `semantic_diff_vX.Y.json` |
 | `13_Final_Deliverables` | Gate 5 승인 후 확정한 최종본 복사본 | 원 파일명 그대로 (같은 버전 재확정 거부) |
 

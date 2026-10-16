@@ -24,6 +24,7 @@ from datetime import date
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+RENDER = False  # --render: PowerPoint COM 실제 렌더링·재열기(QA-FILE-14)
 sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(REPO / "tests"))
 
@@ -62,7 +63,9 @@ def demo_projects(root: Path, tests_executed: list[dict[str, object]]) -> list[d
     from proposal_agent.services import AppContext, Services
     from unit.test_requirements_phase2 import extractor_from_text, verifier_all_ok
 
-    ctx = AppContext.create(Settings(), paths=ProjectPaths(root=root), configure_logging=False)
+    ctx = AppContext.create(
+        Settings(qa_render_check=RENDER), paths=ProjectPaths(root=root), configure_logging=False
+    )
     s = Services.from_context(
         ctx,
         runner=FakeAgentRunner(
@@ -188,9 +191,16 @@ def main() -> int:
     ap.add_argument("--root", help="데이터 루트 (없으면 임시 루트에 데모 프로젝트 생성)")
     ap.add_argument("--project-id", help="--root 안의 특정 프로젝트만")
     ap.add_argument("--skip-pytest", action="store_true")
+    ap.add_argument(
+        "--render",
+        action="store_true",
+        help="PowerPoint COM 실제 렌더링·재열기(QA-FILE-14)까지 수행",
+    )
     ap.add_argument("--json", help="결과 JSON 저장 경로")
     args = ap.parse_args()
     tests: list[dict[str, object]] = []
+    global RENDER
+    RENDER = bool(args.render)
     if not args.skip_pytest:
         tests.append(run_pytest())
         print("pytest:", tests[0]["summary"])

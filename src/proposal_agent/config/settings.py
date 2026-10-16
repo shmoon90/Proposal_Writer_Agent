@@ -89,6 +89,10 @@ class Settings:
     qa_use_agent: bool = (
         False  # 통합 QA에서 qa_reviewer 에이전트 검토를 덧붙일지 (API 키·크레딧 필요)
     )
+    qa_render_check: bool = (
+        False  # 통합 QA에서 PowerPoint COM으로 실제 렌더링·재열기(QA-FILE-14)를 수행할지 (PWA_QA_RENDER_CHECK=1).
+        # 기본 False: 테스트·서버 환경에서 PowerPoint를 띄우지 않는다. 화면의 QA 버튼은 COM이 있으면 기본 켬. 꺼져 있으면 '미실행'으로 기록
+    )
     env_file: Path | None = field(default=None, repr=False)
 
     @property

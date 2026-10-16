@@ -1240,7 +1240,13 @@ def main() -> int:
         else:
             print(f"알 수 없는 인자: {args[0]}")
             return 2
-    ctx = AppContext.create(Settings(), paths=ProjectPaths(), configure_logging=True)
+    ctx = AppContext.create(
+        Settings(
+            qa_render_check=True
+        ),  # 이 PC에 PowerPoint가 있으면 실제 렌더링·재열기(QA-FILE-14)까지 수행
+        paths=ProjectPaths(),
+        configure_logging=True,
+    )
     runner = FakeAgentRunner(
         {
             "rfp_analyst": RFP_ANALYSIS,

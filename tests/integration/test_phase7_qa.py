@@ -93,14 +93,26 @@ def test_proposal_full_flow_independent_qa_gates_and_finalize(services: Services
     run = services.qa.latest_run(p)
     assert (
         run is not None
-        and run.counts["executed"] == 36
-        and run.counts["not_run"] == 2  # QA-RFP-07(ID 체계 없음), QA-FILE-11(템플릿 미등록)
+        and run.counts["executed"] == 47
+        and run.counts["not_run"]
+        == 3  # QA-RFP-07(ID 체계 없음), QA-FILE-11(템플릿 미등록), QA-FILE-14(렌더링 꺼짐)
         and run.counts["fail"] == 0
     )
     rfp07 = next(c for c in run.checks if c.check_id == "QA-RFP-07")
     assert rfp07.applicable is False and "ID 체계" in (rfp07.not_run_reason or "")
     file11 = next(c for c in run.checks if c.check_id == "QA-FILE-11")
     assert file11.applicable is False and "템플릿" in (file11.not_run_reason or "")
+    # Phase 21: 페이지 제한(모의 RFP '100쪽 이내')은 실행·통과, 렌더링은 설정이 꺼져 있어 미실행(해당 있음), 편집 가능성 10항목 실행
+    file13 = next(c for c in run.checks if c.check_id == "QA-FILE-13")
+    assert file13.executed and file13.result == QaResult.PASS, file13.issues
+    file14 = next(c for c in run.checks if c.check_id == "QA-FILE-14")
+    assert not file14.executed and not file14.applicable and "렌더링" in file14.not_run_reason
+    edits = [c for c in run.checks if c.check_id.startswith("QA-EDIT-")]
+    assert len(edits) == 10 and all(c.executed for c in edits)
+    assert not [c for c in edits if c.result == QaResult.FAIL], [
+        (c.check_id, c.issues) for c in edits
+    ]
+    assert "편집 가능성" in run.scope
     assert {c.check_id for c in run.checks} >= {
         "QA-RFP-01",
         "QA-TECH-01",
