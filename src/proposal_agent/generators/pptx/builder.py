@@ -52,6 +52,14 @@ class DeckBuilder:
             base_pt=float(max(min(body_font_pt - 4, 12), 8)),
         )
 
+    @property
+    def body_height_cm(self) -> float:
+        return float(Emu(BODY_H).cm)
+
+    @property
+    def body_width_cm(self) -> float:
+        return float(Emu(BODY_W).cm)
+
     # --- 기본 요소 --------------------------------------------------------------------------
     def _new_slide(self):
         slide = self.prs.slides.add_slide(self._blank)
@@ -208,6 +216,7 @@ class DeckBuilder:
         notes: str = "",
         lead: str = "",
         footnotes: Sequence[str] = (),
+        cell_chars: int = 120,
     ) -> int:
         if lead or footnotes:
             notes = "\n".join(x for x in (lead, notes, *footnotes) if x)
@@ -238,7 +247,7 @@ class DeckBuilder:
             for ri, row in enumerate(page, start=1):
                 for ci, v in enumerate(row):
                     cell = table.cell(ri, ci)
-                    cell.text = str(v if v is not None else "")[:120]
+                    cell.text = str(v if v is not None else "")[:cell_chars]
                     para = cell.text_frame.paragraphs[0]
                     para.font.size = Pt(10)
                     para.font.name = FONT
@@ -345,6 +354,43 @@ class DeckBuilder:
                 p.font.size = Pt(self.body_font_pt - 2)
                 p.font.name = FONT
         return kind
+
+    def composite_slide(
+        self,
+        title: str,
+        blocks: Sequence[dict[str, Any]],
+        footer: str,
+        *,
+        lead: str = "",
+        notes: str = "",
+        footnotes: Sequence[str] = (),
+    ) -> list[str]:
+        """소제목 띠 + 블록(도식·표·카드·글머리)을 한 장에 배치 (Phase 22). 돌려주는 값은 그린 블록 종류."""
+        from proposal_agent.generators.pptx.shapes import draw_blocks
+
+        slide, box = self.canvas_slide(title, lead=lead, notes=notes)
+        foot_h = 0.9 if footnotes else 0.0
+        placed = draw_blocks(
+            slide,
+            Box(left=box.left, top=box.top, width=box.width, height=max(box.height - foot_h, 3.0)),
+            list(blocks),
+            style=self.style,
+        )
+        if footnotes:
+            tb = slide.shapes.add_textbox(
+                Cm(box.left),
+                Cm(box.top + box.height - foot_h + 0.1),
+                Cm(box.width),
+                Cm(foot_h - 0.1),
+            )
+            tf = tb.text_frame
+            tf.word_wrap = True
+            for i, fn in enumerate(list(footnotes)[:3]):
+                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                p.text = fn if fn.startswith("※") else f"※ {fn}"
+                p.font.size = Pt(max(self.body_font_pt - 6, 8))
+                p.font.name = FONT
+        return [k for k, _ in placed]
 
     def key_message_slide(
         self, title: str, messages: Sequence[str], footer: str, *, notes: str = ""

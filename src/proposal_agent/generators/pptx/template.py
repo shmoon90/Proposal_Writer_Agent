@@ -1022,17 +1022,33 @@ class TemplateDeckBuilder:
         shape.line.color.rgb = _rgb(prof.colors.get("primary"))
         return box.bottom + 0.3
 
+    def footnote_height(self, notes: Sequence[str]) -> float:
+        """※ 주석 상자 높이(cm): 줄 수 추정 (폭·글꼴 기준), 0.9~2.6."""
+        if not notes:
+            return 0.0
+        prof = self.profile
+        pt = float(
+            (prof.footnote.font_size if prof.footnote and prof.footnote.font_size else 0)
+            or max(self.body_font_pt - 1, 7.0)
+        )
+        width = float(prof.footnote.width if prof.footnote else prof.body.width)
+        cpl = max(10, int(width * 28.35 / (pt * 0.85)))
+        lines = sum(max(1, -(-len(n) // cpl)) for n in notes[:3])
+        return min(2.6, max(0.9, lines * pt * 1.45 / 28.35 + 0.3))
+
     def _footnotes(self, slide: Any, notes: Sequence[str]) -> None:
         if not notes:
             return
         prof = self.profile
-        box = prof.footnote or Box(
-            left=prof.body.left,
-            top=prof.body.bottom - 1.0,
-            width=prof.body.width,
-            height=1.0,
-            font_name=prof.body_font,
-            font_size=max(self.body_font_pt - 1, 7.0),
+        h = self.footnote_height(notes)
+        base = prof.footnote
+        box = Box(
+            left=base.left if base else prof.body.left,
+            top=(base.bottom if base else prof.body.bottom) - h,
+            width=base.width if base else prof.body.width,
+            height=h,
+            font_name=(base.font_name if base else None) or prof.body_font,
+            font_size=(base.font_size if base else None) or max(self.body_font_pt - 1, 7.0),
         )
         text = "\n".join(n if n.startswith("※") else f"※ {n}" for n in notes[:3])
         self._text(slide, box, text[:300], bold=False)
@@ -1217,6 +1233,7 @@ class TemplateDeckBuilder:
         notes: str = "",
         lead: str = "",
         footnotes: Sequence[str] = (),
+        cell_chars: int = 120,
     ) -> int:
         self.sub_no += 1
         prof = self.profile
@@ -1253,7 +1270,7 @@ class TemplateDeckBuilder:
             for ri, row in enumerate(page, start=1):
                 for ci, v in enumerate(row):
                     cell = table.cell(ri, ci)
-                    cell.text = str(v if v is not None else "")[:120]
+                    cell.text = str(v if v is not None else "")[:cell_chars]
                     para = cell.text_frame.paragraphs[0]
                     para.font.size = Pt(tsize)
                     para.font.name = prof.body_font
@@ -1312,6 +1329,14 @@ class TemplateDeckBuilder:
             )
         self._notes(slide, notes)
 
+    @property
+    def body_height_cm(self) -> float:
+        return float(self.profile.body.height)
+
+    @property
+    def body_width_cm(self) -> float:
+        return float(self.profile.body.width)
+
     def canvas_slide(self, title: str, *, lead: str = "", notes: str = "") -> tuple[Any, Box]:
         """머리글(+리드) 아래 도형을 그릴 본문 영역(cm)."""
         self.sub_no += 1
@@ -1361,6 +1386,31 @@ class TemplateDeckBuilder:
                 p.font.size = Pt(self.body_font_pt)
                 p.font.name = self.profile.body_font
         return kind
+
+    def composite_slide(
+        self,
+        title: str,
+        blocks: Sequence[dict[str, Any]],
+        footer: str,
+        *,
+        lead: str = "",
+        notes: str = "",
+        footnotes: Sequence[str] = (),
+    ) -> list[str]:
+        """소제목 띠 + 블록(도식·표·카드·글머리)을 한 장에 배치 (Phase 22, 샘플 제안서의 밴드 구성)."""
+        from proposal_agent.generators.pptx.shapes import draw_blocks
+
+        slide, box = self.canvas_slide(title, lead=lead, notes=notes)
+        foot_h = self.footnote_height(list(footnotes)) + 0.2 if footnotes else 0.0
+        placed = draw_blocks(
+            slide,
+            Box(left=box.left, top=box.top, width=box.width, height=max(box.height - foot_h, 3.0)),
+            list(blocks),
+            style=self.style,
+        )
+        if footnotes:
+            self._footnotes(slide, list(footnotes))
+        return [k for k, _ in placed]
 
     def key_message_slide(
         self, title: str, messages: Sequence[str], footer: str, *, notes: str = ""

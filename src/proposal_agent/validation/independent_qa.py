@@ -817,6 +817,15 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
             fix_suggestion="과장 표현은 근거 있는 사실로 바꾸고, 수치는 출처(요구사항·조사·RFP)를 evidence에 적거나 unverified_claims로 분리",
         ),
         _check(
+            "QA-CON-12",
+            cat,
+            "정의서 구현방안 ↔ 제안서 반영",
+            "요구사항 정의서의 구현방안(요구사항별 줄)이 제출용 PPT에 실제로 실려 있는가. 수용된 필수 기능 요구의 구현방안이 한 줄도 없으면 실패, 일부만 있으면 검토",
+            gate="gate5",
+            fixable=FIX_REGENERATE,
+            fix_suggestion="산출물 재생성 (코드가 요구사항 묶음별 구현 방안 소절에 정의서 전문을 싣는다)",
+        ),
+        _check(
             "QA-CON-11",
             cat,
             "약어·전문 용어 설명",
@@ -843,11 +852,12 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
     # 01
     f01, r01 = split(("traceability.requirements", "consistency.ppt_figures"))
     sub_text = "\n".join(art.ppt_texts.get("submission", []))
+    rfp_ids = {r.rfp_requirement_id for r in inp.requirements if r.rfp_requirement_id}
     unknown = sorted(
         {
             m
             for m in ID_IN_TEXT_RE.findall(sub_text)
-            if _looks_like_req_id(m, inp.id_prefixes) and m not in req_ids
+            if _looks_like_req_id(m, inp.id_prefixes) and m not in req_ids and m not in rfp_ids
         }
     )
     if unknown:
@@ -1060,8 +1070,8 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
     )
     # 10·11: 제안 문안 추상 표현·근거 없는 수치, 약어 미설명 (Phase 19)
     if inp.mode != ProjectMode.PROPOSAL:
-        _not_run(checks[9], "구축 단계는 PPT를 생성하지 않음")
-        _not_run(checks[10], "구축 단계는 PPT를 생성하지 않음")
+        for i in (9, 10, 11):
+            _not_run(checks[i], "구축 단계는 PPT를 생성하지 않음")
         return checks
     content = inp.ctx.proposal_content or {}
     sections = [x for x in content.get("sections") or [] if isinstance(x, dict)]
@@ -1071,12 +1081,50 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
         review=_cap(_abstract_and_number_issues(inp, sections, sub_text), 12),
         files=ppt_files,
     )
+    f12, r12, ids12 = _approach_coverage_issues(inp, sub_text)
+    _finish(checks[10], fail=_cap(f12), review=_cap(r12), req_ids=ids12, files=ppt_files)
     _finish(
-        checks[10],
+        checks[11],
         review=_cap(_unexplained_acronyms(content, sections, sub_text), 6),
         files=ppt_files,
     )
     return checks
+
+
+def _approach_coverage_issues(
+    inp: QaInputs, sub_text: str
+) -> tuple[list[str], list[str], list[str]]:
+    """QA-CON-12: 정의서 구현방안 줄(8자 이상)의 앞 25자가 제출용 PPT 본문에 있는지."""
+    deck = normalize_text(sub_text)
+    fails: list[str] = []
+    revs: list[str] = []
+    ids: list[str] = []
+    if not deck:
+        return fails, revs, ids
+    for r in inp.requirements:
+        if r.type.value not in ("functional", "non_functional") or r.change_state == "deleted":
+            continue
+        if (
+            r.acceptance_status == AcceptanceStatus.REJECTED
+            or not (r.implementation_approach or "").strip()
+        ):
+            continue
+        lines = [
+            x.strip().lstrip("-•·▪ ").strip()
+            for x in (r.implementation_approach or "").splitlines()
+            if len(x.strip()) >= 8
+        ]
+        if not lines:
+            continue
+        hit = sum(1 for x in lines if normalize_text(x[:25]) in deck)
+        if hit == 0:
+            msg = f"{r.id} {r.name[:24]}: 구현방안 {len(lines)}줄 중 제안서에 없음"
+            (fails if (r.is_mandatory and r.type.value == "functional") else revs).append(msg)
+            ids.append(r.id)
+        elif hit < len(lines):
+            revs.append(f"{r.id} {r.name[:24]}: 구현방안 {len(lines)}줄 중 {hit}줄만 제안서에 있음")
+            ids.append(r.id)
+    return fails, revs, ids
 
 
 def _section_texts(sec: dict[str, Any]) -> list[str]:

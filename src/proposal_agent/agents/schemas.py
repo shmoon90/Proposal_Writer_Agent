@@ -437,9 +437,25 @@ class ProposalSection(_Strict):
     )
 
 
+class RequirementGroupSpec(_Strict):
+    """제안서에서 한 소절로 묶어 다룰 요구사항 묶음 (Phase 22). 코드가 정의서 구현방안 전문을 표로 싣는다."""
+
+    title: str = Field(description="묶음 제목 (예: 민원 접수·배정·종결 워크플로)")
+    requirement_ids: list[str] = Field(
+        description="묶는 요구사항 ID (내부 ID 또는 RFP 고유번호 — RFP 번호면 그 세부 요구 전부)"
+    )
+    key_message: str = Field(default="", description="묶음 결론형 제목 (40자 내외)")
+    summary: list[str] = Field(default_factory=list, description="묶음 공통 방안 요약 2~4줄")
+    notes: list[str] = Field(default_factory=list, description="전제·협의 필요 사항 (※ 주석)")
+
+
 class ProposalContent(_Strict):
     profile: str = Field(description="submission(제출용) 또는 presentation(발표용)")
     sections: list[ProposalSection] = Field(default_factory=list)
+    requirement_groups: list[RequirementGroupSpec] = Field(
+        default_factory=list,
+        description="요구사항 묶음 (Phase 22). 비우면 코드가 RFP 고유번호·분류로 묶는다",
+    )
     key_messages: list[str] = Field(default_factory=list)
     unverified_claims: list[str] = Field(
         default_factory=list, description="근거 데이터가 없어 사람 확인이 필요한 문구"
@@ -658,6 +674,7 @@ __all__ = [
     "AlternativeOption",
     "EvidenceRef",
     "GlossaryTerm",
+    "RequirementGroupSpec",
     "TechDetail",
     "LAYOUT_TYPES",
     "AUDIENCES",

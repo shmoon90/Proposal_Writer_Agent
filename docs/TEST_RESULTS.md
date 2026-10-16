@@ -10,7 +10,7 @@
 
 명령: `python -m pytest -q -rs` (기본 `-m 'not llm'`)
 
-결과: **279 passed, 1 skipped, 2 deselected** (2026-10-16 Phase 21 반영. Phase 20 274, Phase 19 270, Phase 18 265, Phase 17 262, Phase 16 257, Phase 15 253, Phase 14 249, Phase 13 243, Phase 12 238, Phase 11 231, Phase 8 215)
+결과: **284 passed, 1 skipped, 2 deselected** (2026-10-16 Phase 22 반영. Phase 21 279, Phase 20 274, Phase 19 270, Phase 18 265, Phase 17 262, Phase 16 257, Phase 15 253, Phase 14 249, Phase 13 243, Phase 12 238, Phase 11 231, Phase 8 215)
 
 - skipped 1: `tests/unit/test_paths.py::test_ensure_within_blocks_symlink` — 이 PC 계정에 심볼릭 링크 생성 권한이 없음(WinError 1314). 코드 결함이 아니라 환경 제약.
 - deselected 2: `tests/integration/llm/` — 실제 Claude API 호출이 필요한 LLM 계약 테스트. **크레딧 부족으로 실행하지 않음.**
@@ -28,6 +28,7 @@
 | tests/unit/test_phase19_slide_spec.py | 5 | (Phase 19) 도식 5종, 슬라이드 명세, 기술 상세·용어집, QA-CON-10/11 |
 | tests/unit/test_phase20_editable_objects.py | 4 | (Phase 20) 네이티브 차트, 목업 컴포넌트·그룹, 참고 그림 삽입·문서 종류 |
 | tests/unit/test_phase21_render_qa.py | 5 | (Phase 21) COM 렌더링(없으면 skip), QA-EDIT-01~10, 페이지 제한, 범주 필터 |
+| tests/unit/test_phase22_req_groups.py | 5 | (Phase 22) 요구사항 묶음(코드·에이전트), 묶음 소절·구현방안 전문·QA-CON-12, 복합 장표, 난이도 라벨 |
 | tests/unit/test_shapes_presentation.py | 5 | (Phase 13) 도식 8종 도형·연결선·표 생성과 그림 없음, 일정·구성도 연결선, 발표용 덱 구조·에이전트 도식·QA-FILE-12/04/TECH-07, 그림 삽입 검출(QA-FILE-12 실패), 구현 근거 검토 항목 |
 | tests/unit/test_proposal_template.py | 7 | (Phase 12) 템플릿 PPTX 프로파일(용지·머리글·리드·글꼴·장/절·표), 템플릿 등록 규칙·추출 제외, RFP 지정 목차 트리(행 순서 뒤섞임 포함), 장 계획 배치·자리표시, 템플릿 기반 제출용 PPT(용지·장 순서·머리글·(계속))와 QA-FILE-02/11, 제안 문안 에이전트 브리프·리드/표/주석 반영, 템플릿 없음 기본 양식 |
 | tests/unit/test_rfp_profile.py | 5 | (Phase 11) 절 분류·잡음 정리, 구조화 RFP 픽스처의 ID 색인·블록 태그·목차/평가/제출, 청크 태그·저신호 예외, RFP ID 커버리지 경고·QA-RFP-07 |
@@ -77,6 +78,8 @@
 **Phase 21 점검 (2026-10-16)**: 같은 흐름을 **실제 렌더링 켬**으로 재실행(`(렌더링 21)`) — 통합 QA **50항목 중 48 실행·44 통과·0 실패·4 검토 필요**(QA-TECH-01/02/05/07)·2 미실행(QA-RFP-07, QA-FILE-13 제한 문구 없음), gate3·gate4 PASS. QA-FILE-14: PowerPoint 16.0 COM으로 제출용 30/30장·발표용 22/22장 PNG 내보내기, 재열기 성공(13.5s·5.5s, `11_QA_Validation_Reports/render/`). QA-EDIT-01~10 전부 통과(사진 예외 2건 기록). 렌더링 PNG에서 장 라벨 줄바꿈 결함을 발견해 수정한 뒤 재실행(`(렌더링 21b)`): 장 라벨 수정(줄바꿈 끔·여백 반영·덮개 30% 확장) 후 재실행 (렌더링 21b)·(렌더링 21c) 모두 QA 50항목 중 48 실행·44 통과·0 실패·4 검토·2 미실행, gate3·gate4 PASS, QA-FILE-14 PASS(제출용 30/30·발표용 22/22 PNG, 재열기 성공, 9.4s·3.8s). 21c PNG에서 장 라벨이 한 줄로 들어가고 레이아웃 잔여 글자가 사라진 것을 육안 확인. pytest 279 passed(신규 Phase 21 테스트 5건; COM 렌더링 테스트는 PowerPoint 없는 PC에서 skip=미실행). 실제 모델 호출은 미검증.
 
 **실제 고객 RFP PDF 점검 (2026-10-16, 저장소 밖 자료, 커밋·공개 금지)**: 48쪽 PDF RFP를 입력으로 세션의 Claude가 에이전트 출력(RFP 분석·요구사항 42건·조사 6건·구현 방안 39건·브리프·아키텍처 10요소·WBS 27항목 565 M/D·문안 21소절·용어 35건)을 대행 작성한 fixture(`--fixture`, 저장소 밖)로 전체 흐름 실행. 추출 14청크·요구사항 42건(RFP ID 22종 모두 연결), 제출용 45장(네이티브 차트 4·표 13·그룹 18)·발표용 37장, Excel 4종, 통합 QA **50항목 중 50 실행·46 통과·0 실패·4 검토 필요**(QA-RFP-01 미연결 의무 문장 78건, QA-TECH-01/02/05 조사 미확인), gate3·gate4 PASS, QA-FILE-14 렌더링 45/45·37/37장. 첫 실행에서 QA-RFP-07(ID 블록 매칭)·QA-CON-03(미추출 요구 참조)·QA-CON-01(인력 수치 누락)·QA-FILE-04(데이터 흐름 라벨 겹침)·QA-CON-10 오탐('FR-013'+줄바꿈+'대표')·QA-CON-11('UI/UX')을 발견해 생성기·QA·fixture를 고쳤다. 실제 모델 호출은 여전히 미검증.
+
+**Phase 22 점검 (2026-10-16, 같은 고객 RFP PDF·샘플 제안서 Ⅲ장 참고, 저장소 밖)**: 사용자 검토 의견(구현 방안 부실·정의서 미반영·세로 상자 일색·빈칸)을 반영해 요구사항 묶음별 구현 방안 소절(묶음 7개 → 제출용 13장·발표용 7장), 복합 장표(밴드 배치·높이 상한·장 분할), QA-CON-12를 넣고 재실행 — 제출용 58장·발표용 44장, 통합 QA **51항목 중 51 실행·47 통과·0 실패·4 검토 필요**(QA-RFP-01, QA-TECH-01/02/05), gate3·gate4 PASS, QA-CON-12 통과(정의서 구현방안 전부 반영), 렌더링 성공. 렌더링 PNG로 밴드 제목 겹침·난이도 표기·빈 공간·글자 잘림·표 넘침을 찾아 4회 수정했다. pytest 284 passed(신규 Phase 22 테스트 5건).
 
 ## 2. 정적 검사
 

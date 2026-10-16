@@ -263,11 +263,16 @@ def test_decks_render_key_message_tech_detail_glossary_and_slide_spec() -> None:
     spec = build_slide_spec(data, ctx, "submission")
     entries = ctx.slide_specs["submission"]
     arch = next(e for e in entries if e["key"] == "architecture")
-    assert arch["slide_to"] >= arch["slide_from"] + 2  # 본문 + 기술 상세 + 대안 비교
+    assert (
+        arch["slide_to"] >= arch["slide_from"] + 1
+    )  # 복합 장표(도식+기술 상세) + 대안 비교 (Phase 22)
     assert arch["visual_kind"] == "layers" and arch["has_tech_detail"]
     assert any(e["key"] == "glossary" for e in entries)
     first = next(s for s in spec["slides"] if s["slide_no"] == arch["slide_from"])
-    assert first["key_message"].startswith("접수") and first["rendered_layout"] == "visual"
+    assert first["key_message"].startswith("접수") and first["rendered_layout"] in (
+        "visual",
+        "visual_table",
+    )
     assert "FR-001" in first["requirement_ids"] and first["has_notes"]
     assert spec["summary"]["sections_without_key_message"] == ["3.1"]
     assert spec["summary"]["glossary_terms"] == 2 and spec["summary"]["pictures"] == 0

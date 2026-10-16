@@ -2,7 +2,7 @@
   "updated": "2026-10-16",
   "main_commit": "ab75fba",
   "plan": "docs/IMPROVEMENT_PLAN_2026-10.md",
-  "status": "step21_done_improvement_plan_complete",
+  "status": "step22_done_user_review_applied",
   "analysis_done": [
     "existing project structure, agents, MCP, outputs, tests (Phase 1-15)",
     "gap analysis against the quality/editability directive (19 sections)",
@@ -14,36 +14,34 @@
     "step18: strategy_planner brief (10 items), Gate P human approval/reject/rewrite, writing/finalize blocked before approval, QA-RFP-08, approval UI panel, brief toc as submission deck skeleton",
     "step19: ProposalSection slide spec (key_message/purpose/audience/evidence/links/layout_type/tech_detail/terms) + glossary, slide spec JSON per deck (manifest extra_files), 13 agent visual kinds (raci/data_model/procedure/security_layers/layers), tech detail cards + alternatives table (commercial/open_source/in_house), glossary slide, prompt rules 12-16, QA-CON-10/11 (38 checks), slide spec UI panel",
     "step20: native charts (charts.py: staffing bar, requirement stats stacked column, submission gantt stacked bar, VisualSpec chart), screen mockup components (VisualItem.kind) + grouping (mockup/cards/kpis/entities), 14 visual kinds, DocumentKind.PICTURE tagged picture insertion path (section picture ref + appendix), QA group flattening, slide spec chart counts",
-    "step21: PowerPoint COM rendering + reopen (validation/render.py, QA-FILE-14, setting qa_render_check / UI checkbox), QA-FILE-13 page limit, editability checklist QA-EDIT-01~10 (new category), category-filtered QA runs + per-category report counts, default presenter notes, chapter label wrap fix found by rendering, run_regression --render, final report (directive section 18, 13 items)"
+    "step21: PowerPoint COM rendering + reopen (validation/render.py, QA-FILE-14, setting qa_render_check / UI checkbox), QA-FILE-13 page limit, editability checklist QA-EDIT-01~10 (new category), category-filtered QA runs + per-category report counts, default presenter notes, chapter label wrap fix found by rendering, run_regression --render, final report (directive section 18, 13 items)",
+    "step22: requirement groups (agent requirement_groups or code grouping by RFP id/category) -> per-group implementation pages (function block diagram + full spec approach table + premises), composite slides with band headings and content-sized blocks, text tables, card/column/band height caps, QA-CON-12 spec approach coverage (51 checks), QA-CON-01 RFP id exclusion"
   ],
   "changed_files": [
-    "src/proposal_agent/validation/render.py",
-    "src/proposal_agent/validation/independent_qa.py",
-    "src/proposal_agent/validation/qa_service.py",
-    "src/proposal_agent/validation/__init__.py",
-    "src/proposal_agent/models/qa.py",
-    "src/proposal_agent/config/settings.py",
-    "src/proposal_agent/orchestrator/runner.py",
+    "src/proposal_agent/generators/pptx/req_groups.py",
+    "src/proposal_agent/generators/pptx/shapes.py",
     "src/proposal_agent/generators/pptx/decks.py",
+    "src/proposal_agent/generators/pptx/outline.py",
+    "src/proposal_agent/generators/pptx/builder.py",
     "src/proposal_agent/generators/pptx/template.py",
-    "src/proposal_agent/ui/app_pages/deliverables.py",
+    "src/proposal_agent/agents/schemas.py",
+    "src/proposal_agent/agents/prompts/proposal_writer.md",
+    "src/proposal_agent/validation/independent_qa.py",
     "scripts/run_manual_agents.py",
-    "scripts/run_regression.py",
-    "tests/unit/test_phase21_render_qa.py",
+    "tests/unit/test_phase22_req_groups.py",
+    "tests/unit/test_phase19_slide_spec.py",
     "tests/integration/test_phase7_qa.py",
-    "docs/PHASE21_REPORT.md",
-    "docs/FINAL_REPORT_IMPROVEMENT_2026-10.md",
+    "docs/PHASE22_REPORT.md",
     "docs/USER_GUIDE.md",
-    "docs/OUTPUT_STRUCTURE.md",
+    "docs/AGENT_DESIGN.md",
     "docs/LIMITATIONS.md",
-    "docs/LIBRARY_REVIEW.md",
     "docs/TEST_RESULTS.md",
     "README.md"
   ],
   "tests": {
     "last_run": "2026-10-16",
     "command": "pytest -q -p no:cacheprovider",
-    "passed": 279,
+    "passed": 284,
     "failed": 0,
     "skipped": 1,
     "deselected": 2
@@ -60,7 +58,10 @@
     "grouped mockups/cards broke top-level shape counts in visual tests and QA (flattened groups)",
     "template chapter label wrapped to two lines (found in rendered PNG): wrap off + margin-aware font fit",
     "presentation slides had no presenter notes in the fake flow (QA-EDIT-08): default note draft",
-    "render check disabled made gate4 need review: disabled = not applicable, enabled-but-no-engine = review"
+    "render check disabled made gate4 need review: disabled = not applicable, enabled-but-no-engine = review",
+    "spec implementation approaches reached the deck only as 60-char table cells (per-group pages with full text + QA-CON-12)",
+    "tall empty vertical boxes and low slide density (composite slides, content-sized blocks, visual+tech detail on one page)",
+    "QA-CON-01 flagged RFP ids as unknown; QA-CON-10 newline false positive; QA-CON-11 slash acronyms"
   ],
   "open_issues": [
     "real Claude model calls unverified (no credit)",
@@ -89,16 +90,16 @@
     "check": "QA-FILE-12 (tagged photos allowed), QA-FILE-03/04 flatten groups"
   },
   "next": [
-    "real Claude model run once credit is available (run_phase2_llm.py, -m llm), prompt/schema tuning, check_mcp.py re-check",
-    "optional: automated visual quality judgment of rendered PNGs, LibreOffice fallback for servers, brief toc editing UI, manifest finalization record",
+    "real Claude model run once credit is available; check how well proposal_writer fills requirement_groups and key_message/evidence",
+    "optional: density tuning of composite pages (gaps), group diagram actor/external inference, LibreOffice fallback",
     "git push origin main when the user asks"
   ],
   "qa_checks": {
-    "total": 50,
+    "total": 51,
     "categories": {
       "RFP": 8,
       "TECH": 7,
-      "CON": 11,
+      "CON": 12,
       "FILE": 14,
       "EDIT": 10
     }

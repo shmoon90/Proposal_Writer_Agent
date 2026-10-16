@@ -101,6 +101,7 @@ DEFAULT_KEYS: tuple[tuple[str, str], ...] = (
     ("sw_diagram", "SW 구성도"),
     ("service_diagram", "서비스 구성도"),
     ("architecture", "기술 아키텍처 및 구현 방안"),
+    ("req_groups", "요구사항별 구현 방안"),
     ("security", "보안"),
     ("testing", "테스트 및 품질 보증"),
     ("operations", "운영 및 유지보수"),
@@ -111,7 +112,7 @@ DEFAULT_KEYS: tuple[tuple[str, str], ...] = (
 )
 
 
-ESSENTIAL_KEYS = ("requirements", "system_diagram", "schedule", "organization")
+ESSENTIAL_KEYS = ("requirements", "system_diagram", "req_groups", "schedule", "organization")
 
 
 def default_outline(ctx: GenerationContext) -> list[OutlineSection]:
@@ -263,6 +264,7 @@ SECTION_KEYWORDS: dict[str, tuple[str, ...]] = {
     "sw_diagram": ("소프트웨어", "SW", "S/W"),
     "service_diagram": ("서비스 구성", "서비스"),
     "architecture": ("아키텍처", "기술", "구현", "주요 기능", "기능"),
+    "req_groups": ("주요 기능", "기능", "구현", "요구사항"),
     "security": ("보안",),
     "testing": ("품질", "테스트", "시험"),
     "operations": ("유지보수", "교육", "운영", "안정화", "지원", "인수"),
@@ -281,6 +283,7 @@ CHAPTER_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
             "sw_diagram",
             "service_diagram",
             "architecture",
+            "req_groups",
             "security",
             "testing",
         ),

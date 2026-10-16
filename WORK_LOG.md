@@ -3,6 +3,7 @@
 작업 순서 기록. 상태 요약은 `workspace/DEVELOPMENT_STATUS.md`, 단계별 상세는 `docs/PHASE*_REPORT.md`.
 
 ## 2026-10-16
+- Phase 22: 사용자 검토 의견(구현 방안 부실·정의서 미반영·시각화 단조·빈칸)과 같은 RFP 제안서 샘플(Ⅲ장) 분석을 반영 — 요구사항 묶음별 구현 방안 소절(`req_groups.py`, requirement_groups 스키마·규칙 18), 복합 장표(밴드·블록 높이 배분·장 분할), 기능 블록 도식, 여러 줄 셀 표, 카드·2열·띠 높이 상한, QA-CON-12(51항목). 실제 RFP 재실행 QA 0 실패·gate4 PASS·QA-CON-12 통과. pytest 284 passed. → `docs/PHASE22_REPORT.md`
 - 실제 고객 RFP PDF(48쪽, 저장소 밖)로 제안 단계 전체 흐름을 대행 응답(API 없음)으로 실행: `run_manual_agents.py --fixture <저장소 밖 .py>` 옵션과 '@별칭' → 요구사항 ID 해결을 추가하고, 실행에서 드러난 생성기·QA 결함(데이터 흐름 라벨 겹침·양방향 화살표, 구성도 라벨 폭, 일정·인력·요구사항 소절 도식+데이터 슬라이드 병행, 발표용 필요성 리드 축약, QA-CON-10 줄바꿈 오탐, QA-CON-11 슬래시 약어)을 고쳤다. 결과: 요구사항 42건, 제출용 45장·발표용 37장, QA 50항목 46 통과·0 실패·4 검토, gate3·gate4 PASS, 렌더링 45/45·37/37.
 - Phase 21 완료(개선 계획 마지막 단계): PowerPoint COM 실제 렌더링·재열기(validation/render.py, QA-FILE-14), 페이지 제한(QA-FILE-13), 편집 가능성 체크리스트 QA-EDIT-01~10(새 범주), QA 범주 분리 실행·범주별 집계, 발표자 노트 초안, 렌더링으로 찾은 장 라벨 줄바꿈 수정. pytest 279 passed, 실샘플 QA 50항목 0 실패·gate4 PASS·렌더링 30/30·22/22. → `docs/PHASE21_REPORT.md`, 최종 완료 보고 `docs/FINAL_REPORT_IMPROVEMENT_2026-10.md`
 - Phase 20 완료: 네이티브 차트(charts.py: 공수·요구사항 통계·제출용 간트·VisualSpec chart), 화면 목업 컴포넌트(입력·버튼·메뉴·탭·메시지·표·목록·차트 영역)·그룹화(목업·카드·수치 카드·엔티티), 참고 그림 문서 종류(PICTURE)와 태그 삽입 경로, QA 그룹 평탄화. pytest 274 passed, 실샘플 QA 0 실패·gate4 PASS·QA-FILE-12 사진 예외 통과. → `docs/PHASE20_REPORT.md`

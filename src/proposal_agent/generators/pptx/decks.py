@@ -14,6 +14,14 @@ from proposal_agent.generators.pptx.outline import (
     canonical_key,
     plan_chapters,
 )
+from proposal_agent.generators.pptx.req_groups import (
+    RequirementGroup,
+    approach_table_rows,
+    difficulty_label,
+    function_block_spec,
+    group_requirements,
+    premises,
+)
 from proposal_agent.generators.pptx.shapes import (
     draw_architecture,
     draw_bars,
@@ -326,7 +334,12 @@ def _render_tech_detail(
         {"title": t, "text": "\n".join(f"• {str(x)[:60]}" for x in v[:5])} for t, v in groups if v
     ]
     reason = str(td.get("selection_reason", "") or "")
-    if items and not compact:
+    visual_given = isinstance(agent.get("visual"), dict) and (
+        agent["visual"].get("items") or agent["visual"].get("rows")
+    )
+    if (
+        items and not compact and not visual_given
+    ):  # 도식 소절은 복합 장표에 카드가 이미 들어감 (Phase 22)
         slide, box = b.canvas_slide(
             f"{sec.title} — 기술 상세", lead=reason, notes=str(agent.get("speaker_notes", "") or "")
         )
@@ -411,6 +424,167 @@ def _fill_default_notes(b: Builder, sec: OutlineSection, first: int, last: int) 
         slide.notes_slide.notes_text_frame.text = note[:600]
 
 
+def _split_blocks(
+    b: Builder, blocks: list[dict[str, Any]], title: str, *, has_lead: bool
+) -> list[tuple[list[dict[str, Any]], str]]:
+    """블록 필요 높이 합이 본문 높이를 넘으면 표(기술 상세·세부 내용)를 '(계속)' 장으로 분리한다 (Phase 22)."""
+    from proposal_agent.generators.pptx.shapes import estimate_block_height
+
+    body_h = float(getattr(b, "body_height_cm", 14.0)) - (2.0 if has_lead else 0.0) - 1.2
+    body_w = float(getattr(b, "body_width_cm", 17.0))
+    needs = [
+        estimate_block_height(x, body_w, b.style) + (0.95 if x.get("title") else 0.0) + 0.3
+        for x in blocks
+    ]
+    if sum(needs) <= body_h or len(blocks) < 2:
+        return [(blocks, title)]
+    first = [x for x in blocks if x.get("kind") != "table"]
+    tables = [x for x in blocks if x.get("kind") == "table"]
+    if not tables or not first:
+        return [(blocks, title)]
+    pages: list[tuple[list[dict[str, Any]], str]] = [(first, title)]
+    for t in tables:
+        pages.append(([t], f"{title} (계속)"))
+    return pages
+
+
+def _render_requirement_groups(
+    b: Builder, ctx: GenerationContext, sec: OutlineSection, footer: str, *, compact: bool
+) -> None:
+    """요구사항 묶음별 구현 방안 (Phase 22): 묶음마다 한 장(요점 → 기능 블록 도식 → 정의서 구현방안 전문 표).
+
+    표가 한 장에 다 들어가지 않으면 '(계속)' 장에 나머지 행을 싣는다. 발표용은 묶음마다 블록 도식 + 요점 1장."""
+    groups = group_requirements(ctx)
+    if not groups:
+        b.bullet_slides(
+            sec.title,
+            [
+                "구현 방안이 작성된 요구사항이 없음 — '구현 방안 작성(에이전트)' 실행 또는 요구사항 화면에서 입력 필요"
+            ],
+            footer,
+        )
+        return
+    for g in groups:
+        _render_group(b, ctx, g, footer, compact=compact)
+
+
+def _group_rows_per_page(
+    rows: list[list[str]], width_cm: float, style: Any, avail_cm: float
+) -> int:
+    """표 행을 몇 개까지 한 장에 넣을지 — 구현방안 열 줄 수 추정으로."""
+    from proposal_agent.generators.pptx.shapes import estimate_block_height
+
+    for n in range(len(rows), 0, -1):
+        est = estimate_block_height(
+            {
+                "kind": "table",
+                "headers": ["", "", "", ""],
+                "rows": rows[:n],
+                "col_widths": [2.2, 5.5, 0.8, 2.5],
+            },
+            width_cm,
+            style,
+        )
+        if est <= avail_cm:
+            return n
+    return 1
+
+
+def _render_group(
+    b: Builder, ctx: GenerationContext, g: RequirementGroup, footer: str, *, compact: bool
+) -> None:
+    spec = function_block_spec(g)
+    rows = approach_table_rows(g)
+    ids_line = "대응 요구사항: " + ", ".join(
+        f"{r.id}" + (f"({r.rfp_requirement_id})" if r.rfp_requirement_id else "")
+        for r in g.requirements
+    )
+    summary = list(g.summary) or [
+        f"요구 {len(g.requirements)}건 — 난이도 상 {sum(1 for r in g.requirements if difficulty_label(r) == '상')}건, "
+        f"중 {sum(1 for r in g.requirements if difficulty_label(r) == '중')}건, 하 {sum(1 for r in g.requirements if difficulty_label(r) == '하')}건",
+    ]
+    notes_text = "\n".join(f"{r.id}: {r.implementation_approach}" for r in g.requirements)[:2000]
+    if compact:
+        b.composite_slide(
+            g.title,
+            [
+                {"kind": "bullets", "title": "", "lines": [ids_line, *summary][:5]},
+                {"kind": "function_blocks", "title": "기능 구성", "spec": spec},
+            ],
+            footer,
+            lead=g.key_message,
+            notes=notes_text,
+        )
+        return
+    from proposal_agent.generators.pptx.shapes import estimate_block_height
+
+    body_w = float(getattr(b, "body_width_cm", 17.0))
+    body_h = float(getattr(b, "body_height_cm", 14.0))
+    lead_h = 2.0 if g.key_message else 0.0
+    head_h = 0.95  # 소제목 띠
+    first_blocks: list[dict[str, Any]] = [
+        {"kind": "bullets", "title": "", "lines": [ids_line, *summary][:5]},
+        {"kind": "function_blocks", "title": "기능 구성", "spec": spec},
+    ]
+    used = (
+        lead_h
+        + sum(estimate_block_height(x, body_w, b.style) for x in first_blocks)
+        + head_h * 2  # 요점 블록은 띠 없음
+        + 0.3 * 2
+        + 0.6  # ※ 주석 여유
+    )
+    avail_first = max(body_h - used, 2.5)
+    first_n = _group_rows_per_page(rows, body_w, b.style, avail_first)
+    foot = premises(g) + list(g.notes)
+    from proposal_agent.generators.pptx.shapes import LAST_BLOCK_META
+
+    headers = ["요구사항", "구현 방안 (요구사항 정의서와 동일)", "난이도", "검증 방법·검사 기준"]
+    b.composite_slide(
+        g.title,
+        [
+            *first_blocks,
+            {
+                "kind": "table",
+                "title": "요구사항별 구현 방안",
+                "headers": headers,
+                "rows": rows[:first_n],
+                "col_widths": [2.2, 5.5, 0.8, 2.5],
+            },
+        ],
+        footer,
+        lead=g.key_message,
+        notes=notes_text,
+        footnotes=foot[:3] if first_n >= len(rows) else [],
+    )
+    drawn = next(
+        (int(m.get("rows_drawn", first_n)) for m in LAST_BLOCK_META if m.get("kind") == "table"),
+        first_n,
+    )
+    rest = rows[
+        max(drawn, 0) :
+    ]  # 실제로 그린 행 다음부터 이어 싣는다 (영역 부족으로 빠진 행 유실 방지)
+    while rest:
+        n = _group_rows_per_page(rest, body_w, b.style, max(body_h - head_h - 1.5, 3.0))
+        b.composite_slide(
+            f"{g.title} (계속)",
+            [
+                {
+                    "kind": "table",
+                    "title": "요구사항별 구현 방안 (계속)",
+                    "headers": headers,
+                    "rows": rest[:n],
+                    "col_widths": [2.2, 5.5, 0.8, 2.5],
+                }
+            ],
+            footer,
+            footnotes=foot[:3] if n >= len(rest) else [],
+        )
+        drawn = next(
+            (int(m.get("rows_drawn", n)) for m in LAST_BLOCK_META if m.get("kind") == "table"), n
+        )
+        rest = rest[max(drawn, 1) :]
+
+
 def _glossary_rows(ctx: GenerationContext) -> list[list[object]]:
     rows: list[list[object]] = []
     for g in (ctx.proposal_content or {}).get("glossary") or []:
@@ -476,19 +650,69 @@ def _render_section_body(
         and visual.get("items")
         or (agent and isinstance(visual, dict) and visual.get("rows"))
     ):
-        # 에이전트가 도식을 지정한 소절: 도식(편집 가능 도형) + 요점. 표가 함께 있으면 표 슬라이드도.
-        b.visual_slide(
-            sec.title,
-            visual,
-            footer,
-            lead=lead,
-            bullets=[
-                *(["대응 요구사항: " + ", ".join(req_ids[:12])] if req_ids else []),
-                *list(agent.get("bullets") or []),
-            ],
-            notes=notes,
+        # 에이전트가 도식을 지정한 소절: 샘플 제안서처럼 한 장을 밴드로 구성 — 요점 → 도식 → (기술 상세 카드 | 표).
+        # 세로로 늘어진 빈 상자를 피하려고 블록 높이는 내용 추정량으로 배분한다 (Phase 22)
+        bullets = [
+            *(["대응 요구사항: " + ", ".join(req_ids[:12])] if req_ids else []),
+            *list(agent.get("bullets") or []),
+        ]
+        blocks: list[dict[str, Any]] = []
+        if bullets:
+            blocks.append({"kind": "bullets", "title": "", "lines": bullets[: 5 if compact else 8]})
+        blocks.append(
+            {"kind": "visual", "title": str(visual.get("title") or "구성·흐름"), "spec": visual}
         )
-        _render_agent_extras(b, sec, agent, footer)
+        td = agent.get("tech_detail") if isinstance(agent.get("tech_detail"), dict) else None
+        headers = agent.get("table_headers") or []
+        rows = agent.get("table_rows") or []
+        if td and not compact:
+            groups = (
+                ("구성 요소", td.get("components") or []),
+                ("연계·인터페이스", td.get("interfaces") or []),
+                ("데이터", td.get("data") or []),
+                ("운영·장애", td.get("operations") or []),
+                ("보안 통제", td.get("security") or []),
+            )
+            rows_td = [[t, "\n".join(f"• {str(x)[:90]}" for x in v[:4])] for t, v in groups if v]
+            if rows_td:
+                blocks.append(
+                    {
+                        "kind": "table",
+                        "title": "기술 상세",
+                        "headers": ["구분", "내용"],
+                        "rows": rows_td,
+                        "col_widths": [1.6, 8.4],
+                    }
+                )
+        elif headers and rows and len(rows) <= 6 and not compact:
+            blocks.append(
+                {
+                    "kind": "table",
+                    "title": "세부 내용",
+                    "headers": [str(h) for h in headers],
+                    "rows": [[str(c) for c in r] for r in rows],
+                }
+            )
+            rows = []
+        pages = _split_blocks(b, blocks, sec.title, has_lead=bool(lead))
+        for i, (page_blocks, page_title) in enumerate(pages):
+            b.composite_slide(
+                page_title,
+                page_blocks,
+                footer,
+                lead=lead if i == 0 else "",
+                notes=notes,
+                footnotes=footnotes if i == len(pages) - 1 else [],
+            )
+        if headers and rows:
+            b.table_slides(
+                sec.title,
+                [str(h) for h in headers],
+                [[str(c) for c in r] for r in rows],
+                footer,
+                lead="",
+                notes=notes,
+            )
         if key not in ("organization", "schedule", "requirements"):
             return
         # 일정·인력·요구사항 소절은 핵심 수치(기간·공수·인원·건수) 슬라이드가 반드시 있어야 하므로 코드 데이터 슬라이드도 이어 그린다
@@ -619,6 +843,8 @@ def _render_section_body(
                     title="유형별 요구사항 건수",
                     number_format="0",
                 )
+    elif key == "req_groups":
+        _render_requirement_groups(b, ctx, sec, footer, compact=compact)
     elif key == "strategy":
         bullets = (agent or {}).get("bullets") or [
             "RFP 필수 요구사항 전수 대응 및 추적성 확보 (요구사항 정의서·추적표)",
@@ -886,6 +1112,7 @@ PRESENTATION_KEYS = {
     "strategy",
     "system_diagram",
     "architecture",
+    "req_groups",
     "security",
     "testing",
     "schedule",
