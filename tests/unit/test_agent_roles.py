@@ -29,6 +29,7 @@ EXPECTED_ROLES = {
     "approach_writer",  # Phase 14: 요구사항별 구현 방안·난이도·검사 기준
     "strategy_planner",  # Phase 18: 목차·전략 브리프 (Gate P 승인 대상)
     "design_writer",  # Phase 23: 요구사항 묶음별 구현 설계 (구조·절차·적용 기술)
+    "bid_reviewer",  # 단계 2: 사업 참여 타당성 검토
 }
 
 

@@ -16,6 +16,7 @@ pages = [
     st.Page("ui/app_pages/project.py", title="프로젝트", icon=":material/folder_open:"),
     st.Page("ui/app_pages/extraction.py", title="문서 추출", icon=":material/document_scanner:"),
     st.Page("ui/app_pages/requirements.py", title="요구사항", icon=":material/checklist:"),
+    st.Page("ui/app_pages/feasibility.py", title="사업성 평가", icon=":material/balance:"),
     st.Page("ui/app_pages/agents.py", title="에이전트·조사", icon=":material/smart_toy:"),
     st.Page("ui/app_pages/deliverables.py", title="산출물", icon=":material/inventory_2:"),
     st.Page(

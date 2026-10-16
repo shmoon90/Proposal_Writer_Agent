@@ -446,4 +446,19 @@ MIGRATIONS: tuple[Migration, ...] = (
         CREATE INDEX ix_negotiations_project ON negotiations(project_id, created_at);
         """,
     ),
+    Migration(
+        9,
+        "feasibility_assessments",
+        # 단계 2 (지시문 §6): 사업 참여 타당성 평가. 버전마다 새 행, 결정은 decisions 와 연결.
+        f"""
+        CREATE TABLE feasibility_assessments (
+            id TEXT PRIMARY KEY,
+            {_FK_PROJECT},
+            status TEXT NOT NULL,
+            recommendation TEXT NOT NULL,
+            {_COMMON}
+        );
+        CREATE INDEX ix_feasibility_assessments_project ON feasibility_assessments(project_id, created_at);
+        """,
+    ),
 )

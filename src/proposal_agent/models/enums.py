@@ -35,6 +35,7 @@ class DocumentKind(StrEnum):
     STAFFING_PLAN = "staffing_plan"
     PROPOSAL_TEMPLATE = "proposal_template"
     PICTURE = "picture"  # Phase 20: 참고 그림(사진·일러스트·장식·참고 이미지) — 추출 대상 아님
+    MEETING_NOTE = "meeting_note"  # 단계 2 (지시문 §10): 회의록·인터뷰·질의응답·메모 — 추출 뒤 결정·조치 구조화 대상
     OTHER = "other"
 
     @property
@@ -48,6 +49,7 @@ class DocumentKind(StrEnum):
             "staffing_plan": "인력 투입계획서",
             "proposal_template": "제안서 템플릿(PPT)",
             "picture": "참고 그림(사진·일러스트)",
+            "meeting_note": "회의록·인터뷰·질의응답",
             "other": "기타",
         }[self.value]
 
@@ -329,6 +331,37 @@ class TestCaseStatus(StrEnum):
     UNVERIFIED = "unverified"  # 실행하지 못함 — 완료로 보지 않는다
 
 
+class FeasibilityRating(StrEnum):
+    """사업성 평가 항목 판정 (지시문 §6)."""
+
+    GOOD = "good"
+    CAUTION = "caution"
+    RISK = "risk"
+    UNKNOWN = "unknown"
+
+    @property
+    def label(self) -> str:
+        return {"good": "양호", "caution": "주의", "risk": "위험", "unknown": "미확인"}[self.value]
+
+
+class BidRecommendation(StrEnum):
+    """참여 권고·결정 (지시문 §6)."""
+
+    RECOMMENDED = "recommended"
+    CONDITIONAL = "conditional"
+    NEEDS_REVIEW = "needs_review"
+    NOT_RECOMMENDED = "not_recommended"
+
+    @property
+    def label(self) -> str:
+        return {
+            "recommended": "참여 권고",
+            "conditional": "조건부 참여 권고",
+            "needs_review": "추가 검토 필요",
+            "not_recommended": "참여 비권고",
+        }[self.value]
+
+
 class DefectStatus(StrEnum):
     OPEN = "open"
     ANALYZING = "analyzing"
@@ -456,6 +489,8 @@ class FileFormat(StrEnum):
     PDF = "pdf"
     DOCX = "docx"
     TXT = "txt"
+    PPTX = "pptx"  # 단계 2
+    IMAGE = "image"  # 단계 2: PNG·JPG → OCR
     UNSUPPORTED = "unsupported"
 
 

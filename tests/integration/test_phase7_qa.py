@@ -93,7 +93,7 @@ def test_proposal_full_flow_independent_qa_gates_and_finalize(services: Services
     run = services.qa.latest_run(p)
     assert (
         run is not None
-        and run.counts["executed"] == 49
+        and run.counts["executed"] == 50
         and run.counts["not_run"]
         == 3  # QA-RFP-07(ID 체계 없음), QA-FILE-11(템플릿 미등록), QA-FILE-14(렌더링 꺼짐)
         and run.counts["fail"] == 0

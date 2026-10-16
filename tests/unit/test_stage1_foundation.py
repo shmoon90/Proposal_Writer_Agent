@@ -93,7 +93,7 @@ def test_stage1_entities_persist_with_project_unique_codes(
     services: Services, proposal_project: Project
 ) -> None:
     repos = services.ctx.repos
-    assert MIGRATIONS[-1].version == 8
+    assert MIGRATIONS[-1].version >= 8
     pid = proposal_project.id
     assert repos.next_code(pid, "STR") == "STR-001" and repos.next_code(pid, "STR") == "STR-002"
     assert repos.next_code(pid, "TC") == "TC-001"  # 접두사별 독립 시퀀스

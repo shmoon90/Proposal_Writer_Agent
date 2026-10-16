@@ -93,6 +93,15 @@ def check_rfp_fit(inp: QaInputs, ppt_sub_text: str) -> list[QaCheck]:
             gate="gate5",
             fix_suggestion="산출물 화면에서 '전략·목차 브리프 작성(에이전트)' 후 검토·승인하고 재생성",
         ),
+        _check(
+            "QA-RFP-09",
+            cat,
+            "요구사항 품질(중복·충돌·검증 불가·누락)",
+            "요구사항에 중복·수치 조건 충돌·검증 불가 표현·구현 방안 불명확·RFP 근거 없음·업무 규칙 누락·비기능 누락·테스트 불가능한 수용 기준이 있는가 (지시문 §5.3, 코드 규칙 — 검토 목록)",
+            gate="gate1",
+            mandatory=False,
+            fix_suggestion="요구사항 화면 '품질 검토' 패널의 항목을 확인해 요구사항을 수정·분리·보강하거나 확인 질문으로 관리",
+        ),
     ]
     if not inp.blocks or inp.mode != ProjectMode.PROPOSAL:
         return [
@@ -231,4 +240,18 @@ def check_rfp_fit(inp: QaInputs, ppt_sub_text: str) -> list[QaCheck]:
                 + (" (브리프 작성됨, 검토 대기)" if inp.strategy_brief else " (브리프 미작성)")
             ],
         )
+    # 09: 요구사항 품질 (단계 2, 코드 규칙)
+    from proposal_agent.requirements.quality import check_requirement_quality
+
+    findings = check_requirement_quality(list(inp.requirements))
+    warn = [f.message for f in findings if f.level == "warning"]
+    info = [f.message for f in findings if f.level == "info"]
+    _finish(
+        checks[8],
+        review=_cap(warn, 12)
+        + ([f"(참고 {len(info)}건: 규칙 초안·업무 규칙·비기능 누락 후보)"] if info else []),
+        req_ids=sorted(
+            {rid for f in findings if f.level == "warning" for rid in f.requirement_ids}
+        ),
+    )
     return checks

@@ -546,6 +546,31 @@ DESIGNS: dict[str, Any] = {
 }
 
 
+# --- 2-5. 사업 참여 타당성 검토 (단계 2, 대행 응답) -------------------------------------------------
+BID_REVIEW: dict[str, Any] = {
+    "items": [
+        {
+            "key": "tech_capability",
+            "rating": "good",
+            "comment": "조사 주제가 모두 구현 가능 판정(사실). 범용 기술이라 확보 위험은 낮다(판단).",
+        },
+        {
+            "key": "ambiguity",
+            "rating": "caution",
+            "comment": "지원 연산 목록이 기준 계산기 수준이라는 표현은 범위가 넓다(사실). 착수 시 연산 목록을 확정해야 한다(판단).",
+        },
+        {
+            "key": "profitability",
+            "rating": "unknown",
+            "comment": "단가·예산이 없어 산정 불가(사실). 소규모 사업이라 마진보다 레퍼런스 가치로 판단할 여지(판단).",
+        },
+    ],
+    "key_risks": ["지원 연산 범위 미확정", "정밀도 요구(21자리) 검증 비용"],
+    "open_questions": ["역할별 단가와 예산은?", "모바일 미지원이 발주처와 합의됐는가?"],
+    "overall_comment": "코드 권고에 동의한다. 연산 범위와 정밀도 검증 기준을 착수 전에 확정하는 조건이면 참여할 만하다. 먼저 단가·예산을 입력해 수익성을 산정해야 한다.",
+}
+
+
 # --- 2-3. 목차·전략 브리프 (Phase 18, 세션의 Claude가 수동 작성 — Gate P 대행 승인) -------------------
 STRATEGY: dict[str, Any] = {
     "rfp_summary": "PC 웹 기반 공학용 계산기 개발. Windows 공학용 계산기 수준의 연산, 프론트 입력 검증·서버 계산, 소수점 21자리·10^25 범위, 계산 이력 표시가 핵심이며 모바일은 범위 밖이다. 평가 기준·페이지 제한은 RFP에 없다.",
@@ -1361,6 +1386,7 @@ FIXTURE_NAMES = (
     "REQUIREMENTS",
     "APPROACHES",
     "DESIGNS",
+    "BID_REVIEW",
     "STRATEGY",
     "RESEARCH",
     "ARCHITECTURE",
@@ -1533,6 +1559,7 @@ def main() -> int:
             "approach_writer": approach_writer,
             "strategy_planner": STRATEGY,
             "design_writer": DESIGNS,
+            "bid_reviewer": BID_REVIEW,
         },
         cost_per_call=0.0,
     )
@@ -1597,6 +1624,21 @@ def main() -> int:
     if aliases:
         log.append(f"fixture 별칭 → ID {len(aliases)}건 해결")
     log.append(r.run_rfp_analysis(p, actor=ACTOR).summary)
+    log.append(r.run_bid_assessment(p, actor=ACTOR).summary)
+    _bid = s.feasibility.latest(p)
+    if _bid is not None:
+        s.feasibility.review_with_agent(p, _bid, actor=ACTOR)
+        _dec = s.feasibility.record_decision(
+            p,
+            _bid,
+            choice=_bid.recommendation,
+            rationale=f"대행 결정: 코드 권고를 그대로 채택 ({NOTE}). 사용자 확인 필요",
+            decider=ACTOR,
+            authority_confirmed=False,
+        )
+        log.append(
+            f"참여 결정 {_dec.code} 기록(제안 상태, 권한 미확인) — 권고 {_bid.recommendation.label}"
+        )
     log.append(r.run_tech_research(p, actor=ACTOR).summary)
     log.append(r.run_approach_writing(p, actor=ACTOR).summary)
     log.append(r.run_strategy_brief(p, actor=ACTOR).summary)

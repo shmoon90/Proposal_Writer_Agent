@@ -6,7 +6,7 @@
 
 ## 0. 구현 반영 (Phase 3·6·7, 2026-10-15) — 실제 구현된 역할·도구·통제
 
-> 2026-10-16 기준 역할 13종(Phase 23 `design_writer` 포함). 실제 모델 호출은 크레딧 부족으로 미검증이며, 모든 역할은 FakeAgentRunner(모의 응답)와 SDK 연결 점검(비용 0)으로만 검증했다. 통합 QA(Phase 7)는 에이전트 자기 평가를 쓰지 않고 코드(`validation/independent_qa.py`)가 독립 검증하며, `qa_reviewer` 결과는 사람 검토 항목으로만 덧붙는다 ([PHASE7_REPORT.md](PHASE7_REPORT.md)).
+> 2026-10-16 기준 역할 14종(Phase 23 `design_writer`, 단계 2 `bid_reviewer` 포함). 실제 모델 호출은 크레딧 부족으로 미검증이며, 모든 역할은 FakeAgentRunner(모의 응답)와 SDK 연결 점검(비용 0)으로만 검증했다. 통합 QA(Phase 7)는 에이전트 자기 평가를 쓰지 않고 코드(`validation/independent_qa.py`)가 독립 검증하며, `qa_reviewer` 결과는 사람 검토 항목으로만 덧붙는다 ([PHASE7_REPORT.md](PHASE7_REPORT.md)).
 
 구현 코드: `agents/roles.py`(역할 정의), `agents/runner.py`(SDK 어댑터), `agents/control.py`·`hooks.py`(정책·훅), `agents/tools/project_tools.py`(인프로세스 MCP), `services/agent_step_service.py`(역할 실행·재사용·저장), `research/`(기술 조사).
 
@@ -24,6 +24,7 @@
 | 10 | `semantic_differ` (Phase 6) | 변경 요청 항목·기존 요구사항(설명+구현 방안)·규칙 분류 | `SemanticDiffDraft` (Phase 14: `change_aspects`·`difficulty`·`difficulty_basis`·`effort_hint`) | 없음 | `pwa.list_requirements`, `pwa.get_requirement` | 8 / $1.5 / 600s | — (규칙 결과를 입력으로 받음) |
 | 12 | `strategy_planner` (Phase 18) | `<rfp_profile>`(목차·평가·제출·페이지 제한) + `<prior role="rfp_analyst">` + `<requirements>`(구현 방안·난이도) + `<research>` + `<reviewer_comments>`(반려 시) | `StrategyBrief{rfp_summary, requirement_directions[], toc[{numeral,title,sections,rfp_mandatory,note}], toc_change_requests[], strategies[3~5: title,description,differentiator,evidence[]], key_technologies[], risks[], submission_vs_presentation, open_questions[]}` | 없음 | pwa 읽기 9종 | 12 / $3 / 600s | rfp_analyst |
 | 11 | `approach_writer` (Phase 14) | 요구사항 묶음(≤20) + `<research>` 조사 기록 + `<architecture>` 구성 요소 + `<comparisons>` 기술 선택 | `ApproachReport{items[{requirement_id, approach(글머리 2~5줄), difficulty(상/중/하), difficulty_basis, verification_method, acceptance_criteria, research_refs, sources[], feasibility, notes}], research_needed[]}` | **WebSearch, WebFetch** | `pwa.get_requirement`, `pwa.list_research` | 20 / $4 / 900s | rfp_analyst |
+| 14 | `bid_reviewer` (단계 2) | `<assessment>`(코드 사업성 평가 13항목·비용·공수·확인 사항) + `<prior role="rfp_analyst">` | `BidReviewDraft{items[{key, rating, comment}], key_risks, open_questions, overall_comment}` | 없음 | pwa 읽기 | 8 / $1.5 / 600s | rfp_analyst |
 | 13 | `design_writer` (Phase 23) | `<groups>`(코드 제안 묶음: 요구사항·RFP ID·정의서 구현방안·난이도) + `<research>`(조사 사실·출처) + `<architecture>` + `<comparisons>` | `DesignReport{designs[{title, requirement_ids, key_message, overview, structure[{name, layer, technology, role}], flows[{title, actor, action, decision}], tech_choices[{area, choice, reason, alternatives, source, verified}], data_interfaces, premises, risks, sources}], research_needed}` | **WebSearch, WebFetch** | `pwa.get_requirement`, `pwa.list_research` | 30 / $6 / 1200s | approach_writer, architect |
 
 공통 실패 처리: `AgentRunError(subtype, cause, resolution, detail.category)` → StepRun `failed` + 감사 이벤트. 일시 오류(rate_limit/overloaded/connection/process)만 `retries` 횟수 재시도, 크레딧·인증·예산·스키마 오류는 즉시 실패. 시간 초과·취소는 `ClaudeSDKClient.interrupt()`로 중단.

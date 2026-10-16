@@ -282,6 +282,32 @@ else:
                 for h in req.history:
                     st.write(f"{h.at} · {h.actor} · {h.action} · {h.note} {h.changes or ''}")
 
+with st.expander(
+    "품질 검토 (코드 규칙: 중복·충돌·검증 불가·구현 방안·근거·업무 규칙·비기능·수용 기준)"
+):
+    from proposal_agent.requirements.quality import check_requirement_quality
+
+    _findings = check_requirement_quality(services.requirements.list_requirements(project))
+    if not _findings:
+        st.write("발견된 품질 문제가 없습니다.")
+    else:
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "규칙": f.title,
+                        "수준": f.level,
+                        "요구사항": ", ".join(f.requirement_ids),
+                        "내용": f.message,
+                        "조치": f.suggestion,
+                    }
+                    for f in _findings
+                ]
+            ),
+            hide_index=True,
+            alt="요구사항 품질 검토 표",
+        )
+
 with st.expander("요구사항 직접 추가 (부가 제안 등)"):
     with st.form("add_req"):
         n = st.text_input("요구사항명", key="add_name")

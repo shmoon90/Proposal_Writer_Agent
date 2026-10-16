@@ -508,12 +508,48 @@ class StepRunner:
             pipeline.fail_step(project, run, exc, actor=actor)
             raise
 
+    STEP_BID = "bid_assessment"
+
+    def run_bid_assessment(
+        self,
+        project: Project,
+        *,
+        actor: str = "user",
+        user_ratings: dict[str, tuple[str | None, str]] | None = None,
+    ) -> StepOutcome:
+        """사업 참여 타당성 평가 (단계 2, 지시문 §6). 코드 평가 + 사용자 판정 → 평가서. 결정은 화면에서 따로 기록."""
+        pipeline = self._s.pipeline
+        run = pipeline.start_step(project, self.STEP_BID, actor=actor)
+        try:
+            a = self._s.feasibility.assess(project, actor=actor, user_ratings=user_ratings)
+            counts = a.counts()
+            summary = (
+                f"사업성 평가 v{a.version}: 권고 '{a.recommendation.label}' — 양호 {counts['good']}·주의 {counts['caution']}·"
+                f"위험 {counts['risk']}·미확인 {counts['unknown']}, 비용 산정 {a.cost_estimate.get('status', 'unavailable')} ({a.report_path})"
+            )
+            pipeline.complete_step(
+                project,
+                run,
+                summary=summary,
+                actor=actor,
+                output_refs={
+                    "assessment": a.id,
+                    "report": a.report_path,
+                    "recommendation": a.recommendation.value,
+                },
+            )
+            return StepOutcome(run=run, summary=summary)
+        except PWAError as exc:
+            pipeline.fail_step(project, run, exc, actor=actor)
+            raise
+
     # --- 단계 키 디스패처 (단계 1, 지시문 §16: 특정 단계만·실패한 작업만·선택 범위 실행) --------------
     DISPATCHABLE: tuple[str, ...] = (
         "extract",
         "rfp_analysis",
         "req_extract",
         "req_verify",
+        "bid_assessment",
         "tech_research",
         "impl_approach",
         "strategy_brief",
@@ -542,6 +578,8 @@ class StepRunner:
             return self.run_requirement_extraction(project, actor=actor)[0]
         if step_key == "req_verify":
             return self.run_verification(project, actor=actor)[0]
+        if step_key == "bid_assessment":
+            return self.run_bid_assessment(project, actor=actor)
         if step_key == "tech_research":
             return self.run_tech_research(project, actor=actor, cancel=cancel)
         if step_key == "impl_approach":

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from proposal_agent.agents.runner import AgentRunner, build_runner
 from proposal_agent.changes.baseline_service import BaselineService
 from proposal_agent.changes.service import ChangeService
+from proposal_agent.feasibility.service import FeasibilityService
 from proposal_agent.generators.service import GenerationService
 from proposal_agent.ingest.ocr import OcrEngine
 from proposal_agent.ingest.service import ExtractionService
@@ -51,6 +52,7 @@ class Services:
     strategy: StrategyService
     design: DesignService
     jobs: JobManager
+    feasibility: FeasibilityService
 
     @classmethod
     def from_context(
@@ -127,6 +129,7 @@ class Services:
             ),
             design=DesignService(ctx.repos, steps),
             jobs=JobManager(ctx.repos),
+            feasibility=FeasibilityService(ctx.repos, ctx.paths, ctx.files, audit, steps, planning),
         )
 
 

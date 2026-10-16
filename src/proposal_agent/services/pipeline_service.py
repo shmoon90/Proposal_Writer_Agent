@@ -55,6 +55,7 @@ PROPOSAL_STEPS = _steps(
     ("rfp_analysis", "RFP 분석", None, "rfp_analyst"),
     ("req_extract", "요구사항 추출", None, "requirement_extractor"),
     ("req_verify", "독립 검증", "게이트 1: 요구사항 기준선 승인", "requirement_verifier"),
+    ("bid_assessment", "사업성 평가·참여 결정", None, None),
     ("tech_research", "기술 조사·구현 가능성", "게이트 2: 조사 결과 검토", "tech_researcher"),
     ("impl_approach", "요구사항별 구현 방안·난이도", None, "approach_writer"),
     ("strategy_brief", "목차·전략 브리프", "Gate P: 목차·전략 승인", "strategy_planner"),

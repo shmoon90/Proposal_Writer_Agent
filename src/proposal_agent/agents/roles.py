@@ -341,6 +341,27 @@ DESIGN_WRITER = _register(
 )
 
 
+# --- 14. 사업 참여 타당성 검토 (단계 2) --------------------------------------------------------
+BID_REVIEWER = _register(
+    AgentRole(
+        key="bid_reviewer",
+        title="사업 참여 타당성 검토",
+        description="코드가 만든 사업성 평가(13항목)를 검토해 항목별 의견(사실·판단 구분)·추가 위험·확인 질문을 쓴다. 결정은 사람이 한다. 수치를 만들지 않는다.",
+        inputs=("사업성 평가(코드)", "RFP 분석"),
+        output_schema=schemas.BidReviewDraft,
+        prompt_name="bid_reviewer",
+        mcp_servers=(MCP_PROJECT,),
+        mcp_tool_patterns=_PROJECT_READ,
+        max_turns=8,
+        max_budget_usd=1.5,
+        timeout_s=600,
+        reuses=("rfp_analyst",),
+        output_subdir="02_RFP_Analysis",
+        output_stem="bid_review",
+    )
+)
+
+
 # --- 10. 구축 단계 의미 비교 (Phase 6) ------------------------------------------------------
 SEMANTIC_DIFFER = _register(
     AgentRole(

@@ -32,6 +32,7 @@ from proposal_agent.models.enums import (
     ActorKind,
     ApprovalDecision,
     ApprovalTarget,
+    BidRecommendation,
     BlockType,
     ChangeStatus,
     ChangeType,
@@ -44,6 +45,7 @@ from proposal_agent.models.enums import (
     DocumentKind,
     ExtractionMethod,
     ExtractionStatus,
+    FeasibilityRating,
     FeasibilityVerdict,
     FileFormat,
     GateStatus,
@@ -70,6 +72,7 @@ from proposal_agent.models.enums import (
     WBSLevel,
 )
 from proposal_agent.models.extraction import BlockLocation, ExtractedBlock, ExtractionRun, PageStat
+from proposal_agent.models.feasibility import FeasibilityAssessment, FeasibilityItem
 from proposal_agent.models.pipeline import GateResult, StepDefinition, StepRun
 from proposal_agent.models.planning import (
     Dependency,
@@ -115,7 +118,11 @@ __all__ = [
     "FINDING_KINDS",
     "SETTINGS_KEY",
     "ApiSpec",
+    "BidRecommendation",
     "CodeModule",
+    "FeasibilityAssessment",
+    "FeasibilityItem",
+    "FeasibilityRating",
     "DbColumn",
     "DbTable",
     "Decision",

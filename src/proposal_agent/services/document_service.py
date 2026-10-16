@@ -23,7 +23,19 @@ ORIGINAL_SUBDIR = "01_RFP_Original"
 
 ALLOWED_SUFFIXES: dict[DocumentKind, tuple[str, ...]] = {
     # .doc/.hwp/.hwpx는 업로드는 받되 추출 단계에서 "지원하지 않음 + 변환 방법"으로 안내한다.
-    DocumentKind.RFP: (".pdf", ".docx", ".txt", ".md", ".doc", ".hwp", ".hwpx"),
+    DocumentKind.RFP: (
+        ".pdf",
+        ".docx",
+        ".txt",
+        ".md",
+        ".pptx",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".doc",
+        ".hwp",
+        ".hwpx",
+    ),
     DocumentKind.RFP_ATTACHMENT: (
         ".pdf",
         ".docx",
@@ -34,8 +46,12 @@ ALLOWED_SUFFIXES: dict[DocumentKind, tuple[str, ...]] = {
         ".hwpx",
         ".xlsx",
         ".pptx",
+        ".png",
+        ".jpg",
+        ".jpeg",
         ".zip",
     ),
+    DocumentKind.MEETING_NOTE: (".pdf", ".docx", ".txt", ".md", ".pptx", ".png", ".jpg", ".jpeg"),
     DocumentKind.REQUIREMENT_SPEC: (".xlsx",),
     DocumentKind.TRACE_MATRIX: (".xlsx",),
     DocumentKind.WBS: (".xlsx",),
@@ -54,9 +70,10 @@ OPTIONAL_KINDS: dict[ProjectMode, tuple[DocumentKind, ...]] = {
         DocumentKind.RFP_ATTACHMENT,
         DocumentKind.PROPOSAL_TEMPLATE,
         DocumentKind.PICTURE,
+        DocumentKind.MEETING_NOTE,
         DocumentKind.OTHER,
     ),
-    ProjectMode.BUILD: (DocumentKind.STAFFING_PLAN, DocumentKind.OTHER),
+    ProjectMode.BUILD: (DocumentKind.STAFFING_PLAN, DocumentKind.MEETING_NOTE, DocumentKind.OTHER),
 }
 
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024

@@ -30,6 +30,7 @@ from proposal_agent.models import (
     Entity,
     ExtractedBlock,
     ExtractionRun,
+    FeasibilityAssessment,
     FeasibilityStudy,
     GateEvaluation,
     GateResult,
@@ -554,6 +555,12 @@ class NegotiationRepository(_CodedRepository[Negotiation]):
     columns = {"code": "code", "status": "status"}
 
 
+class FeasibilityAssessmentRepository(BaseRepository[FeasibilityAssessment]):
+    table = "feasibility_assessments"
+    model = FeasibilityAssessment
+    columns = {"status": "status", "recommendation": "recommendation"}
+
+
 class SequenceRepository:
     """프로젝트별 단조 증가 시퀀스 (요구사항 ID 발급 등). 값은 낮아지지 않는다."""
 
@@ -643,6 +650,7 @@ class Repositories:
         self.defects = DefectRepository(db)
         self.decisions = DecisionRepository(db)
         self.negotiations = NegotiationRepository(db)
+        self.feasibility_assessments = FeasibilityAssessmentRepository(db)
 
     def next_code(self, project_id: str, prefix: str, *, width: int = 3) -> str:
         """프로젝트 안에서 단조 증가하는 사람 읽는 코드 (예: STR-001). 시퀀스 키는 ``code:<prefix>``."""

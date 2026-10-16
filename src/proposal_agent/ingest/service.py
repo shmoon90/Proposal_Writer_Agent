@@ -16,8 +16,10 @@ from proposal_agent.config.paths import ProjectPaths
 from proposal_agent.config.settings import Settings
 from proposal_agent.ingest.base import ReaderResult
 from proposal_agent.ingest.docx_reader import read_docx
+from proposal_agent.ingest.image_reader import read_image
 from proposal_agent.ingest.ocr import OcrEngine, build_ocr_engine
 from proposal_agent.ingest.pdf_reader import read_pdf
+from proposal_agent.ingest.pptx_reader import read_pptx
 from proposal_agent.ingest.rfp_profile import RfpProfile, profile_blocks
 from proposal_agent.ingest.txt_reader import read_txt
 from proposal_agent.models import (
@@ -48,7 +50,7 @@ _UNSUPPORTED_HINTS: dict[str, str] = {
     ".hwpx": "한글(.hwpx) 형식은 직접 지원하지 않습니다. 한글에서 PDF로 저장한 뒤 업로드하십시오.",
     ".rtf": "RTF 형식은 직접 지원하지 않습니다. Word에서 .docx로 저장한 뒤 업로드하십시오.",
     ".xlsx": "Excel 문서는 RFP 본문 추출 대상이 아닙니다 (구축 단계 기준 문서는 별도 파서).",
-    ".pptx": "PowerPoint 문서는 직접 지원하지 않습니다. PDF로 저장한 뒤 업로드하십시오.",
+    ".ppt": "구형 PowerPoint(.ppt) 형식은 직접 지원하지 않습니다. .pptx 또는 PDF로 저장한 뒤 업로드하십시오.",
     ".zip": "압축 파일은 직접 지원하지 않습니다. 압축을 풀고 개별 문서를 업로드하십시오.",
 }
 
@@ -73,6 +75,15 @@ def detect_format(file_name: str, data: bytes) -> tuple[FileFormat, str | None]:
         return FileFormat.DOCX, None
     if suffix in (".txt", ".md", ""):
         return FileFormat.TXT, None
+    if suffix == ".pptx":  # 단계 2
+        if not head.startswith(b"PK"):
+            return (
+                FileFormat.PPTX,
+                "PPTX(zip) 시그니처가 없습니다. 손상되었거나 .ppt 를 이름만 바꾼 파일일 수 있습니다.",
+            )
+        return FileFormat.PPTX, None
+    if suffix in (".png", ".jpg", ".jpeg") or head.startswith((b"\x89PNG", b"\xff\xd8")):  # 단계 2
+        return FileFormat.IMAGE, None
     hint = _UNSUPPORTED_HINTS.get(
         suffix, f"지원하지 않는 형식({suffix})입니다. PDF, DOCX, TXT로 변환해 업로드하십시오."
     )
@@ -253,6 +264,15 @@ class ExtractionService:
                 )
             if fmt == FileFormat.DOCX:
                 return read_docx(data, **kwargs)
+            if fmt == FileFormat.PPTX:
+                return read_pptx(data, **kwargs)
+            if fmt == FileFormat.IMAGE:
+                return read_image(
+                    data,
+                    ocr=self._ocr,
+                    ocr_review_threshold=self._settings.ocr_review_threshold,
+                    **kwargs,
+                )
             return read_txt(data, **kwargs)
         except Exception as exc:  # 리더 내부의 예기치 않은 오류도 실패 기록으로 변환
             log.exception("리더 예외 %s", document.file_name)

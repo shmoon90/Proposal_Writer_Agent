@@ -65,6 +65,7 @@ def test_build_mode_lists_build_documents(services: Services) -> None:
         DocumentKind.TRACE_MATRIX.label,
         DocumentKind.WBS.label,
         DocumentKind.STAFFING_PLAN.label,
+        DocumentKind.MEETING_NOTE.label,  # 단계 2
         DocumentKind.OTHER.label,
     ]
     assert "인력 투입계획서 (선택)" in labels

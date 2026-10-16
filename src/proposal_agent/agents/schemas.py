@@ -677,6 +677,28 @@ class DesignReport(_Strict):
     notes: str = ""
 
 
+# --- 8-4. 사업 참여 타당성 검토 (단계 2, 지시문 §6) --------------------------------------------------
+
+
+class BidReviewItem(_Strict):
+    key: str = Field(description="평가 항목 키 (입력 items[].key 중 하나)")
+    rating: str = Field(
+        default="unknown", description="good | caution | risk | unknown — 제안 판정"
+    )
+    comment: str = Field(description="사실(데이터 확인)과 판단을 구분한 의견 1~3문장")
+
+
+class BidReviewDraft(_Strict):
+    items: list[BidReviewItem] = Field(default_factory=list)
+    key_risks: list[str] = Field(
+        default_factory=list, description="실패 요인 3~6개 (근거 있는 것만)"
+    )
+    open_questions: list[str] = Field(default_factory=list, description="사용자 확인 질문")
+    overall_comment: str = Field(
+        default="", description="권고 동의 여부·참여 조건·우선 확인 사항 3~5문장"
+    )
+
+
 # --- 9. QA·변경 검토 -----------------------------------------------------------------------------
 
 
@@ -754,6 +776,8 @@ __all__ = [
     "TechChoice",
     "ImplementationDesign",
     "DesignReport",
+    "BidReviewDraft",
+    "BidReviewItem",
     "LAYOUT_TYPES",
     "AUDIENCES",
 ]

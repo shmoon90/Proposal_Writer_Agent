@@ -337,6 +337,14 @@ stateDiagram-v2
 
 공통: 프로젝트 범위, `code` 는 `(project_id, code)` 유일(`Repositories.next_code` 로 발급), 내부 `id` 는 전역 유일, `version`·`status`·관련 ID 목록. `TraceTargetType` 에 strategy/api/db_table/design_item/code_module/test_case/acceptance 추가. `Project.settings["project_settings"]` 에 `ProjectSettings`(지시문 §3) JSON. `StepRun` 에 progress/progress_note/cancel_requested/resume_point/heartbeat_at/background.
 
+## 6.4 단계 2 추가 (마이그레이션 0009)
+
+| 엔티티 | 테이블 | 용도 |
+|---|---|---|
+| `FeasibilityAssessment`(+내장 `FeasibilityItem` 13개) | `feasibility_assessments` | 사업 참여 타당성 평가: 항목별 코드 판정·근거·가정·입력 필요·사용자 판정·에이전트 의견, 권고(제안)·근거, 공수·비용 산정(단가 없으면 unavailable), 평가서 경로, 참여 결정(Decision) 연결. 버전마다 새 행 |
+
+`DocumentKind.MEETING_NOTE`, `FileFormat.PPTX/IMAGE`, `FeasibilityRating`, `BidRecommendation` enum 추가.
+
 ## 7. 데이터 흐름 요약
 
 | 단계 | 입력 | 처리 주체 | 출력(저장) |
