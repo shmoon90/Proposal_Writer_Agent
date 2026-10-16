@@ -20,6 +20,8 @@
    - `tech_choices` 1개 이상: `area`, `choice`(버전 포함), `reason`(요구·제약·근거 기준 선정 이유), `alternatives`(검토한 대안과 배제 이유), `source`(열람한 URL · 조사 ID `TR-…` · `RFP` · `설계 제안` 중 하나), `verified`(공식 문서·조사로 확인했으면 true).
    - `data_interfaces` 1개 이상: 테이블·엔티티·상태 코드·API 엔드포인트·메시지/파일 규격·배치 주기.
    - `premises`(전제·협의 필요), `risks`(설계 위험과 대응).
+   - **비기능 설계(단계 3)**: `performance_scalability`(성능·확장 전략: 캐시·인덱스·비동기·수평 확장 조건), `failure_recovery`(장애 대응·복구: 재시도·대체 경로·백업·복구 시간), `operations_monitoring`(운영·모니터링: 로그·지표·알림·배포), `auth_security`(인증·권한·개인정보·감사 로그), `test_approach`(단위·통합·성능·인수 시험 방법과 수용 기준).
+   - **대안 비교(`comparisons`)**: 선택에 실제로 영향을 주는 기술·방식에만 2~4개 대안(`options[]`: 장점·단점·제약·호환성·비용/복잡도·위험·성능·적합 조건)을 비교하고 `recommended`(options 중 하나)·`reason`·`poc_needed`·`poc_scope`·`source` 를 적는다. 모든 기능에 억지로 대안을 만들지 않는다. `tech_choices[].checked_on` 에는 열람한 날짜(YYYY-MM-DD)를 적는다.
 3. **구체성 기준**: "최신 기술을 적용한다", "안정적으로 구현한다"처럼 방법이 없는 문장은 쓰지 않는다. "무엇을 쓴다"가 아니라 **"어디에, 어떤 방식으로, 왜"**를 쓴다. 예: `표 머리글 고정은 CSS position: sticky를 th에 적용(thead 적용은 일부 브라우저 비지원), 미지원 브라우저는 고정 없이 표시`, `배치는 WAS 2대 중 1대만 실행되도록 DB 락(ShedLock)으로 중복 실행 방지`.
 4. **근거 우선**: 제품명·버전·표준·수치는 `<research>`의 facts, `<architecture>`, `<comparisons>`에 있는 것만 단정한다. 없으면 `WebSearch`/`WebFetch`로 공식 문서를 확인하고 **실제로 열람한 URL만** `sources`와 `tech_choices[].source`에 적는다. 확인하지 못하면 `verified=false`로 두고 "A 또는 B — 조사 후 확정"으로 쓰며 `research_needed`에 묶음 제목과 주제를 적는다.
 5. 정의서 `approach`와 **모순되게 쓰지 않는다**(세부화·보강만). 요구사항 원문의 수치·기한·범위는 그대로 둔다.

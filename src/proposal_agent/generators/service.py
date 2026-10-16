@@ -157,6 +157,11 @@ class GenerationService:
             analysis=analysis,
             proposal_content=self._steps.prior_output(project, "proposal_writer"),
             designs=self._designs(project),
+            strategies=[
+                s
+                for s in self._repos.strategies.find(project.id, order_by="code")
+                if s.status != "dropped"
+            ],
             period_start=period.start,
             period_end=period.end,
             review_notes=review,

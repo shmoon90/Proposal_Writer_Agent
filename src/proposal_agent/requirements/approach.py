@@ -466,6 +466,8 @@ class ApproachService:
             self._repos.research.insert(created)
             refs.append(created.id)
         req.approach_basis = refs + [s.url for s in item.sources]
+        if item.analysis is not None and item.analysis.filled_count():
+            req.analysis = item.analysis.model_dump(mode="json")
         level = Difficulty.from_label(item.difficulty)
         if level is None:
             level, why = estimate_difficulty(
@@ -573,5 +575,6 @@ class ApproachService:
             + "\n</architecture>\n<comparisons>\n"
             + ("\n".join(cmp_lines) if cmp_lines else "(비교 없음)")
             + "\n</comparisons>\n"
-            "위 요구사항마다 구현방안(글머리 2~5줄)·난이도·검증 방법·검사 기준을 작성하라."
+            "위 요구사항마다 구현방안(글머리 2~5줄)·난이도·검증 방법·검사 기준을 작성하고, "
+            "필수 기능·난이도 상 요구사항에는 analysis(14항목 기술 검토)를 채워라."
         )

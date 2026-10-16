@@ -246,6 +246,21 @@ def decide_outline(ctx: GenerationContext, rfp_toc: list[str]) -> list[OutlineSe
                         reason="필수 섹션 보강 (기준 데이터)",
                     )
                 )
+        if getattr(ctx, "strategies", None) and "strategy" not in have:
+            # 단계 3: 전략 STR 엔티티가 있으면 사업 이해 뒤에 '추진 전략' 소절을 코드가 보강한다
+            pos = 0
+            for i, sec in enumerate(agent_sections):
+                if sec.key in ("purpose", "understanding", "current"):
+                    pos = i + 1
+            agent_sections.insert(
+                pos,
+                OutlineSection(
+                    key="strategy",
+                    title=dict(DEFAULT_KEYS)["strategy"],
+                    source="default",
+                    reason="제안 전략(STR) 보강",
+                ),
+            )
         return agent_sections
     if len(rfp_toc) >= 3:
         return map_rfp_toc(rfp_toc, ctx)

@@ -85,6 +85,9 @@ class GenerationContext:
     version: str = "v1.0"
     generated_on: date = field(default_factory=date.today)
     change_log: list[list[Any]] = field(default_factory=list)  # 구축 단계 변경관리대장 행 (CR 단위)
+    strategies: list[Any] = field(
+        default_factory=list
+    )  # 제안 전략 STR 엔티티 (단계 3, ProposalStrategy) — 덱 '제안 전략' 소절
     designs: list[dict[str, Any]] = field(
         default_factory=list
     )  # 요구사항 묶음별 구현 설계 (Phase 23, design_writer 출력의 designs[])

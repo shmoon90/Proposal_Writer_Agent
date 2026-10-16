@@ -2,13 +2,14 @@
  "updated": "2026-10-16",
  "main_commit": "ab75fba",
  "plan": "docs/IMPROVEMENT_PLAN_2026-10.md",
- "status": "directive_stage2_done_stage3_pending",
+ "status": "directive_stage3_done_stage4_pending",
  "analysis_done": [
   "existing project structure, agents, MCP, outputs, tests (Phase 1-15)",
   "gap analysis against the quality/editability directive (19 sections)",
   "environment: PowerPoint COM registered, pywin32 installed, LibreOffice absent, no API credit"
  ],
  "implemented": [
+  "지시문 단계 3: StrategyItem 보강·ProposalStrategy 저장·덱 전략 표, RequirementAnalysis(14항목)·Requirement.analysis, AlternativeComparison·비기능 설계·checked_on, QA-TECH-08(54항목)",
   "지시문 단계 2: pptx/image 리더·MEETING_NOTE, requirements/quality.py+QA-RFP-09(53항목), feasibility(13항목·권고·비용·평가서·bid_assessment 단계·bid_reviewer·Decision 기록·화면)",
   "지시문 단계 1: ProjectSettings·TechSelectionMode, 엔티티 9종(STR/TBL/API/DSG/MOD/TC/DEF/DEC/NEG)+마이그레이션 8, StepRun 진행률·중단·백그라운드(JobManager), run_step/run_steps/rerun_failed·plan_preview, 로그 마스킹, qa_checks·shapes 패키지 분할",
   "Phase 23: design_writer 구현 설계 에이전트(impl_design 단계), 묶음 소절 구조/절차 도식·적용 기술 표·장 배분, QA-CON-13(총 52항목)",
@@ -48,7 +49,7 @@
   "failed": 0,
   "skipped": 1,
   "deselected": 2,
-  "pytest": "- pytest 303 passed, 1 skipped(전체, llm 제외; 단계 1 대비 +8: 신규 tests/unit/test_stage2",
+  "pytest": "- pytest 307 passed, 1 skipped(전체, llm 제외; 단계 2 대비 +4: 신규 tests/unit/test_stage3",
   "ruff": "pass",
   "mypy": "pass (117 files)"
  },
@@ -96,10 +97,10 @@
   "check": "QA-FILE-12 (tagged photos allowed), QA-FILE-03/04 flatten groups"
  },
  "next": [
-  "단계 3: 전략 ID(STR) 저장·보강, 요구사항별 분석 항목 14종 스키마화(approach/design), 대안 비교 구조화, 출처 확인 날짜, 구현 후 재검증 QA, 실모델 1회 검증(A-6)"
+  "단계 4: 분량 조절(요약/상세), 시각 요소 확장(배포·네트워크·KPI·의사결정 표), 비용 산정 시트, 추적성 Excel 열(전략·설계·테스트·검수·분석), 렌더링 미리보기 화면"
  ],
  "qa_checks": {
-  "total": 53,
+  "total": 54,
   "categories": {
    "RFP": 8,
    "TECH": 7,
@@ -109,7 +110,7 @@
   },
   "by_category": {
    "RFP": 9,
-   "TECH": 7,
+   "TECH": 8,
    "CON": 13,
    "FILE": 14,
    "EDIT": 10
@@ -135,8 +136,8 @@
  },
  "branch": "feature/major-revision",
  "directive": {
-  "stage": 2,
-  "stage_name": "RFP 분석·사업성 평가",
+  "stage": 3,
+  "stage_name": "제안 전략·상세 기술 검토",
   "done": true,
   "documents": [
    "workspace/PROJECT_ANALYSIS.md",
@@ -155,7 +156,7 @@
    "not_implemented": 8
   },
   "approvals_pending": [],
-  "next_stage": 3,
+  "next_stage": 4,
   "last_run": "2026-10-16",
   "approvals_granted": [
    "A-1",
@@ -167,6 +168,7 @@
    "A-7"
   ],
   "stage1_report": "docs/DIRECTIVE_STAGE1_REPORT.md",
-  "stage2_report": "docs/DIRECTIVE_STAGE2_REPORT.md"
+  "stage2_report": "docs/DIRECTIVE_STAGE2_REPORT.md",
+  "stage3_report": "docs/DIRECTIVE_STAGE3_REPORT.md"
  }
 }

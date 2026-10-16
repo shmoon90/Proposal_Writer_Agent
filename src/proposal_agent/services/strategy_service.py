@@ -17,8 +17,9 @@ from proposal_agent.agents.control import CancellationToken
 from proposal_agent.agents.schemas import StrategyBrief
 from proposal_agent.config.logging import get_logger
 from proposal_agent.config.paths import ProjectPaths
-from proposal_agent.models import GateEvaluation, GateStatus, Project, ProjectMode
+from proposal_agent.models import GateEvaluation, GateStatus, Project, ProjectMode, ProposalStrategy
 from proposal_agent.orchestrator.gates import GateService
+from proposal_agent.requirements.id_policy import normalize_text
 from proposal_agent.storage.files import FileStore
 from proposal_agent.storage.repositories import Repositories
 
@@ -134,6 +135,60 @@ class StrategyService:
         )
         return "\n\n".join(parts)
 
+    # --- 전략 ID (단계 3, 지시문 §7.1·§17) -------------------------------------------------------
+    def persist_strategies(
+        self, project: Project, brief: StrategyBrief, *, actor: str = "user"
+    ) -> list[ProposalStrategy]:
+        """브리프의 전략을 STR-nnn 엔티티로 저장한다. 같은 제목은 버전을 올려 갱신하고, 빠진 전략은 dropped."""
+        existing = {normalize_text(s.title): s for s in self._repos.strategies.find(project.id)}
+        kept: list[ProposalStrategy] = []
+        seen: set[str] = set()
+        for item in brief.strategies:
+            key = normalize_text(item.title)
+            seen.add(key)
+            fields = dict(
+                title=item.title,
+                client_problem=item.client_problem,
+                rfp_basis=[e for e in item.evidence if e.startswith("RFP")],
+                differentiator=item.differentiator,
+                approach=item.approach or item.description,
+                technologies=list(item.technologies),
+                expected_effects=list(item.expected_effects),
+                risks=list(item.risks),
+                evidence=list(item.evidence),
+                unverified_claims=list(item.unverified_claims),
+                related_requirement_ids=list(item.related_requirement_ids),
+                source="agent",
+            )
+            cur = existing.get(key)
+            if cur is None:
+                cur = ProposalStrategy(
+                    project_id=project.id,
+                    code=self._repos.next_code(project.id, "STR"),
+                    created_by=actor,
+                    **fields,
+                )
+                self._repos.strategies.insert(cur)
+            else:
+                for k, v in fields.items():
+                    setattr(cur, k, v)
+                cur.version += 1
+                cur.status = "draft" if cur.status == "dropped" else cur.status
+                self._repos.strategies.update(cur)
+            kept.append(cur)
+        for key, s in existing.items():
+            if key not in seen and s.status != "dropped":
+                s.status = "dropped"
+                self._repos.strategies.update(s)
+        return kept
+
+    def strategies(self, project: Project) -> list[ProposalStrategy]:
+        return [
+            s
+            for s in self._repos.strategies.find(project.id, order_by="code")
+            if s.status != "dropped"
+        ]
+
     # --- 실행 ------------------------------------------------------------------------------------
     def run(
         self,
@@ -153,6 +208,7 @@ class StrategyService:
         name = self._files.next_version_name(project.output_dir, BRIEF_SUBDIR, BRIEF_STEM, ".md")
         stored = self._files.save_bytes(project.output_dir, BRIEF_SUBDIR, name, md.encode("utf-8"))
         gate = self.evaluate(project, brief, step_run_id=step_run_id, actor=actor)
+        self.persist_strategies(project, brief, actor=actor)
         self._audit.record(
             project.id,
             "strategy.brief_written",

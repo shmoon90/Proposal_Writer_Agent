@@ -517,6 +517,19 @@ class StrategyItem(_Strict):
         default_factory=list,
         description="근거 구분과 출처: 'RFP: …' / '참고 문서: …' / '조사 TR-…: …' / '설계 제안'",
     )
+    # 단계 3 (지시문 §7.1): 발주처 문제·구현 방법·기술·기대 효과·위험/전제·미확인 주장
+    client_problem: str = Field(default="", description="발주처 관점의 문제 또는 목표")
+    approach: str = Field(default="", description="구현 방법 (무엇을 어떻게)")
+    technologies: list[str] = Field(
+        default_factory=list, description="적용 기술·아키텍처 (조사·RFP 근거)"
+    )
+    expected_effects: list[str] = Field(
+        default_factory=list, description="기대 효과 — 근거 있는 것만 (수치는 출처 필수)"
+    )
+    risks: list[str] = Field(default_factory=list, description="위험·전제 조건")
+    unverified_claims: list[str] = Field(
+        default_factory=list, description="근거가 없어 사람 확인이 필요한 주장"
+    )
 
 
 class KeyTechnology(_Strict):
@@ -564,6 +577,48 @@ class StrategyBrief(_Strict):
 # --- 8-2. 요구사항별 구현 방안 (Phase 14) -------------------------------------------------------
 
 
+class RequirementAnalysis(_Strict):
+    """요구사항별 기술 검토 14항목 (지시문 §4.1, 단계 3). 각 항목은 짧은 글머리 목록, 모르면 비우고 가정은 'assumption:' 접두."""
+
+    purpose: list[str] = Field(default_factory=list, description="목적·사용자 관점의 필요성")
+    conditions: list[str] = Field(default_factory=list, description="기능·비기능 조건")
+    inputs_outputs: list[str] = Field(default_factory=list, description="입력값·출력값")
+    business_rules: list[str] = Field(default_factory=list, description="업무 규칙·데이터 처리")
+    flow_exceptions: list[str] = Field(default_factory=list, description="처리 흐름·예외 상황")
+    screens_interaction: list[str] = Field(default_factory=list, description="화면·사용자 인터랙션")
+    api_integration: list[str] = Field(default_factory=list, description="API·외부 시스템 연계")
+    data_transactions: list[str] = Field(default_factory=list, description="데이터 모델·트랜잭션")
+    auth_privacy_audit: list[str] = Field(
+        default_factory=list, description="인증·권한·개인정보·감사 로그"
+    )
+    performance_scalability: list[str] = Field(default_factory=list, description="성능·확장성")
+    failure_recovery: list[str] = Field(default_factory=list, description="장애·복구 전략")
+    operations: list[str] = Field(default_factory=list, description="운영·유지보수")
+    impact: list[str] = Field(default_factory=list, description="구현 난이도·의존성·일정·비용 영향")
+    test_acceptance: list[str] = Field(default_factory=list, description="테스트 방법·수용 기준")
+
+    def filled_count(self) -> int:
+        return sum(1 for v in self.model_dump().values() if v)
+
+
+ANALYSIS_FIELDS: tuple[tuple[str, str], ...] = (
+    ("purpose", "목적·필요성"),
+    ("conditions", "기능·비기능 조건"),
+    ("inputs_outputs", "입력·출력"),
+    ("business_rules", "업무 규칙·데이터 처리"),
+    ("flow_exceptions", "처리 흐름·예외"),
+    ("screens_interaction", "화면·인터랙션"),
+    ("api_integration", "API·연계"),
+    ("data_transactions", "데이터 모델·트랜잭션"),
+    ("auth_privacy_audit", "인증·권한·개인정보·감사"),
+    ("performance_scalability", "성능·확장성"),
+    ("failure_recovery", "장애·복구"),
+    ("operations", "운영·유지보수"),
+    ("impact", "난이도·의존·일정·비용 영향"),
+    ("test_acceptance", "테스트·수용 기준"),
+)
+
+
 class ApproachItem(_Strict):
     """요구사항 정의서 '구현방안' 한 칸. 제안서보다 짧게(글머리 2~5줄, 300자 내외) 쓴다."""
 
@@ -593,6 +648,9 @@ class ApproachItem(_Strict):
     response_strategy: str = Field(
         default="",
         description="추적표 '대응 전략' 한 줄: 수용 방식·핵심 대응(예: '표준 공통컴포넌트 재사용으로 수용')",
+    )
+    analysis: RequirementAnalysis | None = Field(
+        default=None, description="요구사항별 기술 검토 14항목 (단계 3) — 주요 요구사항에 작성"
     )
 
 
@@ -631,6 +689,32 @@ class DesignStep(_Strict):
     decision: str = Field(default="", description="분기 조건 → 결과 (있으면)")
 
 
+class AlternativeOptionDetail(_Strict):
+    """구현 대안 하나 (지시문 §4.2)."""
+
+    name: str
+    pros: list[str] = Field(default_factory=list)
+    cons: list[str] = Field(default_factory=list)
+    constraints: list[str] = Field(default_factory=list, description="기술적 제약")
+    compatibility: str = Field(default="", description="기존 시스템과의 호환성")
+    cost_complexity: str = Field(default="", description="개발·운영 비용과 복잡도")
+    risk: str = Field(default="", description="보안·장애 위험")
+    performance: str = Field(default="", description="성능에 미치는 영향")
+    fit_conditions: str = Field(default="", description="적합한 적용 조건")
+
+
+class AlternativeComparison(_Strict):
+    """선택에 실제로 영향을 주는 경우에만 쓰는 대안 비교 (A/B/C)."""
+
+    topic: str = Field(description="비교 주제 (예: 표 머리글 고정 방식)")
+    options: list[AlternativeOptionDetail] = Field(default_factory=list, description="2~4개")
+    recommended: str = Field(default="", description="추천안 이름 (options 중 하나)")
+    reason: str = Field(default="", description="추천 이유")
+    poc_needed: bool = Field(default=False, description="PoC·추가 검증 필요 여부")
+    poc_scope: str = Field(default="", description="PoC 범위·판정 기준")
+    source: str = Field(default="", description="근거: 열람 URL | 조사 ID | RFP | 설계 제안")
+
+
 class TechChoice(_Strict):
     """적용 기술 선택과 선정 이유·대안·근거."""
 
@@ -644,6 +728,7 @@ class TechChoice(_Strict):
         default="", description="근거: 열람한 URL | 조사 ID(TR-…) | RFP | 설계 제안"
     )
     verified: bool = Field(default=False, description="공식 문서·조사로 확인했는가")
+    checked_on: str = Field(default="", description="확인 날짜 YYYY-MM-DD (열람했을 때)")
 
 
 class ImplementationDesign(_Strict):
@@ -667,6 +752,15 @@ class ImplementationDesign(_Strict):
     sources: list[ResearchSourceDraft] = Field(
         default_factory=list, description="새로 열람한 출처 (열람하지 않은 URL 금지)"
     )
+    # 단계 3 (지시문 §4.2·§8): 대안 비교와 비기능 설계
+    comparisons: list[AlternativeComparison] = Field(
+        default_factory=list, description="선택에 영향을 주는 대안 비교 (필요한 경우만)"
+    )
+    performance_scalability: list[str] = Field(default_factory=list, description="성능·확장 전략")
+    failure_recovery: list[str] = Field(default_factory=list, description="장애 대응·복구")
+    operations_monitoring: list[str] = Field(default_factory=list, description="운영·모니터링")
+    auth_security: list[str] = Field(default_factory=list, description="인증·보안·개인정보")
+    test_approach: list[str] = Field(default_factory=list, description="개발·테스트 방안·수용 기준")
 
 
 class DesignReport(_Strict):
@@ -776,6 +870,10 @@ __all__ = [
     "TechChoice",
     "ImplementationDesign",
     "DesignReport",
+    "ANALYSIS_FIELDS",
+    "AlternativeComparison",
+    "AlternativeOptionDetail",
+    "RequirementAnalysis",
     "BidReviewDraft",
     "BidReviewItem",
     "LAYOUT_TYPES",

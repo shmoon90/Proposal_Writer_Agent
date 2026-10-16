@@ -345,6 +345,10 @@ stateDiagram-v2
 
 `DocumentKind.MEETING_NOTE`, `FileFormat.PPTX/IMAGE`, `FeasibilityRating`, `BidRecommendation` enum 추가.
 
+## 6.5 단계 3 추가 (스키마 변경 없음)
+
+- `Requirement.analysis`(JSON): 요구사항별 기술 검토 14항목(`agents.schemas.RequirementAnalysis` 덤프). `ProposalStrategy` 는 전략 브리프 작성 시 채워진다(`StrategyService.persist_strategies`). 구현 설계 JSON 에 `comparisons`·비기능 설계 5항목·`tech_choices[].checked_on` 추가.
+
 ## 7. 데이터 흐름 요약
 
 | 단계 | 입력 | 처리 주체 | 출력(저장) |

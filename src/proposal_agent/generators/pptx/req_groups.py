@@ -415,6 +415,8 @@ def tech_choice_rows(design: dict[str, Any]) -> list[list[str]]:
             reason += "\n" + "\n".join(f"대안: {a}" for a in alts[:3])
         src = str(t.get("source", "") or "설계 제안").strip()
         mark = " (확인)" if t.get("verified") else " (미확인)"
+        if t.get("verified") and t.get("checked_on"):
+            mark = f" (확인 {t['checked_on']})"
         if src.startswith(
             ("http://", "https://")
         ):  # URL 은 도메인만 (전체 URL 은 설계 JSON·조사 기록에)
@@ -430,6 +432,76 @@ def tech_choice_rows(design: dict[str, Any]) -> list[list[str]]:
             src = src[:30] + mark
         rows.append([str(t.get("area", "")), str(t.get("choice", "")), reason, src])
     return rows
+
+
+NONFUNCTIONAL_FIELDS: tuple[tuple[str, str], ...] = (
+    ("performance_scalability", "성능·확장"),
+    ("failure_recovery", "장애·복구"),
+    ("operations_monitoring", "운영·모니터링"),
+    ("auth_security", "인증·보안·개인정보"),
+    ("test_approach", "테스트·수용 기준"),
+)
+
+
+def design_nonfunctional_rows(design: dict[str, Any]) -> list[list[str]]:
+    """비기능 설계 5항목 → 2열 표 행 (단계 3). 비어 있는 항목은 뺀다."""
+    rows: list[list[str]] = []
+    for key, label in NONFUNCTIONAL_FIELDS:
+        items = [str(x) for x in design.get(key, []) or [] if str(x).strip()]
+        if items:
+            rows.append([label, "\n".join(f"• {x}" for x in items[:5])])
+    return rows
+
+
+def design_comparison_blocks(design: dict[str, Any]) -> list[dict[str, Any]]:
+    """대안 비교(comparisons[]) → 비교 표(행: 장점·단점·제약·호환성·비용/복잡도·위험·성능·적합 조건) + 추천 글머리."""
+    out: list[dict[str, Any]] = []
+    for cmp in design.get("comparisons", []) or []:
+        if not isinstance(cmp, dict):
+            continue
+        opts = [o for o in cmp.get("options", []) or [] if isinstance(o, dict)][:4]
+        if len(opts) < 2:
+            continue
+        headers = ["항목", *[str(o.get("name", ""))[:34] for o in opts]]
+        rows: list[list[str]] = []
+        for key, label in (
+            ("pros", "장점"),
+            ("cons", "단점"),
+            ("constraints", "제약"),
+            ("compatibility", "호환성"),
+            ("cost_complexity", "비용·복잡도"),
+            ("risk", "위험"),
+            ("performance", "성능"),
+            ("fit_conditions", "적합 조건"),
+        ):
+            cells = []
+            for o in opts:
+                v = o.get(key, "")
+                cells.append("\n".join(f"• {x}" for x in v[:3]) if isinstance(v, list) else str(v))
+            if any(c.strip() for c in cells):
+                rows.append([label, *cells])
+        n = len(opts)
+        widths = [1.4] + [round(8.6 / n, 2)] * n
+        out.append(
+            {
+                "kind": "table",
+                "title": f"대안 비교: {str(cmp.get('topic', ''))[:40]}",
+                "headers": headers,
+                "rows": rows,
+                "col_widths": widths,
+            }
+        )
+        rec = str(cmp.get("recommended", "") or "")
+        lines = []
+        if rec:
+            lines.append(f"추천: {rec} — {cmp.get('reason', '')}")
+        if cmp.get("poc_needed"):
+            lines.append("PoC 필요: " + (str(cmp.get("poc_scope", "")) or "범위 미정"))
+        if cmp.get("source"):
+            lines.append(f"근거: {cmp['source']}")
+        if lines:
+            out.append({"kind": "bullets", "title": "", "lines": lines})
+    return out
 
 
 def design_data_lines(design: dict[str, Any]) -> list[str]:
@@ -459,8 +531,10 @@ __all__ = [
     "TECH_HEADERS",
     "TECH_WIDTHS",
     "flow_table_rows",
+    "design_comparison_blocks",
     "design_data_lines",
     "design_flow_spec",
+    "design_nonfunctional_rows",
     "design_risk_lines",
     "design_structure_spec",
     "design_texts",

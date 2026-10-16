@@ -21,8 +21,10 @@ from proposal_agent.generators.pptx.req_groups import (
     TECH_WIDTHS,
     RequirementGroup,
     approach_table_rows,
+    design_comparison_blocks,
     design_data_lines,
     design_flow_spec,
+    design_nonfunctional_rows,
     design_risk_lines,
     design_structure_spec,
     difficulty_label,
@@ -628,6 +630,7 @@ def _group_blocks(g: RequirementGroup, *, compact: bool) -> list[dict[str, Any]]
                 }
             )
         if not compact:
+            blocks.extend(design_comparison_blocks(d))  # 단계 3: 대안 비교
             lines = design_data_lines(d)
             risks = design_risk_lines(d)
             if lines or risks:
@@ -636,6 +639,17 @@ def _group_blocks(g: RequirementGroup, *, compact: bool) -> list[dict[str, Any]]
                         "kind": "bullets",
                         "title": "데이터·인터페이스 설계" + (" · 위험 대응" if risks else ""),
                         "lines": lines + [f"위험: {x}" for x in risks],
+                    }
+                )
+            nf = design_nonfunctional_rows(d)  # 단계 3: 비기능 설계
+            if nf:
+                blocks.append(
+                    {
+                        "kind": "table",
+                        "title": "비기능 설계 (성능·장애·운영·보안·테스트)",
+                        "headers": ["구분", "설계 내용"],
+                        "rows": nf,
+                        "col_widths": [1.8, 8.2],
                     }
                 )
     else:
@@ -959,6 +973,63 @@ def _render_section_body(
                 )
     elif key == "req_groups":
         _render_requirement_groups(b, ctx, sec, footer, compact=compact)
+    elif key == "strategy" and ctx.strategies:
+        # 단계 3: 전략 STR 엔티티 — 발주처 문제 → 구현 방법·기술 → 차별성·기대 효과·근거 표 + 카드
+        srows = [
+            [
+                f"{s.code}\n{s.title}",
+                s.client_problem or "-",
+                (s.approach or "")
+                + ("\n기술: " + ", ".join(s.technologies[:4]) if s.technologies else ""),
+                s.differentiator or "-",
+                "\n".join(f"• {x}" for x in s.expected_effects[:3]) or "-",
+                "\n".join(f"• {x}" for x in s.evidence[:3]) or "-",
+            ]
+            for s in ctx.strategies[:6]
+        ]
+        spages = _paginate_blocks(
+            b,
+            [
+                {
+                    "kind": "cards",
+                    "title": "핵심 전략",
+                    "items": [
+                        {"title": f"{s.code} {_card_title(s.title)}", "text": s.title}
+                        for s in ctx.strategies[:4]
+                    ],
+                },
+                {
+                    "kind": "table",
+                    "title": "전략별 발주처 문제 → 구현 방법 → 차별성·기대 효과·근거",
+                    "headers": [
+                        "전략",
+                        "발주처 문제·목표",
+                        "구현 방법·기술",
+                        "차별성",
+                        "기대 효과",
+                        "근거",
+                    ],
+                    "rows": srows,
+                    "col_widths": [2.0, 2.2, 3.0, 2.0, 2.2, 2.0],
+                },
+            ],
+            has_lead=bool(lead),
+        )
+        for i, page in enumerate(spages):
+            b.composite_slide(
+                sec.title if i == 0 else f"{sec.title} (계속)",
+                page,
+                footer,
+                lead=(lead or "핵심 전략") if i == 0 else "",
+                notes=notes,
+                footnotes=[
+                    f"미확인 주장(사람 확인 필요): {x}"
+                    for s in ctx.strategies
+                    for x in s.unverified_claims[:1]
+                ][:2]
+                if i == len(spages) - 1
+                else [],
+            )
     elif key == "strategy":
         bullets = (agent or {}).get("bullets") or [
             "RFP 필수 요구사항 전수 대응 및 추적성 확보 (요구사항 정의서·추적표)",

@@ -22,6 +22,7 @@
 5. `research_refs`에는 근거로 쓴 조사 ID(`TR-…`)만 넣는다. `feasibility`는 근거 기준으로 feasible / feasible_with_risk / unknown. 조사가 infeasible이면 그 사실을 `notes`에 적고 방안은 대안으로 쓴다.
 6. 요구사항 원문의 수치·기한·범위를 바꾸거나 빠뜨리지 않는다. 같은 RFP ID 아래 세부 항목은 각각 쓰되 공통 전제는 중복해도 된다.
 7. 기존 `approach`가 사람이 쓴 것(`source=user`)이면 덮어쓰지 말고 그 ID를 결과에서 제외한다.
+8. **요구사항별 기술 검토(`analysis`, 단계 3)**: 필수 기능 요구사항과 난이도 '상' 요구사항에는 14항목(`purpose`, `conditions`, `inputs_outputs`, `business_rules`, `flow_exceptions`, `screens_interaction`, `api_integration`, `data_transactions`, `auth_privacy_audit`, `performance_scalability`, `failure_recovery`, `operations`, `impact`, `test_acceptance`)을 짧은 글머리로 채운다. 모르는 항목은 비우고, 합리적 가정은 `assumption: …` 으로, 업무 결정이 필요한 것은 `question: …` 으로 적는다. 모호한 요구를 사실로 가정하지 않는다.
 
 # 금지
 

@@ -81,6 +81,15 @@ def check_tech_feasibility(inp: QaInputs, ppt_texts: dict[str, list[str]]) -> li
             mandatory=False,
             fix_suggestion="기술 조사를 실행하거나 근거 없는 기술명을 '검토 필요'로 바꿈",
         ),
+        _check(
+            "QA-TECH-08",
+            cat,
+            "구현 설계 재검증 (구현 후)",
+            "구현 설계의 적용 기술이 아키텍처 구성 요소·조사 사실과 모순되지 않고, 대안 비교의 추천안이 비교 대안 중 하나이며, PoC 필요 항목과 필수 기능 요구사항의 14항목 기술 검토 누락이 검토 목록에 드러나는가 (지시문 §4.4)",
+            gate=gate,
+            mandatory=False,
+            fix_suggestion="설계·아키텍처·조사를 맞추고, PoC 를 수행하거나 미검증으로 남기며, 구현 방안 에이전트로 analysis 를 채움",
+        ),
     ]
     reqs = {r.id: r for r in inp.requirements}
     research = inp.research
@@ -217,4 +226,83 @@ def check_tech_feasibility(inp: QaInputs, ppt_texts: dict[str, list[str]]) -> li
     if not techs and inp.mode == ProjectMode.PROPOSAL:
         rev06.append("구성 요소 기술이 모두 미정 — 아키텍처 확정 필요")
     _finish(checks[6], review=rev06)
+    # 08: 구현 설계 재검증 (단계 3)
+    if inp.mode != ProjectMode.PROPOSAL:
+        from proposal_agent.validation.qa_checks.common import _not_run
+
+        _not_run(checks[7], "구축 단계는 구현 설계 재검증 대상 아님")
+        return checks
+    f08, r08, ids08 = _design_reverification_issues(
+        [d for d in (inp.ctx.designs or []) if isinstance(d, dict)],
+        list(inp.requirements),
+        inp.components,
+        research,
+    )
+    _finish(checks[7], fail=_cap(f08), review=_cap(r08, 12), req_ids=ids08)
     return checks
+
+
+def _design_reverification_issues(
+    designs: list[dict],
+    requirements: list,
+    components: list,
+    research: list,
+) -> tuple[list[str], list[str], list[str]]:
+    """설계 ↔ 아키텍처·조사 일치, 대안 비교 정합성, PoC 필요, 14항목 분석 누락."""
+    fails: list[str] = []
+    revs: list[str] = []
+    ids: list[str] = []
+    evidence = " ".join(
+        [
+            *(f for tr in research for f in tr.confirmed_facts),
+            *(s for tr in research for s in tr.recommended_stack),
+            *(src.product for tr in research for src in tr.sources),
+            *(tr.summary for tr in research),
+            *(c.technology for c in components),
+            *(c.name for c in components),
+        ]
+    ).casefold()
+    for d in designs:
+        title = str(d.get("title", "") or "묶음")[:30]
+        for t in d.get("tech_choices") or []:
+            if not isinstance(t, dict):
+                continue
+            src = str(t.get("source", "") or "").strip()
+            choice = str(t.get("choice", "") or "")
+            if src in ("설계 제안", "자체 설계", "RFP") or src.upper() == "RFP":
+                continue
+            toks = [x for x in re.split(r"[\s/,+()·:]+", choice) if len(x) >= 3 and not x.isdigit()]
+            if toks and not any(tok.casefold() in evidence for tok in toks):
+                revs.append(
+                    f"{title}: 적용 기술 '{choice[:30]}' 이 아키텍처 구성 요소·조사 기록에 없음 — 조사 연결 또는 설계 근거 확인"
+                )
+        for cmp in d.get("comparisons") or []:
+            if not isinstance(cmp, dict):
+                continue
+            names = [
+                str(o.get("name", "")) for o in cmp.get("options", []) or [] if isinstance(o, dict)
+            ]
+            rec = str(cmp.get("recommended", "") or "")
+            if rec and rec not in names:
+                fails.append(
+                    f"{title}: 대안 비교 '{cmp.get('topic', '')}' 의 추천안 '{rec}' 이 비교 대안({', '.join(names)}) 에 없음"
+                )
+            if cmp.get("poc_needed"):
+                revs.append(
+                    f"{title}: PoC 필요 — {cmp.get('topic', '')}: {cmp.get('poc_scope', '') or '범위 미정'}"
+                )
+    missing = [
+        r.id
+        for r in requirements
+        if r.type == RequirementType.FUNCTIONAL
+        and r.is_mandatory
+        and r.acceptance_status != AcceptanceStatus.REJECTED
+        and r.change_state != "deleted"
+        and not r.analysis
+    ]
+    if missing:
+        revs.append(
+            f"필수 기능 요구사항 {len(missing)}건에 14항목 기술 검토(analysis) 없음: {', '.join(missing[:8])}"
+        )
+        ids.extend(missing)
+    return fails, revs, ids

@@ -139,6 +139,10 @@ class Requirement(ProjectScoped):
     tags: list[str] = Field(default_factory=list)
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     history: list[HistoryEntry] = Field(default_factory=list)
+    analysis: dict[str, Any] = Field(
+        default_factory=dict,
+        description="요구사항별 기술 검토 14항목 (단계 3, agents.schemas.RequirementAnalysis 덤프)",
+    )
     version: int = 1
     added_by: str | None = Field(default=None, description="구축 단계에서 추가 요청한 사람")
     added_on: date | None = None

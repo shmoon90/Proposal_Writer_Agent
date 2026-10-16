@@ -278,6 +278,14 @@ else:
                     show_error(exc, context="요구사항 삭제")
                 else:
                     st.rerun()
+            if req.analysis:
+                with st.expander("기술 검토 14항목 (구현 방안 에이전트, 단계 3)"):
+                    from proposal_agent.agents.schemas import ANALYSIS_FIELDS
+
+                    for _k, _label in ANALYSIS_FIELDS:
+                        _vals = req.analysis.get(_k) or []
+                        if _vals:
+                            st.markdown(f"**{_label}**: " + " / ".join(str(v) for v in _vals))
             with st.expander("변경 이력"):
                 for h in req.history:
                     st.write(f"{h.at} · {h.actor} · {h.action} · {h.note} {h.changes or ''}")
