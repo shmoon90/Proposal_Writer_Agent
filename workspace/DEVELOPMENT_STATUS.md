@@ -1,13 +1,14 @@
 # 개발 진행 상태 (DEVELOPMENT_STATUS)
 
-갱신: 2026-10-16 (Phase 22 — 요구사항 묶음별 구현 방안 소절·복합 장표·QA-CON-12; 개선 계획 16~21 완료 후 사용자 검토 의견 반영) · 기계 판독용은 `DEVELOPMENT_STATUS.json`, 작업 순서 기록은 `../WORK_LOG.md`, 계획은 `../docs/IMPROVEMENT_PLAN_2026-10.md`.
+갱신: 2026-10-16 (Phase 23 — 요구사항 묶음별 구현 설계 에이전트 `design_writer`·구조/절차 도식·적용 기술 표·QA-CON-13; Phase 22 요구사항 묶음·복합 장표 뒤 사용자 검토 의견 '장표 내용의 구체성' 반영) · 기계 판독용은 `DEVELOPMENT_STATUS.json`, 작업 순서 기록은 `../WORK_LOG.md`, 계획은 `../docs/IMPROVEMENT_PLAN_2026-10.md`.
 
 ## 분석 완료
 - 기존 프로젝트(Phase 1~15) 구조·에이전트·MCP·산출물·테스트 분석, 요청 19개 절 ↔ 구현 차이표(계획 문서 §1·§2)
 - 라이브러리 지원 범위 검토(`docs/LIBRARY_REVIEW.md`): python-pptx 유지, PowerPoint COM 렌더링 가능, SVG 미지원
 
 ## 구현 완료
-- **22단계** (이번): `generators/pptx/req_groups.py` 요구사항 묶음(에이전트 `requirement_groups` 우선, 코드 RFP 번호·분류), 목차 필수 키 `req_groups`, 묶음 장표(결론형 제목·요점·기능 블록 도식·정의서 구현방안 전문 표·(계속)·※ 전제), `composite_slide`·`draw_blocks`(밴드 배치·고정/가변 블록·최소 높이·장 분할), `draw_text_table`, 카드·2열·띠 높이 상한, 도식 소절 요점+도식+기술 상세 표 1장, QA-CON-12(51항목), QA-CON-01 RFP 번호 제외 → `docs/PHASE22_REPORT.md`
+- **23단계** (이번): 새 역할 `design_writer`(`agents/prompts/design_writer.md`, `requirements/design.py`, 스키마 `ImplementationDesign`/`DesignReport`), 파이프라인 단계 `impl_design`(아키텍처 뒤, 총 16단계), `GenerationContext.designs`, 묶음 결정에 설계 최우선(`req_groups.group_requirements(use_designs)`), 묶음 소절 블록(구현 구조 계층 띠·처리 절차 레인/세로 도식+상세 표·적용 기술 표·데이터/인터페이스·정의서 구현방안 표)과 장 배분(`decks._paginate_blocks`, 유실 방지 이월), 템플릿 '(계속)' 소절 번호 유지, QA-CON-13(총 52항목), 대행 스크립트 `DESIGNS`·단계 호출, 문안·구현방안 프롬프트 보강
+- **22단계**: `generators/pptx/req_groups.py` 요구사항 묶음(에이전트 `requirement_groups` 우선, 코드 RFP 번호·분류), 목차 필수 키 `req_groups`, 묶음 장표(결론형 제목·요점·기능 블록 도식·정의서 구현방안 전문 표·(계속)·※ 전제), `composite_slide`·`draw_blocks`(밴드 배치·고정/가변 블록·최소 높이·장 분할), `draw_text_table`, 카드·2열·띠 높이 상한, 도식 소절 요점+도식+기술 상세 표 1장, QA-CON-12(51항목), QA-CON-01 RFP 번호 제외 → `docs/PHASE22_REPORT.md`
 - **21단계**: `validation/render.py` PowerPoint COM 렌더링·재열기(QA-FILE-14, 설정 `qa_render_check`·화면 체크), QA-FILE-13 페이지 제한, `QaCategory.EDITABILITY` QA-EDIT-01~10, `QaService.run(categories, render_check)` 범주 분리·보고서 범주별 집계, 발표용 노트 초안, 장 라벨 줄바꿈 수정, `run_regression.py --render` → `docs/PHASE21_REPORT.md`
 - **20단계**: `generators/pptx/charts.py` 네이티브 차트(역할별 공수·요구사항 통계·제출용 간트·VisualSpec `chart`), `draw_screen` 컴포넌트(`VisualItem.kind`: input/button/menu/tab/message/table/list/chart)와 그룹화(`shapes.group`: 목업·카드·수치 카드·엔티티), 도식 14종, `DocumentKind.PICTURE`(참고 그림, `<태그>__<설명>.png|jpg`) → `GenerationContext.pictures` → 소절 `picture` 참조·부록 태그 그림, 프로젝트 화면 그림 종류·설명 입력, QA `check_pptx` 그룹 평탄화, 명세 chart 집계 → `docs/PHASE20_REPORT.md`
 - **19단계**: `ProposalSection` 슬라이드 명세(key_message·purpose·audience·evidence·links·layout_type·tech_detail·terms)·`glossary`, 슬라이드 명세 JSON(`슬라이드명세_제출용/발표용_vX.Y.json`, manifest extra_files), 도식 13종(raci·data_model·procedure·security_layers·layers), 기술 상세 카드·대안 비교(상용/공개/자체) 표·용어 설명 표, `proposal_writer` 규칙 12~16, QA-CON-10(추상 표현·근거 없는 수치)·QA-CON-11(약어 미설명) → 총 38항목, 산출물 화면 '슬라이드 명세' 패널 → `docs/PHASE19_REPORT.md`

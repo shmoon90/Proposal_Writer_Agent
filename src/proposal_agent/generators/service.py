@@ -156,6 +156,7 @@ class GenerationService:
             research=self._repos.research.find(project.id, order_by="created_at"),
             analysis=analysis,
             proposal_content=self._steps.prior_output(project, "proposal_writer"),
+            designs=self._designs(project),
             period_start=period.start,
             period_end=period.end,
             review_notes=review,
@@ -164,6 +165,12 @@ class GenerationService:
         ctx.pictures = self._pictures(project)
         ctx.review_notes.extend(self.review_items(ctx))
         return ctx
+
+    def _designs(self, project: Project) -> list[dict[str, Any]]:
+        """design_writer 출력의 설계 목록 (검증 통과분). Phase 23."""
+        from proposal_agent.requirements.design import DesignService
+
+        return DesignService(self._repos, self._steps).designs(project)
 
     def _pictures(self, project: Project) -> list[dict[str, Any]]:
         """등록된 참고 그림(DocumentKind.PICTURE) → 덱에 태그 달린 그림으로 넣을 목록 (Phase 20)."""
@@ -556,6 +563,18 @@ class GenerationService:
                 {"file_name": x["file_name"], "tag": x["tag"], "caption": x["caption"]}
                 for x in ctx.pictures[:20]
             ],
+            "designs": [
+                {
+                    "title": d.get("title", ""),
+                    "requirement_ids": d.get("requirement_ids", []),
+                    "key_message": d.get("key_message", ""),
+                    "tech": [
+                        f"{t.get('area', '')}: {t.get('choice', '')}"
+                        for t in (d.get("tech_choices") or [])[:4]
+                    ],
+                }
+                for d in ctx.designs[:20]
+            ],
         }
         parts.append("<feasibility>\n" + self.feasibility_brief(ctx) + "\n</feasibility>")
         parts.append("<data>\n" + json.dumps(data, ensure_ascii=False)[:24000] + "\n</data>")
@@ -563,7 +582,9 @@ class GenerationService:
             "위 템플릿 관행과 RFP 지정 목차를 따르는 제출용 제안 문안(profile=submission)을 JSON으로 반환하라. "
             "sections[]마다 chapter·section·number·lead_message를 채우고, 표가 적합한 절은 table_headers/table_rows를 쓴다. "
             "소절마다 key_message(결론형 제목)·purpose·audience·evidence(근거)·layout_type을 채우고, "
-            "기술 소절은 tech_detail(구성·연계·데이터·운영·보안·대안 비교)을, 약어·전문 용어는 glossary에 설명을 넣는다."
+            "기술 소절은 tech_detail(구성·연계·데이터·운영·보안·대안 비교)을, 약어·전문 용어는 glossary에 설명을 넣는다. "
+            "<data>.designs(구현 설계 묶음)가 있으면 requirement_groups는 그 묶음(제목·requirement_ids)을 그대로 따르고 "
+            "key_message·summary·notes만 보강한다 — 코드가 묶음마다 구현 구조·처리 절차 도식과 적용 기술 표를 그린다."
         )
         return "\n\n".join(parts)
 

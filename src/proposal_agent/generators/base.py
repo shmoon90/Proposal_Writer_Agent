@@ -85,6 +85,9 @@ class GenerationContext:
     version: str = "v1.0"
     generated_on: date = field(default_factory=date.today)
     change_log: list[list[Any]] = field(default_factory=list)  # 구축 단계 변경관리대장 행 (CR 단위)
+    designs: list[dict[str, Any]] = field(
+        default_factory=list
+    )  # 요구사항 묶음별 구현 설계 (Phase 23, design_writer 출력의 designs[])
     slide_specs: dict[str, list[dict[str, Any]]] = field(
         default_factory=dict
     )  # profile → 소절별 슬라이드 범위·명세 (Phase 19, 덱 생성 중 기록)

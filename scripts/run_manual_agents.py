@@ -381,6 +381,171 @@ def approach_writer(request: AgentRequest) -> dict[str, Any]:
     return {"items": items, "research_needed": [], "notes": NOTE}
 
 
+# --- 2-4. 요구사항 묶음별 구현 설계 (Phase 23, 세션의 Claude가 수동 작성 — 샘플 계산기) ------------------
+DESIGNS: dict[str, Any] = {
+    "designs": [
+        {
+            "title": "수식 입력·계산 엔진·결과 표시",
+            "requirement_ids": [
+                "FR-001",
+                "FR-002",
+                "FR-003",
+                "FR-005",
+                "FR-006",
+                "NFR-001",
+                "NFR-002",
+            ],
+            "key_message": "입력 검증은 브라우저, 계산은 서버 decimal 엔진으로 나눠 정밀도와 범위를 보장한다",
+            "overview": [
+                "React/TypeScript 화면이 수식을 토큰 단위로 검증하고, FastAPI 계산 API가 후위 표기 평가로 결과를 낸다",
+                "Python decimal 컨텍스트 정밀도 50자리로 계산한 뒤 표시 시 소수점 21자리로 반올림한다",
+                "10^25 범위 검사를 서버에서 수행해 초과 시 오류 코드를 반환한다",
+            ],
+            "structure": [
+                {
+                    "name": "계산기 화면(SPA)",
+                    "layer": "client",
+                    "technology": "React 18 · TypeScript",
+                    "role": "수식 입력창·버튼 패드·결과·이력 표시, 즉시 검증",
+                    "requirement_ids": ["FR-003", "FR-005"],
+                },
+                {
+                    "name": "계산 API",
+                    "layer": "app",
+                    "technology": "FastAPI",
+                    "role": "수식 파싱·평가·오류 코드 반환",
+                    "requirement_ids": ["FR-001", "FR-005"],
+                },
+                {
+                    "name": "계산 엔진",
+                    "layer": "app",
+                    "technology": "Python decimal / mpmath",
+                    "role": "사칙·거듭제곱·삼각·로그·팩토리얼 임의 정밀도 연산",
+                    "requirement_ids": ["FR-001", "NFR-001", "NFR-002"],
+                },
+                {
+                    "name": "이력 저장소",
+                    "layer": "data",
+                    "technology": "SQLite(개발) → PostgreSQL(운영 전환 가능)",
+                    "role": "계산 이력 저장·최근 목록 조회",
+                    "requirement_ids": ["FR-006"],
+                },
+            ],
+            "flows": [
+                {
+                    "title": "수식 입력",
+                    "actor": "사용자",
+                    "action": "키보드·버튼 입력을 같은 입력 상태로 합쳐 표시",
+                },
+                {
+                    "title": "즉시 검증",
+                    "actor": "계산기 화면",
+                    "action": "괄호 짝·허용 문자·연속 연산자 검사",
+                    "decision": "오류 → 입력창 아래 메시지, 서버 호출 안 함",
+                },
+                {
+                    "title": "계산 요청",
+                    "actor": "계산기 화면",
+                    "action": "POST /api/calc {expression} 호출",
+                },
+                {
+                    "title": "파싱·평가",
+                    "actor": "계산 API",
+                    "action": "토큰화 → 후위 표기 변환 → decimal 평가",
+                    "decision": "범위 초과·0 나누기 → 오류 코드 반환",
+                },
+                {
+                    "title": "결과·이력 저장",
+                    "actor": "계산 엔진",
+                    "action": "21자리 반올림 결과 반환, 이력 테이블에 수식·결과 저장",
+                },
+                {
+                    "title": "이력 재사용",
+                    "actor": "사용자",
+                    "action": "이력 클릭 → 수식을 입력창에 재적재",
+                },
+            ],
+            "tech_choices": [
+                {
+                    "area": "업무 처리",
+                    "choice": "Python decimal (정밀도 50자리 컨텍스트)",
+                    "reason": "소수점 21자리·10^25 범위 요구를 부동소수점 오차 없이 만족",
+                    "alternatives": [
+                        "JavaScript Number — 배정밀도 15~17자리로 요구 미달",
+                        "BigInt — 소수 미지원",
+                    ],
+                    "source": "https://docs.python.org/3/library/decimal.html",
+                    "verified": False,
+                },
+                {
+                    "area": "프레임워크",
+                    "choice": "FastAPI + React/TypeScript",
+                    "reason": "계산 API와 화면을 분리해 검증(프론트)과 계산(서버)을 나누는 RFP 요구에 맞음",
+                    "alternatives": ["서버 렌더링 단일 앱 — 즉시 검증 UX가 약해 배제"],
+                    "source": "RFP",
+                    "verified": True,
+                },
+            ],
+            "data_interfaces": [
+                "POST /api/calc 요청 {expression}, 응답 {result, error_code}",
+                "calc_history(id, expression, result, created_at) — 최근 50건 조회 인덱스",
+                "오류 코드: E_SYNTAX(문법), E_RANGE(범위 초과), E_DIVZERO(0 나누기)",
+            ],
+            "premises": ["지원 연산 목록은 Windows 공학용 계산기 기준으로 고객과 확정"],
+            "risks": ["삼각·로그 함수의 정밀도 — mpmath 로 보강, 경계값 시험으로 검증"],
+        },
+        {
+            "title": "PC 웹 호환성·레이아웃",
+            "requirement_ids": ["FR-004", "FR-007", "FR-008", "FR-009", "CON-001"],
+            "key_message": "데스크톱 최신 브라우저 기준 고정 폭 레이아웃으로 범위를 명확히 한다",
+            "overview": [
+                "Chrome·Edge 최신 2개 버전을 지원 범위로 두고 레이아웃을 고정 폭으로 설계",
+                "모바일 UA는 지원하지 않음을 안내",
+            ],
+            "structure": [
+                {
+                    "name": "레이아웃 셸",
+                    "layer": "client",
+                    "technology": "CSS Grid 고정 폭 1200px",
+                    "role": "입력·결과·이력 3영역 배치",
+                },
+                {
+                    "name": "UA 안내 스크립트",
+                    "layer": "client",
+                    "technology": "navigator.userAgentData 분기",
+                    "role": "모바일 접속 시 안내 문구",
+                },
+            ],
+            "flows": [
+                {"title": "접속", "actor": "사용자", "action": "URL 접속"},
+                {
+                    "title": "환경 판별",
+                    "actor": "UA 안내 스크립트",
+                    "action": "데스크톱 여부 판별",
+                    "decision": "모바일 → 안내 화면",
+                },
+                {"title": "화면 표시", "actor": "레이아웃 셸", "action": "3영역 고정 폭 렌더링"},
+            ],
+            "tech_choices": [
+                {
+                    "area": "UI",
+                    "choice": "CSS Grid 고정 폭 레이아웃",
+                    "reason": "PC 전용 범위(CON-001)에서 반응형 분기 비용을 없앰",
+                    "alternatives": ["반응형 레이아웃 — 범위 밖(모바일 미지원)이라 배제"],
+                    "source": "RFP",
+                    "verified": True,
+                },
+            ],
+            "data_interfaces": ["지원 브라우저 목록(설정 파일) — 시험 체크리스트와 동일"],
+            "premises": ["지원 브라우저 버전은 착수 시 고객과 확정"],
+            "risks": [],
+        },
+    ],
+    "research_needed": [],
+    "notes": NOTE,
+}
+
+
 # --- 2-3. 목차·전략 브리프 (Phase 18, 세션의 Claude가 수동 작성 — Gate P 대행 승인) -------------------
 STRATEGY: dict[str, Any] = {
     "rfp_summary": "PC 웹 기반 공학용 계산기 개발. Windows 공학용 계산기 수준의 연산, 프론트 입력 검증·서버 계산, 소수점 21자리·10^25 범위, 계산 이력 표시가 핵심이며 모바일은 범위 밖이다. 평가 기준·페이지 제한은 RFP에 없다.",
@@ -1195,6 +1360,7 @@ FIXTURE_NAMES = (
     "RFP_ANALYSIS",
     "REQUIREMENTS",
     "APPROACHES",
+    "DESIGNS",
     "STRATEGY",
     "RESEARCH",
     "ARCHITECTURE",
@@ -1255,7 +1421,15 @@ def resolve_fixture_aliases(s: Services, project) -> dict[str, str]:  # type: ig
             return tuple(walk(list(obj)))
         return obj
 
-    for name in ("STRATEGY", "RESEARCH", "ARCHITECTURE", "WBS", "PROPOSAL", "RFP_ANALYSIS"):
+    for name in (
+        "STRATEGY",
+        "RESEARCH",
+        "ARCHITECTURE",
+        "WBS",
+        "PROPOSAL",
+        "RFP_ANALYSIS",
+        "DESIGNS",
+    ):
         walk(globals()[name])
     for _keys, spec in APPROACHES:
         walk(spec)
@@ -1358,6 +1532,7 @@ def main() -> int:
             "proposal_writer": PROPOSAL,
             "approach_writer": approach_writer,
             "strategy_planner": STRATEGY,
+            "design_writer": DESIGNS,
         },
         cost_per_call=0.0,
     )
@@ -1431,6 +1606,7 @@ def main() -> int:
             p, StepRunner.STEP_ARCHITECTURE, "architect", "아키텍처 설계", actor=ACTOR
         ).summary
     )
+    log.append(r.run_design_writing(p, actor=ACTOR).summary)
     log.append(r.run_role_step(p, StepRunner.STEP_WBS, "planner", "WBS 초안", actor=ACTOR).summary)
     s.steps.run_role(p, "proposal_writer", "제안 문안", actor=ACTOR)
     log.append(r.run_generation(p, actor=ACTOR).summary)

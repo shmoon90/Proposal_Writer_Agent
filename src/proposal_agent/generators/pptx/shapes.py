@@ -1356,11 +1356,14 @@ def draw_procedure(
     if lanes == [""]:
         draw_flow(slide, box, steps, style=style)
         return
-    lane_label_w = 2.4
+    lane_label_w = 2.8
     n = len(steps)
     gap = 0.3
     lane_h = (box.height - gap * (len(lanes) - 1)) / len(lanes)
     step_w = (box.width - lane_label_w - 0.2 - gap * (n - 1)) / n
+    if n >= 3 and step_w < 2.4:  # 좁은 용지(A4 세로)에서 단계가 많으면 세로 절차로
+        _draw_procedure_vertical(slide, box, steps, lanes, style=style)
+        return
     pos: list[tuple[float, float, float, float]] = []
     for li, lane in enumerate(lanes):
         top = box.top + li * (lane_h + gap)
@@ -1412,6 +1415,73 @@ def draw_procedure(
         pos.append((left, top, step_w, box_h))
     for (l1, t1, w1, h1), (l2, t2, _w2, h2) in zip(pos, pos[1:], strict=False):
         arrow(slide, l1 + w1, t1 + h1 / 2, l2, t2 + h2 / 2, style=style)
+
+
+def _draw_procedure_vertical(
+    slide: Any, box: Box, steps: list[dict[str, Any]], lanes: list[str], *, style: ShapeStyle
+) -> None:
+    """세로 절차: 담당은 열(머리글), 단계는 위→아래 행. 연속 단계는 화살표로 잇는다 (Phase 23)."""
+    head_h = 0.8
+    gap = 0.2
+    col_gap = 0.25
+    n = len(steps)
+    col_w = (box.width - col_gap * (len(lanes) - 1)) / len(lanes)
+    row_h = min(1.5, (box.height - head_h - 0.2 - gap * (n - 1)) / n)
+    if row_h < 0.9:  # 영역이 좁으면 간격을 줄이고 상자는 한 줄(제목)만
+        gap = 0.1
+        row_h = max(0.5, min(1.5, (box.height - head_h - 0.2 - gap * (n - 1)) / n))
+    one_line = row_h < 0.8
+    for ci, lane in enumerate(lanes):
+        left = box.left + ci * (col_w + col_gap)
+        rect(
+            slide,
+            left,
+            box.top,
+            col_w,
+            head_h,
+            lane[:16] or "담당",
+            style=style,
+            fill=style.primary,
+            shape=MSO_SHAPE.RECTANGLE,
+            bold=True,
+            color="FFFFFF",
+            heading=True,
+        )
+        rect(
+            slide,
+            left,
+            box.top + head_h + 0.1,
+            col_w,
+            max(box.height - head_h - 0.1, 1.0),
+            style=style,
+            fill=style.light if ci % 2 == 0 else "F7F7F7",
+            line=style.accent,
+            shape=MSO_SHAPE.RECTANGLE,
+        )
+    pos: list[tuple[float, float, float, float]] = []
+    for i, st in enumerate(steps):
+        ci = lanes.index(str(st.get("group", "") or ""))
+        left = box.left + ci * (col_w + col_gap) + 0.15
+        top = box.top + head_h + 0.2 + i * (row_h + gap)
+        text = f"{i + 1}. {str(st.get('title', ''))[:24]}"
+        if st.get("text") and not one_line:
+            text += "\n" + str(st["text"])[:40]
+        w = col_w - 0.3
+        rect(
+            slide,
+            left,
+            top,
+            w,
+            row_h,
+            text,
+            style=style,
+            fill="FFFFFF",
+            line=style.primary,
+            pt=max(style.base_pt - 1, 7),
+        )
+        pos.append((left, top, w, row_h))
+    for (l1, t1, w1, h1), (l2, t2, w2, _h2) in zip(pos, pos[1:], strict=False):
+        arrow(slide, l1 + w1 / 2, t1 + h1, l2 + w2 / 2, t2, style=style)
 
 
 def _draw_bands(
@@ -1473,7 +1543,7 @@ def _draw_bands(
         for mi, it in enumerate(members):
             text = str(it.get("title", ""))[:30]
             if it.get("text"):
-                text += "\n" + str(it["text"])[:70]
+                text += "\n" + str(it["text"])[: 120 if len(members) <= 2 else 70]
             rect(
                 slide,
                 box.left + label_w + 0.2 + mi * (w + 0.25),
@@ -1778,7 +1848,12 @@ def estimate_block_height(block: dict[str, Any], width: float, style: ShapeStyle
             return 6.0
         if vk in ("cards",):
             return 3.4 * (-(-max(1, n) // 4))
-        return 7.0  # dataflow/data_model/procedure/screen
+        if vk == "procedure":  # 좁은 용지에서 단계가 많으면 세로 절차(단계 수에 비례)
+            step_w = (width - 3.0 - 0.3 * max(n - 1, 0)) / max(n, 1)
+            if n >= 3 and step_w < 2.4:
+                return min(1.0 + n * 1.2 + 0.2 * (n - 1), 12.0)
+            return 5.5
+        return 7.0  # dataflow/data_model/screen
     if kind == "function_blocks":
         n = len(block.get("spec", {}).get("functions", []) or [])
         cols = 1 if n <= 2 else (2 if n <= 6 else 3)

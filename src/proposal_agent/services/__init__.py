@@ -13,6 +13,7 @@ from proposal_agent.ingest.service import ExtractionService
 from proposal_agent.orchestrator.gates import GateService
 from proposal_agent.planning.service import PlanningService
 from proposal_agent.requirements.approach import ApproachService
+from proposal_agent.requirements.design import DesignService
 from proposal_agent.requirements.service import RequirementService
 from proposal_agent.research.service import ResearchService
 from proposal_agent.services.agent_step_service import AgentStepService
@@ -47,6 +48,7 @@ class Services:
     templates: TemplateService
     approach: ApproachService
     strategy: StrategyService
+    design: DesignService
 
     @classmethod
     def from_context(
@@ -121,6 +123,7 @@ class Services:
             strategy=StrategyService(
                 ctx.repos, ctx.paths, ctx.files, audit, steps, generation, extraction
             ),
+            design=DesignService(ctx.repos, steps),
         )
 
 

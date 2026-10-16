@@ -59,6 +59,7 @@ PROPOSAL_STEPS = _steps(
     ("impl_approach", "요구사항별 구현 방안·난이도", None, "approach_writer"),
     ("strategy_brief", "목차·전략 브리프", "Gate P: 목차·전략 승인", "strategy_planner"),
     ("architecture", "아키텍처 설계", None, "architect"),
+    ("impl_design", "요구사항 묶음별 구현 설계", None, "design_writer"),
     ("wbs_schedule", "WBS·일정 계산", None, "planner"),
     ("staffing", "인력 투입계획", "게이트 3: 계획 승인", None),
     ("generate_docs", "문서 생성 (Excel·다이어그램)", None, None),

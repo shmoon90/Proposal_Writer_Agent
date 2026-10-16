@@ -3,6 +3,7 @@
 작업 순서 기록. 상태 요약은 `workspace/DEVELOPMENT_STATUS.md`, 단계별 상세는 `docs/PHASE*_REPORT.md`.
 
 ## 2026-10-16
+- Phase 23: 사용자 검토 의견('장표 밀도가 아니라 내용 — 어떻게 구현할지·어떤 기술·어떤 구조를 웹 검색 근거나 자체 설계로 구체적으로')을 반영. 구현 설계 에이전트 `design_writer`(묶음별 구조·절차·적용 기술·근거) 신설, 파이프라인 `impl_design` 단계, 묶음 소절에 구조/절차 도식·적용 기술 표, QA-CON-13(52항목). 실제 RFP 는 세션의 Claude 가 웹 검색(전자정부 프레임워크 4.3·JEUS 7·sticky·알림톡·POI SXSSF·Chart.js·KWCAG 2.2·Rocky Linux·ojdbc·TOTP·ShedLock)으로 확인한 사실에 근거해 설계 7묶음을 대행 작성(저장소 밖 fixture)
 - Phase 22: 사용자 검토 의견(구현 방안 부실·정의서 미반영·시각화 단조·빈칸)과 같은 RFP 제안서 샘플(Ⅲ장) 분석을 반영 — 요구사항 묶음별 구현 방안 소절(`req_groups.py`, requirement_groups 스키마·규칙 18), 복합 장표(밴드·블록 높이 배분·장 분할), 기능 블록 도식, 여러 줄 셀 표, 카드·2열·띠 높이 상한, QA-CON-12(51항목). 실제 RFP 재실행 QA 0 실패·gate4 PASS·QA-CON-12 통과. pytest 284 passed. → `docs/PHASE22_REPORT.md`
 - 실제 고객 RFP PDF(48쪽, 저장소 밖)로 제안 단계 전체 흐름을 대행 응답(API 없음)으로 실행: `run_manual_agents.py --fixture <저장소 밖 .py>` 옵션과 '@별칭' → 요구사항 ID 해결을 추가하고, 실행에서 드러난 생성기·QA 결함(데이터 흐름 라벨 겹침·양방향 화살표, 구성도 라벨 폭, 일정·인력·요구사항 소절 도식+데이터 슬라이드 병행, 발표용 필요성 리드 축약, QA-CON-10 줄바꿈 오탐, QA-CON-11 슬래시 약어)을 고쳤다. 결과: 요구사항 42건, 제출용 45장·발표용 37장, QA 50항목 46 통과·0 실패·4 검토, gate3·gate4 PASS, 렌더링 45/45·37/37.
 - Phase 21 완료(개선 계획 마지막 단계): PowerPoint COM 실제 렌더링·재열기(validation/render.py, QA-FILE-14), 페이지 제한(QA-FILE-13), 편집 가능성 체크리스트 QA-EDIT-01~10(새 범주), QA 범주 분리 실행·범주별 집계, 발표자 노트 초안, 렌더링으로 찾은 장 라벨 줄바꿈 수정. pytest 279 passed, 실샘플 QA 50항목 0 실패·gate4 PASS·렌더링 30/30·22/22. → `docs/PHASE21_REPORT.md`, 최종 완료 보고 `docs/FINAL_REPORT_IMPROVEMENT_2026-10.md`

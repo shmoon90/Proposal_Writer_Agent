@@ -24,7 +24,7 @@
 | `01_RFP_Original` | 업로드 원본(제안: RFP·첨부·**제안서 템플릿 PPTX**·**참고 그림**(Phase 20, `<태그>__<설명>.png|jpg`), 구축: 정의서·추적표·WBS·투입계획·기타, 변경 요청 첨부). **수정하지 않음** | 원본 파일명, 충돌 시 `name_1.ext` |
 | `02_RFP_Analysis` | RFP 분석 에이전트 결과 | `rfp_analysis_vX.Y.json` |
 | `03_Requirements` | 요구사항 추출·검증 에이전트 결과 | `requirement_extraction_vX.Y.json`, `verification_vX.Y.json` |
-| `04_Technology_Research` | 기술 조사 결과 | `research_vX.Y.json` |
+| `04_Technology_Research` | 기술 조사 결과, 요구사항별 구현 방안(approach_writer), 요구사항 묶음별 구현 설계(design_writer, Phase 23: 구조·절차·적용 기술·근거) | `research_vX.Y.json`, `approach_report_vX.Y.json`, `implementation_design_vX.Y.json` |
 | `05_Architecture_Design` | 아키텍처 에이전트 결과 | `architecture_vX.Y.json` |
 | `06_WBS_Effort_Schedule` | WBS·간트, 인력 투입계획 Excel | 제안: `WBS_간트_vX.Y.xlsx`, `인력투입계획_vX.Y.xlsx` · 구축: `WBS_Gantt_YYYYMMDDHHMM.xlsx`, `Staffing_Plan_YYYYMMDDHHMM.xlsx` |
 | `07_Submission_Proposal_PPT` | 제출용 PPT(템플릿이 있으면 그 용지·마스터), 목차 결정 기록(`sections`·`chapters`(장/절/소절 계획)·`templates`(사용 템플릿 파일명)), **목차·전략 브리프**(Phase 18: 에이전트 JSON `strategy_brief_vX.Y.json` + 검토용 Markdown `전략브리프_vX.Y.md`, Gate P 승인 대상), **슬라이드 명세**(Phase 19: 슬라이드별 제목·소절·결론형 제목·목적·독자·계획/실제 레이아웃·도식·근거·요구사항 ID·연결·도형 수와 요약) | `제안서_제출용_vX.Y.pptx`, `목차결정_vX.Y.json`, `전략브리프_vX.Y.md`, `슬라이드명세_제출용_vX.Y.json` |

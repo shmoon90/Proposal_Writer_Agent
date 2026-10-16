@@ -834,6 +834,15 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
             mandatory=False,
             fix_suggestion="glossary에 용어·풀이·비전문가용 설명을 추가하거나 본문 첫 등장 시 '약어(풀이)'로 표기",
         ),
+        _check(
+            "QA-CON-13",
+            cat,
+            "구현 설계 깊이 ↔ 제안서 반영",
+            "요구사항 묶음마다 구현 설계(구현 구조 2개 이상·처리 절차 3단계 이상·적용 기술과 선정 이유·데이터/인터페이스)가 있고, 그 구성 요소·절차·적용 기술이 제출용 PPT 본문에 실려 있는가. 설계가 없으면 검토(구현 설계 작성 필요), 최소 요건 미달·미반영은 실패, 출처 미확인 기술 선택과 설계에서 빠진 요구사항은 검토",
+            gate="gate5",
+            fixable=FIX_REGENERATE,
+            fix_suggestion="'구현 설계 작성(에이전트, 웹 검색)'을 실행해 묶음마다 구조·절차·적용 기술·근거를 채우고 산출물을 재생성",
+        ),
     ]
     f = art.outcome.findings
     by_rule: dict[str, list[tuple[ValidationLevel, str]]] = {}
@@ -1070,7 +1079,7 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
     )
     # 10·11: 제안 문안 추상 표현·근거 없는 수치, 약어 미설명 (Phase 19)
     if inp.mode != ProjectMode.PROPOSAL:
-        for i in (9, 10, 11):
+        for i in (9, 10, 11, 12):
             _not_run(checks[i], "구축 단계는 PPT를 생성하지 않음")
         return checks
     content = inp.ctx.proposal_content or {}
@@ -1088,7 +1097,69 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
         review=_cap(_unexplained_acronyms(content, sections, sub_text), 6),
         files=ppt_files,
     )
+    f13, r13, ids13 = _design_depth_issues(inp, sub_text)
+    _finish(checks[12], fail=_cap(f13), review=_cap(r13), req_ids=ids13, files=ppt_files)
     return checks
+
+
+def _design_depth_issues(inp: QaInputs, sub_text: str) -> tuple[list[str], list[str], list[str]]:
+    """QA-CON-13: 구현 설계(design_writer)의 깊이와 제출용 PPT 반영 (Phase 23).
+
+    - 설계가 없는데 설계 대상 요구가 있으면 검토(설계 작성 필요).
+    - 묶음마다 구조 2·절차 3·적용 기술 1·데이터/인터페이스 1 미만이면 실패; 구성 요소 이름·절차 제목·적용 기술이
+      덱 본문에 없으면 실패(재생성). 출처 미확인(verified=false) 기술 선택, 설계에서 빠진 요구사항은 검토.
+    """
+    from proposal_agent.generators.pptx.req_groups import design_texts
+    from proposal_agent.requirements.design import (
+        design_min_issues,
+        design_targets,
+        needs_verification,
+        resolve_design_ids,
+    )
+
+    fails: list[str] = []
+    revs: list[str] = []
+    ids: list[str] = []
+    designs = [d for d in (inp.ctx.designs or []) if isinstance(d, dict)]
+    targets = design_targets(list(inp.requirements))
+    if not designs:
+        if targets:
+            revs.append(
+                f"구현 설계 없음 — 설계 대상 요구 {len(targets)}건: '구현 설계 작성(에이전트, 웹 검색)' 실행 필요 "
+                "(묶음 소절은 정의서 구현방안 표와 기능 블록 도식만 싣는다)"
+            )
+        return fails, revs, ids
+    deck = normalize_text(sub_text)
+    covered: set[str] = set()
+    for d in designs:
+        title = str(d.get("title", "") or "묶음")[:30]
+        rids = resolve_design_ids(d, targets)
+        covered.update(rids)
+        issues = design_min_issues(d)
+        if issues:
+            fails.append(f"{title}: {', '.join(issues)}")
+            ids.extend(rids)
+        if deck:
+            missing = [t for t in design_texts(d) if normalize_text(t[:25]) not in deck]
+            if missing:
+                fails.append(
+                    f"{title}: 설계 문구 {len(missing)}건이 제출용 PPT에 없음 ({'; '.join(x[:20] for x in missing[:3])})"
+                )
+                ids.extend(x for x in rids if x not in ids)
+        unverified = [
+            str(t.get("choice", ""))[:24]
+            for t in d.get("tech_choices") or []
+            if isinstance(t, dict) and needs_verification(t)
+        ]
+        if unverified:
+            revs.append(
+                f"{title}: 출처 미확인 기술 선택 {len(unverified)}건 ({', '.join(unverified[:3])}) — 공식 문서 확인 필요"
+            )
+    left = [r.id for r in targets if r.id not in covered]
+    if left:
+        revs.append(f"설계에 없는 요구사항 {len(left)}건: {', '.join(left[:8])}")
+        ids.extend(x for x in left if x not in ids)
+    return fails, revs, ids
 
 
 def _approach_coverage_issues(

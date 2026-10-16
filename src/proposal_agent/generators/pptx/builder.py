@@ -369,7 +369,10 @@ class DeckBuilder:
         from proposal_agent.generators.pptx.shapes import draw_blocks
 
         slide, box = self.canvas_slide(title, lead=lead, notes=notes)
-        foot_h = 0.9 if footnotes else 0.0
+        foot_pt = max(self.body_font_pt - 6, 8)
+        foot_h = (
+            0.25 + foot_pt * 1.35 / 28.35 * min(len(list(footnotes)), 3) if footnotes else 0.0
+        )  # 주석 줄 수·글꼴 크기에 맞춘 높이 (넘침 방지)
         placed = draw_blocks(
             slide,
             Box(left=box.left, top=box.top, width=box.width, height=max(box.height - foot_h, 3.0)),
@@ -388,7 +391,7 @@ class DeckBuilder:
             for i, fn in enumerate(list(footnotes)[:3]):
                 p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
                 p.text = fn if fn.startswith("※") else f"※ {fn}"
-                p.font.size = Pt(max(self.body_font_pt - 6, 8))
+                p.font.size = Pt(foot_pt)
                 p.font.name = FONT
         return [k for k, _ in placed]
 

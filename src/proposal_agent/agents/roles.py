@@ -218,7 +218,7 @@ PROPOSAL_WRITER = _register(
         max_turns=15,
         max_budget_usd=4.0,
         effort="medium",
-        reuses=("rfp_analyst", "tech_researcher", "architect", "planner"),
+        reuses=("rfp_analyst", "tech_researcher", "architect", "planner", "design_writer"),
         output_subdir="07_Submission_Proposal_PPT",
         output_stem="proposal_content",
     )
@@ -306,6 +306,37 @@ APPROACH_WRITER = _register(
         reuses=("rfp_analyst",),
         output_subdir="04_Technology_Research",
         output_stem="approach_report",
+    )
+)
+
+
+# --- 13. 요구사항 묶음별 구현 설계 (Phase 23) ------------------------------------------------
+DESIGN_WRITER = _register(
+    AgentRole(
+        key="design_writer",
+        title="요구사항 묶음 구현 설계",
+        description="요구사항 묶음마다 실제 구현 방법을 설계한다: 구현 구조(구성 요소·계층·기술), 처리 절차(담당·처리·분기), 적용 기술과 선정 이유·대안·근거(열람한 URL·조사 ID), 데이터·인터페이스, 전제·위험. 제안서 묶음 소절의 구조 도식·절차 도식·기술 표가 된다.",
+        inputs=(
+            "요구사항 묶음(정의서 구현방안 포함)",
+            "기술 조사 결과",
+            "아키텍처 구성 요소",
+            "구현 가능성 비교",
+        ),
+        output_schema=schemas.DesignReport,
+        prompt_name="design_writer",
+        builtin_tools=("WebSearch", "WebFetch"),
+        mcp_servers=(MCP_PROJECT,),
+        mcp_tool_patterns=(
+            f"mcp__{MCP_PROJECT}__get_requirement",
+            f"mcp__{MCP_PROJECT}__list_research",
+        ),
+        max_turns=30,
+        max_budget_usd=6.0,
+        timeout_s=1200,
+        effort="high",
+        reuses=("approach_writer", "architect"),
+        output_subdir="04_Technology_Research",
+        output_stem="implementation_design",
     )
 )
 

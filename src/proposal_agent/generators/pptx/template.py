@@ -1338,9 +1338,13 @@ class TemplateDeckBuilder:
         return float(self.profile.body.width)
 
     def canvas_slide(self, title: str, *, lead: str = "", notes: str = "") -> tuple[Any, Box]:
-        """머리글(+리드) 아래 도형을 그릴 본문 영역(cm)."""
-        self.sub_no += 1
-        slide, body = self._content_slide(title, continued=False)
+        """머리글(+리드) 아래 도형을 그릴 본문 영역(cm). 제목이 '(계속)'으로 끝나면 같은 소절 번호를 유지한다."""
+        m = CONTINUED_RE.search(title)
+        if m and self.sub_no:
+            slide, body = self._content_slide(title[: m.start()].rstrip(), continued=True)
+        else:
+            self.sub_no += 1
+            slide, body = self._content_slide(CONTINUED_RE.sub("", title), continued=False)
         top = body.top
         if lead:
             top = self._lead(slide, lead)

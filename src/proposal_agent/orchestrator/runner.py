@@ -215,6 +215,7 @@ class StepRunner:
 
     STEP_APPROACH = "impl_approach"
     STEP_STRATEGY = "strategy_brief"
+    STEP_DESIGN = "impl_design"
 
     def run_strategy_brief(
         self,
@@ -306,6 +307,27 @@ class StepRunner:
         except PWAError as exc:
             pipeline.fail_step(project, run, exc, actor=actor)
             raise
+
+    def run_design_writing(
+        self, project: Project, *, actor: str = "user", cancel: CancellationToken | None = None
+    ) -> StepOutcome:
+        """요구사항 묶음별 구현 설계 에이전트(design_writer). Gate 1 통과 필요 (Phase 23).
+
+        묶음마다 구현 구조·처리 절차·적용 기술(선정 이유·대안·근거)·데이터/인터페이스를 설계한다. 결과는
+        제안서 묶음 소절의 도식·표가 되며, 빠진 요구사항·최소 요건 미달·출처 미확인은 요약에 남긴다(QA-CON-13 대상).
+        """
+        prompt = self._s.design.brief(project)
+        outcome = self.run_role_step(
+            project,
+            self.STEP_DESIGN,
+            "design_writer",
+            prompt,
+            required_gate=GATE1_KEY,
+            actor=actor,
+            cancel=cancel,
+        )
+        outcome.summary += " · " + self._s.design.summary(project)
+        return outcome
 
     def run_role_step(
         self,

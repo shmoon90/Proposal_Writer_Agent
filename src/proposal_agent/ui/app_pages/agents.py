@@ -118,6 +118,28 @@ d2.caption(
     + " — 산출물 생성 시 빈 항목은 규칙 초안으로 채워지고 QA-CON-09가 확인을 요구합니다."
 )
 
+e1, e2 = st.columns([1, 2])
+if e1.button(
+    "구현 설계 작성 (에이전트, 웹 검색)",
+    key="run_design",
+    icon=":material/architecture:",
+    help="요구사항 묶음마다 실제 구현 방법을 설계합니다: 구현 구조(구성 요소·계층·기술), 처리 절차(담당·처리·분기), 적용 기술과 선정 이유·대안·근거, 데이터·인터페이스. 제안서 묶음 소절의 도식·표가 됩니다 (Phase 23).",
+):
+    with st.status("요구사항 묶음별 구현 설계를 작성하는 중…", expanded=True) as status:
+        try:
+            outcome = runner.run_design_writing(project, actor=actor_name())
+        except PWAError as exc:
+            status.update(label="실패", state="error")
+            show_error(exc, context="구현 설계 작성")
+        else:
+            status.update(label=outcome.summary, state="complete")
+            st.rerun()
+e2.caption(
+    services.design.summary(project)
+    if services.design.designs(project)
+    else "구현 설계 없음 — 실행하지 않으면 묶음 소절은 정의서 구현방안 표와 기능 블록 도식만 싣고 QA-CON-13 이 검토를 요구합니다."
+)
+
 analysis = services.steps.prior_output(project, "rfp_analyst")
 if analysis:
     with st.expander("RFP 분석 결과 (최신)"):

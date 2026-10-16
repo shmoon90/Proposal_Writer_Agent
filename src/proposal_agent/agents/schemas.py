@@ -604,6 +604,79 @@ class ApproachReport(_Strict):
     notes: str = ""
 
 
+# --- 8-3. 요구사항 묶음별 구현 설계 (Phase 23) --------------------------------------------------
+
+
+class DesignComponent(_Strict):
+    """구현 구조의 구성 요소 하나 (계층·기술·역할)."""
+
+    name: str
+    layer: str = Field(
+        default="app",
+        description="client | web | app | batch | integration | data | infra | external | security",
+    )
+    technology: str = Field(
+        default="", description="제품·버전·표준 (조사·아키텍처 출처에 있는 것만)"
+    )
+    role: str = Field(default="", description="이 묶음에서 하는 일 1문장")
+    requirement_ids: list[str] = Field(default_factory=list)
+
+
+class DesignStep(_Strict):
+    """처리 절차 한 단계 (담당·처리·분기)."""
+
+    title: str
+    actor: str = Field(default="", description="담당: 사용자 역할 또는 시스템 모듈")
+    action: str = Field(default="", description="처리 내용: 입력 → 처리 → 저장/출력")
+    decision: str = Field(default="", description="분기 조건 → 결과 (있으면)")
+
+
+class TechChoice(_Strict):
+    """적용 기술 선택과 선정 이유·대안·근거."""
+
+    area: str = Field(
+        description="프레임워크 | WAS | DB | UI | 연계 | 보안 | 배치 | 인프라 | 업무 처리"
+    )
+    choice: str = Field(description="선택 기술·방식 (버전 포함)")
+    reason: str = Field(description="선정 이유 (요구·제약·근거 기준)")
+    alternatives: list[str] = Field(default_factory=list, description="검토한 대안과 배제 이유")
+    source: str = Field(
+        default="", description="근거: 열람한 URL | 조사 ID(TR-…) | RFP | 설계 제안"
+    )
+    verified: bool = Field(default=False, description="공식 문서·조사로 확인했는가")
+
+
+class ImplementationDesign(_Strict):
+    """요구사항 묶음 하나의 구현 설계. 덱의 묶음 소절(구조 도식·절차 도식·기술 표)이 된다."""
+
+    title: str = Field(description="묶음 제목 (구현 대상이 드러나게)")
+    requirement_ids: list[str] = Field(description="묶는 요구사항 ID (내부 ID 또는 RFP 고유번호)")
+    key_message: str = Field(default="", description="결론형 제목 (40자 내외)")
+    overview: list[str] = Field(
+        default_factory=list, description="무엇을 어떤 구조·방식으로 — 2~4줄"
+    )
+    structure: list[DesignComponent] = Field(default_factory=list, description="구현 구조 2개 이상")
+    flows: list[DesignStep] = Field(default_factory=list, description="처리 절차 3~8단계")
+    tech_choices: list[TechChoice] = Field(default_factory=list, description="적용 기술 1개 이상")
+    data_interfaces: list[str] = Field(
+        default_factory=list, description="테이블·엔티티·상태 코드·API·메시지/파일 규격·배치 주기"
+    )
+    premises: list[str] = Field(default_factory=list, description="전제·협의 필요 사항")
+    risks: list[str] = Field(default_factory=list, description="설계 위험과 대응")
+    research_refs: list[str] = Field(default_factory=list, description="근거 조사 ID (TR-…)")
+    sources: list[ResearchSourceDraft] = Field(
+        default_factory=list, description="새로 열람한 출처 (열람하지 않은 URL 금지)"
+    )
+
+
+class DesignReport(_Strict):
+    designs: list[ImplementationDesign] = Field(default_factory=list)
+    research_needed: list[str] = Field(
+        default_factory=list, description="근거가 없어 추가 조사가 필요한 묶음과 주제"
+    )
+    notes: str = ""
+
+
 # --- 9. QA·변경 검토 -----------------------------------------------------------------------------
 
 
@@ -676,6 +749,11 @@ __all__ = [
     "GlossaryTerm",
     "RequirementGroupSpec",
     "TechDetail",
+    "DesignComponent",
+    "DesignStep",
+    "TechChoice",
+    "ImplementationDesign",
+    "DesignReport",
     "LAYOUT_TYPES",
     "AUDIENCES",
 ]
