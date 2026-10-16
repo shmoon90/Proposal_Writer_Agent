@@ -4,6 +4,8 @@
 
 ---
 
+> 단계 6(2026-10-16): 역할 `detail_designer`(화면·DB·API·모듈 상세 설계, `DetailDesignReport`, Gate 1 뒤 `detail_design` 단계) 추가. `approach_writer`·`design_writer`·`detail_designer` 프롬프트에 `<client_context>`(발주처 업무·기존 시스템 문맥) 주입(D-21).
+
 > 단계 5(2026-10-16): 역할 `meeting_analyzer`(회의록·인터뷰 구조화, `MeetingNoteReport`) 추가 — 논의 사실과 결정을 구분하고 권한·날짜·담당을 추정하지 않으며 확정은 사람이 한다. `semantic_differ` 출력에 `change_kind` 추가.
 
 ##  (Phase 3·6·7, 2026-10-15) — 실제 구현된 역할·도구·통제

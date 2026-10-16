@@ -78,6 +78,8 @@ KIND_TARGETS: dict[DeliverableKind, tuple[str, str, str]] = {
     DeliverableKind.SYSTEM_DIAGRAM_PNG: ("10_Diagrams_Charts_Images", "시스템구성도", ".png"),
     DeliverableKind.SW_DIAGRAM_PNG: ("10_Diagrams_Charts_Images", "SW구성도", ".png"),
     DeliverableKind.SERVICE_DIAGRAM_PNG: ("10_Diagrams_Charts_Images", "서비스구성도", ".png"),
+    DeliverableKind.DESIGN_DOC_XLSX: ("05_Architecture_Design", "설계서", ".xlsx"),
+    DeliverableKind.DESIGN_DOC_MD: ("05_Architecture_Design", "설계서", ".md"),
 }
 
 
@@ -412,6 +414,12 @@ class GenerationService:
             except Exception as exc:  # noqa: BLE001
                 log.exception("생성 실패 %s", dk)
                 result.errors.append(f"{dk.value} 생성 실패: {type(exc).__name__}: {exc}")
+        try:  # 단계 6: 상세 설계가 있으면 설계서(Excel·MD) 도 함께
+            for d in self._design_doc_deliverables(project, ctx):
+                result.deliverables.append(d)
+        except Exception as exc:  # noqa: BLE001
+            log.exception("설계서 생성 실패")
+            result.errors.append(f"설계서 생성 실패: {type(exc).__name__}: {exc}")
         self._write_outline(
             project, outline, ctx, chapters=chapters, templates=result.template_names
         )
@@ -446,6 +454,56 @@ class GenerationService:
             },
         )
         return result
+
+    def _detail_design(self) -> Any:
+        from proposal_agent.design.service import DetailDesignService
+
+        return DetailDesignService(self._repos, self._audit, self._steps, self._paths, self._files)
+
+    def _design_doc_deliverables(
+        self, project: Project, ctx: GenerationContext
+    ) -> list[Deliverable]:
+        """상세 설계 엔티티가 있을 때 설계서 Excel·Markdown 을 만든다 (단계 6)."""
+        from proposal_agent.generators.excel.design_docs import (
+            build_design_markdown,
+            build_design_workbook,
+        )
+
+        dd = self._detail_design()
+        if not dd.has_design(project):
+            return []
+        reqs = self._repos.requirements.find(project.id, order_by="id")
+        args = (
+            reqs,
+            dd.screens(project),
+            dd.tables(project),
+            dd.apis(project),
+            dd.modules(project),
+            dd.rules(project),
+        )
+        out = [
+            self._store(project, DeliverableKind.DESIGN_DOC_XLSX, build_design_workbook(*args), ctx)
+        ]
+        md = build_design_markdown(project.name, *args, issues=dd.consistency(project))
+        out.append(self._store(project, DeliverableKind.DESIGN_DOC_MD, md.encode("utf-8"), ctx))
+        return out
+
+    def generate_design_docs(self, project: Project, *, actor: str = "user") -> list[str]:
+        """설계 화면에서 설계서만 따로 생성."""
+        ctx = self.build_context(project, actor=actor)
+        out = self._design_doc_deliverables(project, ctx)
+        if not out:
+            raise ValidationError(
+                "상세 설계가 없어 설계서를 만들 수 없습니다.",
+                resolution="설계 화면에서 상세 설계를 먼저 실행하십시오.",
+            )
+        self._audit.record(
+            project.id,
+            "deliverables.design_docs",
+            actor=actor,
+            payload={"files": [d.file_path for d in out]},
+        )
+        return [d.file_path for d in out]
 
     def _store(
         self, project: Project, kind: DeliverableKind, data: bytes, ctx: GenerationContext

@@ -44,6 +44,7 @@ if TYPE_CHECKING:
     from proposal_agent.services.audit import AuditService
 
 log = get_logger("requirements.approach")
+NL = chr(10)
 
 ROLE_APPROACH = "approach_writer"
 BATCH_SIZE = 20
@@ -304,7 +305,7 @@ class ApproachService:
         done: set[str] = set()
         for i in range(0, len(targets), BATCH_SIZE):
             batch = targets[i : i + BATCH_SIZE]
-            prompt = self._prompt(batch, research, components, study)
+            prompt = self._prompt(batch, research, components, study, project=project)
             run = self._steps.run_role(
                 project,
                 ROLE_APPROACH,
@@ -526,7 +527,21 @@ class ApproachService:
         research: list[TechnologyResearch],
         components: list[ArchitectureComponent],
         study: FeasibilityStudy | None,
+        project: Project | None = None,
     ) -> str:
+        context_block = ""
+        if project is not None:  # 단계 6 ⑤ (D-21): 발주처 업무·기존 시스템 문맥
+            from proposal_agent.design.context import client_context_block
+            from proposal_agent.models import ProjectSettings
+
+            context_block = (
+                client_context_block(
+                    project,
+                    self._steps.prior_output(project, "rfp_analyst"),
+                    ProjectSettings.from_project_settings(project.settings),
+                )
+                + NL
+            )
         req_lines = []
         for r in batch:
             existing = ""
@@ -566,7 +581,8 @@ class ApproachService:
                     f"- {comp.area}: RFP 명시={comp.rfp_specified or '없음'}; 권고={comp.recommendation[:80]}"
                 )
         return (
-            "<requirements>\n"
+            context_block
+            + "<requirements>\n"
             + "\n".join(req_lines)
             + "\n</requirements>\n<research>\n"
             + ("\n".join(res_lines) if res_lines else "(기술 조사 기록 없음)")

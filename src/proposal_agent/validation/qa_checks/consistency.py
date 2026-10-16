@@ -12,6 +12,7 @@ from proposal_agent.models import (
     DeliverableKind,
     DependencyType,
     ProjectMode,
+    ProjectSettings,
     QaCategory,
     QaCheck,
     RequirementType,
@@ -163,6 +164,14 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
             "권한 미확인 결정이 승인 상태가 아니고, 협상은 고객 합의·승인 없이 '반영'이 아니며, 결정·협상에서 온 변경 요청이 승인된 원천만 가리키는가(실패). 기한 지난 미결·조치 항목과 승인 없이 변경 요청으로 이어진 결정은 검토",
             gate="gate5",
             fix_suggestion="회의·결정·협상 화면에서 권한 확인·고객 합의를 기록하고, 미결·조치 항목을 해결·보류 처리",
+        ),
+        _check(
+            "QA-CON-15",
+            cat,
+            "요구사항 ↔ 설계 객체 추적·모순",
+            "수용된 필수 기능 요구마다 화면·API·테이블 연결이 있고, API 가 가리키는 화면·테이블·모듈과 FK 참조·모듈 의존이 실제로 있으며(순환 없음), 설계 객체가 존재하지 않는 요구를 가리키지 않는가(실패). 비필수 연결 없음·개인정보 API 인증 누락·DB 종류 미지정/불일치·상태 메시지 없음은 검토 (단계 6 ②·③)",
+            gate="gate5",
+            fix_suggestion="설계 화면에서 상세 설계를 다시 실행하거나 설계 객체를 수정해 연결·참조를 맞춤",
         ),
     ]
     f = art.outcome.findings
@@ -401,6 +410,30 @@ def check_consistency_rules(inp: QaInputs, art: CheckArtifacts) -> list[QaCheck]
     # 14: 결정·협상 ↔ 기준선 반영 통제 (단계 5, 지시문 §10·§11) — 두 모드 공통
     f14, r14 = _decision_control_issues(inp)
     _finish(checks[13], fail=_cap(f14), review=_cap(r14))
+    # 15: 요구 ↔ 설계 객체 추적·모순 (단계 6) — 설계 객체가 있을 때만
+    design_screens = [x for x in inp.screens if getattr(x, "source", "design") == "design"]
+    if not (design_screens or inp.db_tables or inp.api_specs):
+        _not_run(checks[14], "상세 설계 객체 없음 (설계 단계 전)")
+    else:
+        from proposal_agent.design.consistency import design_consistency_issues
+
+        st = ProjectSettings.from_project_settings(inp.project.settings)
+        f15, r15 = design_consistency_issues(
+            list(inp.requirements),
+            list(inp.screens),
+            list(inp.db_tables),
+            list(inp.api_specs),
+            list(inp.code_modules),
+            component_techs=[c.technology for c in inp.components],
+            research_stack=[x for t in inp.research for x in t.recommended_stack],
+            rfp_specified_tech=[str(x) for x in st.rfp_specified_tech],
+        )
+        _finish(
+            checks[14],
+            fail=_cap(f15),
+            review=_cap(r15, 12),
+            req_ids=[x.split(" ")[0] for x in f15 if x.split(" ")[0] in all_reqs],
+        )
     # 10·11: 제안 문안 추상 표현·근거 없는 수치, 약어 미설명 (Phase 19)
     if inp.mode != ProjectMode.PROPOSAL:
         for i in (9, 10, 11, 12):

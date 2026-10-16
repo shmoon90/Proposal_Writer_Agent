@@ -166,7 +166,15 @@ class DesignService:
         ]
         prior = self._steps.prior_output(project, "tech_researcher") or {}
         comparisons = prior.get("comparisons") or []
+        from proposal_agent.design.context import client_context_block
+        from proposal_agent.models import ProjectSettings
+
         parts = [
+            client_context_block(  # 단계 6 ⑤ (D-21): 발주처 업무·기존 시스템 문맥
+                project,
+                self._steps.prior_output(project, "rfp_analyst"),
+                ProjectSettings.from_project_settings(project.settings),
+            ),
             "<groups>\n"
             + json.dumps({"groups": groups, "ungrouped": ungrouped}, ensure_ascii=False)[:30000]
             + "\n</groups>",

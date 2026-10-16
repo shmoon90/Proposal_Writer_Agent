@@ -176,6 +176,10 @@ class QaInputs:
     change_requests: list[ChangeRequest] = field(default_factory=list)
     revisions: list[Revision] = field(default_factory=list)
     decisions: list[Any] = field(default_factory=list)  # 단계 5: Decision(DEC)
+    screens: list[Any] = field(default_factory=list)  # 단계 6: 상세 설계 객체
+    db_tables: list[Any] = field(default_factory=list)
+    api_specs: list[Any] = field(default_factory=list)
+    code_modules: list[Any] = field(default_factory=list)
     negotiations: list[Any] = field(default_factory=list)  # 단계 5: Negotiation(NEG)
     rfp_analysis: dict[str, Any] | None = None
     id_prefixes: dict[str, str] = field(default_factory=dict)

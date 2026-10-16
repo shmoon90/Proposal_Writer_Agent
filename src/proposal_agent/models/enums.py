@@ -428,6 +428,8 @@ class DeliverableKind(StrEnum):
     SYSTEM_DIAGRAM_PNG = "system_diagram_png"
     SW_DIAGRAM_PNG = "sw_diagram_png"
     SERVICE_DIAGRAM_PNG = "service_diagram_png"
+    DESIGN_DOC_XLSX = "design_doc_xlsx"  # 단계 6: 설계서(화면·DB·API·모듈)
+    DESIGN_DOC_MD = "design_doc_md"
     QA_REPORT_MD = "qa_report_md"
     PROJECT_SUMMARY_MD = "project_summary_md"
 

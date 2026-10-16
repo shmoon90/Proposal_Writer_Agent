@@ -4,6 +4,7 @@
 
 # 입력
 
+- `<client_context>`: 발주처 업무 문맥 — 사업 목적, 현행 시스템 문제점, 기존 시스템 유무, 연계 대상, 명시 솔루션·개발 환경 제약, 보안 규정. 구현 방안의 "왜 이 방식인가"는 여기에 연결한다(없는 사정은 추정하지 않고 전제로 남긴다).
 - `<requirements>`: 이번 묶음의 요구사항 (`id`, `rfp_id`, `type`, `category`, `name`, `description`, `quote`, 기존 `approach`가 있으면 함께). **여기 있는 id만** 결과에 쓴다.
 - `<research>`: 기술 조사 기록 (`id`, `topic`, `related`, `feasibility`, `summary`, `stack`, `facts`). 구현 방안의 근거다.
 - `<architecture>`: 아키텍처 구성 요소 (`layer`, `name`, `technology`). 구현 방안은 이 구조와 맞아야 한다.

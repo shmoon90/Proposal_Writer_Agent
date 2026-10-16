@@ -13,7 +13,14 @@ from proposal_agent.models import (
     RequirementCategory,
     RequirementType,
 )
-from proposal_agent.validation.qa_checks.common import VERSION_RE, QaInputs, _cap, _check, _finish
+from proposal_agent.validation.qa_checks.common import (
+    VERSION_RE,
+    QaInputs,
+    _cap,
+    _check,
+    _finish,
+    normalize_text,
+)
 
 
 # --- 기술 타당성 -------------------------------------------------------------------------------
@@ -89,6 +96,15 @@ def check_tech_feasibility(inp: QaInputs, ppt_texts: dict[str, list[str]]) -> li
             gate=gate,
             mandatory=False,
             fix_suggestion="설계·아키텍처·조사를 맞추고, PoC 를 수행하거나 미검증으로 남기며, 구현 방안 에이전트로 analysis 를 채움",
+        ),
+        _check(
+            "QA-TECH-09",
+            cat,
+            "구현 방안 구체성 (내용 수준)",
+            "수용된 기능 요구사항의 구현 방안·분석·설계가 실제 화면·테이블·API 이름을 언급하고(설계 객체가 있을 때; 필수 요구에 하나도 없으면 실패), 요구사항의 수치 조건(응답 시간·건수·기간)이 구현 방안·설계에 그대로 있으며, 예외·실패 처리가 한 줄 이상 있는가 (단계 6 ⑥, D-21)",
+            gate=gate,
+            mandatory=False,
+            fix_suggestion="상세 설계를 실행해 화면·테이블·API 를 만들고, 구현 방안 에이전트로 수치 조건·예외 처리를 채움",
         ),
     ]
     reqs = {r.id: r for r in inp.requirements}
@@ -226,6 +242,9 @@ def check_tech_feasibility(inp: QaInputs, ppt_texts: dict[str, list[str]]) -> li
     if not techs and inp.mode == ProjectMode.PROPOSAL:
         rev06.append("구성 요소 기술이 모두 미정 — 아키텍처 확정 필요")
     _finish(checks[6], review=rev06)
+    # 09: 구현 방안 구체성 (단계 6) — 두 모드 공통
+    f09, r09, ids09 = _approach_concreteness_issues(inp)
+    _finish(checks[8], fail=_cap(f09), review=_cap(r09, 12), req_ids=ids09)
     # 08: 구현 설계 재검증 (단계 3)
     if inp.mode != ProjectMode.PROPOSAL:
         from proposal_agent.validation.qa_checks.common import _not_run
@@ -306,3 +325,95 @@ def _design_reverification_issues(
         )
         ids.extend(missing)
     return fails, revs, ids
+
+
+_EXCEPTION_WORDS = (
+    "예외",
+    "오류",
+    "실패",
+    "재시도",
+    "롤백",
+    "타임아웃",
+    "복구",
+    "장애",
+    "거부",
+    "검증 실패",
+)
+_COND_RE = re.compile(r"\d+(?:\.\d+)?\s*(?:초|분|시간|회|건|명|%|MB|GB|TB|TPS|개월|일|자리|자|개)")
+
+
+def _approach_concreteness_issues(inp: QaInputs) -> tuple[list[str], list[str], list[str]]:
+    """QA-TECH-09: 구현 방안이 내용 수준에서 구체적인가 (단계 6 ⑥).
+
+    - 설계 객체(화면·테이블·API)가 있으면 요구마다 그 이름이 구현 방안·분석·설계·연결 객체에 등장해야 한다.
+      필수 기능 요구에 하나도 없으면 실패, 비필수는 검토. 객체가 전혀 없으면 검토 1건(상세 설계 필요).
+    - 요구사항 수치 조건이 구현 방안·분석·설계 텍스트에 없으면 검토.
+    - 필수 기능 요구에 예외·실패 처리 문장이 없으면 검토.
+    """
+    fails: list[str] = []
+    revs: list[str] = []
+    ids: list[str] = []
+    screens, tables, apis = inp.screens, inp.db_tables, inp.api_specs
+    # 기준선 적재(추적표) 화면은 설계 객체가 아니다 — 상세 설계로 만든 화면·테이블·API 가 있을 때만 이름 검사
+    design_screens = [x for x in screens if getattr(x, "source", "design") == "design"]
+    have_entities = bool(design_screens or tables or apis)
+    names: list[str] = []
+    for s in screens:
+        names.append(s.name)
+    for t in tables:
+        names.extend(x for x in (t.name, t.logical_name) if x)
+    for a in apis:
+        names.extend(x for x in (a.name, a.path) if x)
+    linked: dict[str, list[str]] = {}
+    for s in screens:
+        for rid in getattr(s, "related_requirement_ids", []) or []:
+            linked.setdefault(rid, []).append(s.name)
+    for t in tables:
+        for rid in t.related_requirement_ids:
+            linked.setdefault(rid, []).append(t.name)
+    for a in apis:
+        for rid in a.related_requirement_ids:
+            linked.setdefault(rid, []).append(a.name)
+    design_text: dict[str, str] = {}
+    for d in inp.ctx.designs or []:
+        if not isinstance(d, dict):
+            continue
+        blob = normalize_text(str(d))
+        for rid in d.get("requirement_ids", []) or []:
+            design_text[str(rid)] = design_text.get(str(rid), "") + " " + blob
+    if not have_entities:
+        revs.append(
+            "설계 객체(화면·테이블·API) 없음 — 상세 설계를 실행해야 구현 방안의 객체 연결을 검사할 수 있음"
+        )
+    for r in inp.requirements:
+        if (
+            r.type.value != "functional"
+            or r.acceptance_status == AcceptanceStatus.REJECTED
+            or r.change_state == "deleted"
+        ):
+            continue
+        analysis = " ".join(
+            " ".join(v) if isinstance(v, list) else str(v) for v in (r.analysis or {}).values()
+        )
+        own = normalize_text(f"{r.implementation_approach or ''} {analysis}")
+        full = (
+            own
+            + " "
+            + design_text.get(r.id, "")
+            + " "
+            + design_text.get(r.rfp_requirement_id or "", "")
+        )
+        if have_entities:
+            mentioned = [n for n in names if n and normalize_text(n) in full] + linked.get(r.id, [])
+            if not mentioned:
+                msg = f"{r.id}: 구현 방안·설계에 실제 화면·테이블·API 이름이 없음"
+                (fails if r.is_mandatory else revs).append(msg)
+                ids.append(r.id)
+        for cond in dict.fromkeys(_COND_RE.findall(r.description or "")):
+            if normalize_text(cond) not in full:
+                revs.append(f"{r.id}: 요구사항 수치 조건 '{cond}' 이 구현 방안·설계에 없음")
+                ids.append(r.id)
+        if r.is_mandatory and not any(w in own for w in _EXCEPTION_WORDS):
+            revs.append(f"{r.id}: 예외·실패 처리 서술 없음")
+            ids.append(r.id)
+    return fails, revs, list(dict.fromkeys(ids))

@@ -143,6 +143,22 @@ class QaService:
             change_requests=self._repos.change_requests.find(project.id, order_by="created_at"),
             revisions=self._repos.revisions.find(project.id, order_by="created_at"),
             decisions=self._repos.decisions.find(project.id, order_by="code"),
+            screens=[s for s in self._repos.screens.find(project.id) if s.status != "dropped"],
+            db_tables=[
+                t
+                for t in self._repos.db_tables.find(project.id, order_by="code")
+                if t.status != "dropped"
+            ],
+            api_specs=[
+                a
+                for a in self._repos.api_specs.find(project.id, order_by="code")
+                if a.status != "dropped"
+            ],
+            code_modules=[
+                m
+                for m in self._repos.code_modules.find(project.id, order_by="code")
+                if m.status != "dropped"
+            ],
             negotiations=self._repos.negotiations.find(project.id, order_by="code"),
             rfp_analysis=analysis,
             id_prefixes=prefixes,

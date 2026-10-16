@@ -19,6 +19,7 @@ pages = [
     st.Page("ui/app_pages/feasibility.py", title="사업성 평가", icon=":material/balance:"),
     st.Page("ui/app_pages/decisions.py", title="회의·결정·협상", icon=":material/gavel:"),
     st.Page("ui/app_pages/agents.py", title="에이전트·조사", icon=":material/smart_toy:"),
+    st.Page("ui/app_pages/design.py", title="설계", icon=":material/design_services:"),
     st.Page("ui/app_pages/deliverables.py", title="산출물", icon=":material/inventory_2:"),
     st.Page(
         "ui/app_pages/build_baseline.py", title="구축: 기준 문서", icon=":material/upload_file:"

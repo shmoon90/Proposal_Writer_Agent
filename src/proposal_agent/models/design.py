@@ -21,6 +21,23 @@ class Screen(ProjectScoped):
     description: str = ""
     screen_type: str = "list"
     status: str = "draft"
+    # 단계 6 (지시문 §12.1, 코드 생성 입력 규격): 상세 설계 내용
+    purpose: str = ""
+    user_roles: list[str] = Field(default_factory=list)
+    layout: dict[str, Any] = Field(
+        default_factory=dict, description="{description, regions[{name, components}]}"
+    )
+    fields: list[dict[str, Any]] = Field(
+        default_factory=list, description="항목·검증 규칙·오류 메시지"
+    )
+    actions: list[dict[str, Any]] = Field(default_factory=list)
+    states: list[dict[str, Any]] = Field(
+        default_factory=list, description="LOADING/EMPTY/ERROR… 메시지"
+    )
+    functions: list[dict[str, Any]] = Field(default_factory=list, description="기능 정의")
+    related_requirement_ids: list[str] = Field(default_factory=list)
+    source: str = Field(default="baseline", description="baseline(추적표 적재) | design(상세 설계)")
+    version: int = 1
 
 
 class UnitTest(ProjectScoped):
@@ -146,6 +163,7 @@ class CodeModule(ProjectScoped):
         description="not_reviewed | in_review | approved | changes_requested",
     )
     review_checklist: list[str] = Field(default_factory=list)
+    depends_on: list[str] = Field(default_factory=list, description="의존 모듈 path (단계 6)")
     related_requirement_ids: list[str] = Field(default_factory=list)
     related_api_ids: list[str] = Field(default_factory=list)
     related_screen_ids: list[str] = Field(default_factory=list)

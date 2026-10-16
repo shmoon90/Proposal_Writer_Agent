@@ -51,6 +51,7 @@ class JobManager:
         self._repos = repos
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
+        self._record_lock = threading.Lock()  # StepRun 레코드 읽기-고치기-쓰기 직렬화
 
     # --- 실행 ------------------------------------------------------------------------------
     def submit(
@@ -118,13 +119,14 @@ class JobManager:
 
     def request_cancel(self, run: StepRun, *, actor: str = "user") -> StepRun:
         """중단 요청: DB 최신 레코드에 표시하고(다른 스레드·프로세스도 봄) 메모리의 토큰도 세운다."""
-        fresh = self._repos.step_runs.get(run.id)
-        fresh.cancel_requested = True
-        if "중단 요청됨" not in fresh.progress_note:
-            fresh.progress_note = (
-                fresh.progress_note + " · " if fresh.progress_note else ""
-            ) + "중단 요청됨"
-        self._repos.step_runs.update(fresh)
+        with self._record_lock:
+            fresh = self._repos.step_runs.get(run.id)
+            fresh.cancel_requested = True
+            if "중단 요청됨" not in fresh.progress_note:
+                fresh.progress_note = (
+                    fresh.progress_note + " · " if fresh.progress_note else ""
+                ) + "중단 요청됨"
+            self._repos.step_runs.update(fresh)
         run.cancel_requested, run.progress_note = True, fresh.progress_note
         job = self.get(run.id)
         if job is not None:
@@ -144,24 +146,32 @@ class JobManager:
         항상 DB 의 최신 레코드를 읽어 갱신한다 — 작업 스레드가 가진 옛 복사본으로 덮어쓰면 다른 쪽(화면)이
         기록한 중단 요청이 지워진다. 중단 요청 표시는 보존하고, 호출자의 객체에도 되돌려 준다.
         """
-        fresh = self._repos.step_runs.get(run.id)
-        if progress is not None:
-            fresh.progress = max(0.0, min(1.0, float(progress)))
-        if note is not None:
-            fresh.progress_note = note[:200]
-        if fresh.cancel_requested and "중단 요청됨" not in fresh.progress_note:
-            fresh.progress_note = (
-                fresh.progress_note + " · " if fresh.progress_note else ""
-            ) + "중단 요청됨"
-        fresh.heartbeat_at = utcnow()
-        self._repos.step_runs.update(fresh)
+        with (
+            self._record_lock
+        ):  # 중단 요청과 같은 레코드를 읽고-고치고-쓰므로 잃어버린 갱신을 막는다
+            fresh = self._repos.step_runs.get(run.id)
+            if progress is not None:
+                fresh.progress = max(0.0, min(1.0, float(progress)))
+            if note is not None:
+                fresh.progress_note = note[:200]
+            if fresh.cancel_requested and "중단 요청됨" not in fresh.progress_note:
+                fresh.progress_note = (
+                    fresh.progress_note + " · " if fresh.progress_note else ""
+                ) + "중단 요청됨"
+            fresh.heartbeat_at = utcnow()
+            self._repos.step_runs.update(fresh)
         run.progress, run.progress_note = fresh.progress, fresh.progress_note
         run.cancel_requested, run.heartbeat_at = fresh.cancel_requested, fresh.heartbeat_at
         return fresh
 
     def set_resume_point(self, run: StepRun, point: dict[str, Any]) -> StepRun:
+        """재개 지점 기록. 작업 스레드의 옛 복사본으로 덮어쓰지 않도록 DB 최신 레코드에 쓴다(중단 요청 보존)."""
+        with self._record_lock:
+            fresh = self._repos.step_runs.get(run.id)
+            fresh.resume_point = dict(point)
+            self._repos.step_runs.update(fresh)
         run.resume_point = dict(point)
-        self._repos.step_runs.update(run)
+        run.cancel_requested = run.cancel_requested or fresh.cancel_requested
         return run
 
     def stale_runs(self, project: Project) -> list[StepRun]:

@@ -407,6 +407,37 @@ MEETING_ANALYZER = _register(
 )
 
 
+DETAIL_DESIGNER = _register(
+    AgentRole(
+        key="detail_designer",
+        title="화면·DB·API·모듈 상세 설계",
+        description="요구사항·구현 방안·묶음별 구현 설계·아키텍처·발주처 문맥을 바탕으로 화면(항목·검증·상태·기능)·DB(테이블·컬럼·개인정보·보존)·API(입출력·오류 코드·멱등성)·코드 모듈(경로·의존)·업무 규칙을 설계한다. 설계서와 코드 생성 입력이 된다.",
+        inputs=(
+            "발주처 문맥",
+            "요구사항(분석·구현 방안)",
+            "묶음별 구현 설계",
+            "아키텍처",
+            "기술 조사",
+        ),
+        output_schema=schemas.DetailDesignReport,
+        prompt_name="detail_designer",
+        mcp_servers=(MCP_PROJECT,),
+        mcp_tool_patterns=(
+            f"mcp__{MCP_PROJECT}__get_requirement",
+            f"mcp__{MCP_PROJECT}__list_requirements",
+            f"mcp__{MCP_PROJECT}__list_research",
+        ),
+        max_turns=30,
+        max_budget_usd=6.0,
+        timeout_s=1200,
+        effort="high",
+        reuses=("design_writer", "architect"),
+        output_subdir="05_Architecture_Design",
+        output_stem="detail_design",
+    )
+)
+
+
 def get_role(key: str) -> AgentRole:
     try:
         return ROLES[key]

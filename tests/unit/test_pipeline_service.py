@@ -46,8 +46,8 @@ def test_step_without_gate_completes_to_approved(
     assert run.status == StepStatus.APPROVED
     assert services.pipeline.progress(proposal_project) == (
         1,
-        17,
-    )  # 단계 2: bid_assessment 추가
+        18,
+    )  # 단계 2: bid_assessment, 단계 6: detail_design 추가
     assert services.pipeline.current_step(proposal_project).definition.key == "extract"
 
 

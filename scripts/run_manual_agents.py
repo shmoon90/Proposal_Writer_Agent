@@ -616,6 +616,343 @@ DESIGNS: dict[str, Any] = {
 }
 
 
+# --- 6-1. 상세 설계 대행 응답 (단계 6, 지시문 §12) — 계산기 샘플 ------------------------------------------
+DETAIL_DESIGNS: dict[str, Any] = {
+    "screens": [
+        {
+            "name": "계산기 메인 화면",
+            "screen_type": "form",
+            "purpose": "수식을 입력하고 계산 결과·이력을 한 화면에서 본다",
+            "user_roles": ["일반 사용자"],
+            "layout": {
+                "description": "상단 수식 입력, 본문 좌측 버튼 패드·우측 결과, 하단 이력",
+                "regions": [
+                    {"name": "상단", "components": ["수식 입력창", "삭제 버튼"]},
+                    {"name": "본문", "components": ["버튼 패드(숫자·연산자·함수)", "결과 표시"]},
+                    {"name": "하단", "components": ["계산 이력 목록(최근 20건)"]},
+                ],
+            },
+            "fields": [
+                {
+                    "name": "expression",
+                    "label": "수식",
+                    "field_type": "text",
+                    "required": True,
+                    "validation_rules": [
+                        "길이 1~200자",
+                        "허용 문자: 숫자·연산자·괄호·함수명",
+                        "괄호 짝 검증",
+                        "키보드 입력과 버튼 패드 입력을 같은 검증기로 처리",
+                        "21자리 유효 숫자·10^25 범위 초과가 예상되면 사전 경고",
+                    ],
+                    "error_message": "수식 형식이 올바르지 않습니다",
+                    "requirement_ids": ["FR-001", "FR-003", "FR-007", "FR-009"],
+                },
+                {
+                    "name": "result",
+                    "label": "결과",
+                    "field_type": "text",
+                    "required": False,
+                    "validation_rules": ["유효 숫자 21자리 표시"],
+                    "error_message": "",
+                    "requirement_ids": ["FR-002", "NFR-001"],
+                },
+            ],
+            "actions": [
+                {
+                    "label": "계산",
+                    "description": "수식을 서버로 보내 결과를 받는다",
+                    "expected_result": "결과 표시·이력 추가",
+                    "api_ref": "계산 실행 API",
+                    "requirement_ids": ["FR-002"],
+                },
+                {
+                    "label": "이력 선택",
+                    "description": "이력 항목을 눌러 수식을 다시 불러온다",
+                    "expected_result": "수식 입력창에 채움",
+                    "api_ref": "",
+                    "requirement_ids": ["FR-005"],
+                },
+            ],
+            "states": [
+                {"state": "LOADING", "message": "계산 중…"},
+                {"state": "ERROR", "message": "계산할 수 없는 수식입니다 (오류 코드 표시)"},
+                {"state": "EMPTY", "message": "계산 이력이 없습니다"},
+            ],
+            "functions": [
+                {
+                    "name": "수식 검증",
+                    "trigger": "입력 변경",
+                    "inputs": ["expression"],
+                    "process": "토큰 단위 문법 검사, 괄호 짝·연속 연산자 검출 → 오류 표시",
+                    "outputs": ["유효 여부"],
+                    "requirement_ids": ["FR-001"],
+                },
+                {
+                    "name": "계산 요청",
+                    "trigger": "계산 버튼",
+                    "inputs": ["expression"],
+                    "process": "POST /api/calc 호출, 응답 1초 이내 아니면 LOADING 유지, 오류 코드면 ERROR 상태",
+                    "outputs": ["result"],
+                    "requirement_ids": ["FR-002", "NFR-002"],
+                },
+            ],
+            "requirement_ids": [
+                "FR-001",
+                "FR-002",
+                "FR-003",
+                "FR-004",
+                "FR-005",
+                "FR-007",
+                "FR-009",
+                "NFR-001",
+                "NFR-002",
+            ],
+        },
+        {
+            "name": "계산 이력 화면",
+            "screen_type": "list",
+            "purpose": "저장된 계산 이력을 조회·삭제한다",
+            "user_roles": ["일반 사용자"],
+            "layout": {
+                "description": "본문 목록 표, 하단 페이지 이동",
+                "regions": [
+                    {"name": "본문", "components": ["이력 표(수식·결과·일시)"]},
+                    {"name": "하단", "components": ["페이지 이동"]},
+                ],
+            },
+            "fields": [
+                {
+                    "name": "keyword",
+                    "label": "검색어",
+                    "field_type": "text",
+                    "required": False,
+                    "validation_rules": ["길이 0~50자"],
+                    "error_message": "",
+                    "requirement_ids": ["FR-005"],
+                }
+            ],
+            "actions": [
+                {
+                    "label": "삭제",
+                    "description": "선택 이력 삭제",
+                    "expected_result": "목록에서 제거",
+                    "api_ref": "이력 삭제 API",
+                    "requirement_ids": ["FR-005"],
+                }
+            ],
+            "states": [
+                {"state": "EMPTY", "message": "이력이 없습니다"},
+                {"state": "ERROR", "message": "이력을 불러오지 못했습니다"},
+            ],
+            "functions": [
+                {
+                    "name": "이력 조회",
+                    "trigger": "화면 진입",
+                    "inputs": ["keyword"],
+                    "process": "GET /api/history?keyword= 호출, 최근 순 정렬, 20건 페이지",
+                    "outputs": ["이력 목록"],
+                    "requirement_ids": ["FR-005", "FR-004"],
+                },
+                {
+                    "name": "이력 재사용·내보내기",
+                    "trigger": "이력 선택·내보내기 버튼",
+                    "inputs": ["history_id"],
+                    "process": "선택 이력 수식을 메인 화면에 채우거나 CSV 로 내보내기, 실패 시 ERROR 상태",
+                    "outputs": ["수식", "CSV"],
+                    "requirement_ids": ["FR-008"],
+                },
+            ],
+            "requirement_ids": ["FR-004", "FR-005", "FR-008"],
+        },
+    ],
+    "tables": [
+        {
+            "name": "CALC_HISTORY",
+            "logical_name": "계산 이력",
+            "description": "사용자가 실행한 계산 수식·결과",
+            "columns": [
+                {
+                    "name": "HISTORY_ID",
+                    "data_type": "INTEGER",
+                    "length": "",
+                    "nullable": False,
+                    "is_pk": True,
+                    "description": "이력 ID",
+                },
+                {
+                    "name": "EXPRESSION",
+                    "data_type": "VARCHAR",
+                    "length": "200",
+                    "nullable": False,
+                    "description": "수식",
+                },
+                {
+                    "name": "RESULT",
+                    "data_type": "VARCHAR",
+                    "length": "64",
+                    "nullable": True,
+                    "description": "결과(문자열, 21자리 유효 숫자)",
+                },
+                {
+                    "name": "ERROR_CODE",
+                    "data_type": "VARCHAR",
+                    "length": "16",
+                    "nullable": True,
+                    "description": "오류 코드",
+                },
+                {
+                    "name": "CREATED_AT",
+                    "data_type": "TIMESTAMP",
+                    "length": "",
+                    "nullable": False,
+                    "description": "계산 일시",
+                },
+            ],
+            "indexes": ["IX_CALC_HISTORY_CREATED (CREATED_AT DESC)"],
+            "relations": [],
+            "retention_policy": "90일 보관 후 배치 삭제 (설정 가능)",
+            "migration_note": "신규 테이블, 이관 없음",
+            "db_engine": "SQLite (단일 서버) 또는 PostgreSQL",
+            "requirement_ids": ["FR-005"],
+        }
+    ],
+    "apis": [
+        {
+            "name": "계산 실행 API",
+            "method": "POST",
+            "path": "/api/calc",
+            "description": "수식을 받아 고정밀 계산 결과를 돌려준다",
+            "request_fields": ["expression:string(1~200)", "precision:int(기본 21)"],
+            "response": "{result:string, error_code?:string}",
+            "auth": "없음(공개) — 요청 한도 60회/분",
+            "error_codes": [
+                "E001: 문법 오류",
+                "E002: 0 나누기",
+                "E003: 범위 초과(10^25)",
+                "E004: 타임아웃",
+            ],
+            "validation_rules": ["expression 길이 1~200", "허용 토큰만"],
+            "idempotency": "동일 수식 재요청은 같은 결과 (부작용 없음)",
+            "timeout_retry": "1초 타임아웃, 재시도 없음",
+            "paging_limits": "",
+            "logging_audit": "수식·결과·소요 시간 로그",
+            "screen_refs": ["계산기 메인 화면"],
+            "table_refs": ["CALC_HISTORY"],
+            "module_path": "app/api/calc.py",
+            "requirement_ids": ["FR-002", "FR-006", "NFR-001", "NFR-002"],
+        },
+        {
+            "name": "이력 조회 API",
+            "method": "GET",
+            "path": "/api/history",
+            "description": "계산 이력을 최근 순으로 돌려준다",
+            "request_fields": ["keyword:string(0~50)", "page:int", "size:int(≤20)"],
+            "response": "{items:[{history_id, expression, result, created_at}], total:int}",
+            "auth": "없음",
+            "error_codes": ["E101: 잘못된 페이지"],
+            "validation_rules": ["size ≤ 20"],
+            "idempotency": "조회",
+            "timeout_retry": "1초",
+            "paging_limits": "20건/페이지",
+            "logging_audit": "조회 로그",
+            "screen_refs": ["계산 이력 화면", "계산기 메인 화면"],
+            "table_refs": ["CALC_HISTORY"],
+            "module_path": "app/api/history.py",
+            "requirement_ids": ["FR-005"],
+        },
+        {
+            "name": "이력 삭제 API",
+            "method": "DELETE",
+            "path": "/api/history/{id}",
+            "description": "이력 1건 삭제",
+            "request_fields": ["id:int"],
+            "response": "{deleted:bool}",
+            "auth": "없음",
+            "error_codes": ["E102: 없는 이력"],
+            "validation_rules": [],
+            "idempotency": "두 번 호출해도 결과 동일",
+            "timeout_retry": "1초",
+            "paging_limits": "",
+            "logging_audit": "삭제 로그",
+            "screen_refs": ["계산 이력 화면"],
+            "table_refs": ["CALC_HISTORY"],
+            "module_path": "app/api/history.py",
+            "requirement_ids": ["FR-005"],
+        },
+    ],
+    "modules": [
+        {
+            "path": "app/api/calc.py",
+            "layer": "controller",
+            "responsibility": "계산 API 엔드포인트·입력 검증",
+            "depends_on": ["app/engine/evaluator.py", "app/repo/history_repo.py"],
+            "requirement_ids": ["FR-002", "FR-006"],
+            "api_refs": ["계산 실행 API"],
+            "screen_refs": ["계산기 메인 화면"],
+            "table_refs": ["CALC_HISTORY"],
+        },
+        {
+            "path": "app/api/history.py",
+            "layer": "controller",
+            "responsibility": "이력 조회·삭제 API",
+            "depends_on": ["app/repo/history_repo.py"],
+            "requirement_ids": ["FR-005"],
+            "api_refs": ["이력 조회 API", "이력 삭제 API"],
+            "screen_refs": ["계산 이력 화면"],
+            "table_refs": ["CALC_HISTORY"],
+        },
+        {
+            "path": "app/engine/evaluator.py",
+            "layer": "domain",
+            "responsibility": "토큰화·후위 표기 평가·decimal 고정밀 연산",
+            "depends_on": [],
+            "requirement_ids": ["FR-001", "FR-002", "NFR-001"],
+            "api_refs": [],
+            "screen_refs": [],
+            "table_refs": [],
+        },
+        {
+            "path": "app/repo/history_repo.py",
+            "layer": "repository",
+            "responsibility": "CALC_HISTORY 저장·조회·삭제",
+            "depends_on": [],
+            "requirement_ids": ["FR-005"],
+            "api_refs": [],
+            "screen_refs": [],
+            "table_refs": ["CALC_HISTORY"],
+        },
+        {
+            "path": "web/src/CalculatorPage.tsx",
+            "layer": "web",
+            "responsibility": "메인 화면·수식 검증·API 호출",
+            "depends_on": [],
+            "requirement_ids": ["FR-001", "FR-003"],
+            "api_refs": ["계산 실행 API"],
+            "screen_refs": ["계산기 메인 화면"],
+            "table_refs": [],
+        },
+    ],
+    "business_rules": [
+        {
+            "rule_id": "BR-001",
+            "description": "수식은 200자 이내, 허용 토큰만 포함, 괄호 짝이 맞아야 한다",
+            "enforced_in": "app/engine/evaluator.py",
+            "requirement_ids": ["FR-001"],
+        },
+        {
+            "rule_id": "BR-002",
+            "description": "결과는 유효 숫자 21자리, 10^25 초과는 E003 오류",
+            "enforced_in": "app/engine/evaluator.py",
+            "requirement_ids": ["FR-002", "NFR-001"],
+        },
+    ],
+    "assumptions": ["이력 보관 90일은 가정(RFP 미기재)", "VARCHAR 길이는 가정"],
+    "research_needed": [],
+    "notes": "FR-004(모바일 안내) 는 메인 화면 상태 메시지로 처리 — 별도 화면 없음",
+}
+
+
 # --- 5-1. 회의록(샘플)과 구조화 대행 응답 (단계 5, 지시문 §10) ------------------------------------------
 MEETING_NOTE: str = """제안 준비 회의록 (2026-10-16)
 참석: 영업 PM, 기술 PL, 고객 담당자(정보화팀)
@@ -1525,6 +1862,7 @@ FIXTURE_NAMES = (
     "REQUIREMENTS",
     "APPROACHES",
     "DESIGNS",
+    "DETAIL_DESIGNS",
     "BID_REVIEW",
     "MEETING_NOTE",
     "MEETING_REPORT",
@@ -1596,6 +1934,7 @@ def resolve_fixture_aliases(s: Services, project) -> dict[str, str]:  # type: ig
         "PROPOSAL",
         "RFP_ANALYSIS",
         "DESIGNS",
+        "DETAIL_DESIGNS",
     ):
         walk(globals()[name])
     for _keys, spec in APPROACHES:
@@ -1721,6 +2060,7 @@ def main() -> int:
             "approach_writer": approach_writer,
             "strategy_planner": STRATEGY,
             "design_writer": DESIGNS,
+            "detail_designer": DETAIL_DESIGNS,
             "bid_reviewer": BID_REVIEW,
             "meeting_analyzer": MEETING_REPORT,
         },
@@ -1849,6 +2189,8 @@ def main() -> int:
         ).summary
     )
     log.append(r.run_design_writing(p, actor=ACTOR).summary)
+    log.append(r.run_detail_design(p, actor=ACTOR).summary)  # 단계 6
+    log.append("코드 생성 패키지: " + s.detail_design.export_codegen_package(p, actor=ACTOR))
     log.append(r.run_role_step(p, StepRunner.STEP_WBS, "planner", "WBS 초안", actor=ACTOR).summary)
     s.steps.run_role(p, "proposal_writer", "제안 문안", actor=ACTOR)
     log.append(r.run_generation(p, actor=ACTOR).summary)

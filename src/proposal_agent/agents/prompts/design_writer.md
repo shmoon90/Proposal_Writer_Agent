@@ -4,6 +4,7 @@
 
 # 입력
 
+- `<client_context>`: 발주처 업무 문맥 — 사업 목적, 현행 시스템 문제점, 기존 시스템 유무, 연계 대상, 명시 솔루션·개발 환경 제약, 보안 규정. 구조·절차·기술 선택의 이유를 이 문맥(현행 문제·연계·제약)과 연결해 쓴다. 없는 사정은 추정하지 않는다.
 - `<groups>`: 코드가 제안한 요구사항 묶음(RFP 고유번호·분류 기준)과 각 요구사항의 `id`, `rfp_id`, `name`, `description`, 정의서 `approach`(구현방안 요약), `difficulty`. **여기 있는 id만** 결과에 쓴다.
 - `<research>`: 기술 조사 기록 (`id`, `topic`, `feasibility`, `facts`(출처로 확인한 사실), `stack`, `unverified`). 제품·버전·수치의 근거다.
 - `<architecture>`: 아키텍처 구성 요소 (`code`, `layer`, `name`, `technology`). 설계는 이 구조와 맞아야 한다.

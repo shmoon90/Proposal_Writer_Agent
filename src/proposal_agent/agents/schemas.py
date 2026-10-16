@@ -6,7 +6,7 @@ ID·날짜·공수 합계 등 결정적 값은 스키마에서 받지 않거나 
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from proposal_agent.models import RequirementDraft, VerificationReport
 from proposal_agent.models.enums import FeasibilityVerdict, SourceTrust
@@ -794,6 +794,161 @@ class BidReviewDraft(_Strict):
 
 
 # --- 9. QA·변경 검토 -----------------------------------------------------------------------------
+
+
+# --- 단계 6: 화면·DB·API·모듈 상세 설계 (지시문 §12, 코드 생성 입력 규격 D-22) ----------------------------
+
+
+class ScreenFieldDesign(_Strict):
+    name: str = Field(min_length=1, description="항목 식별자 (영문)")
+    label: str = Field(default="", description="화면 표시 라벨")
+    field_type: str = Field(
+        default="text",
+        description="text | number | date | select | checkbox | file | textarea | table | button",
+    )
+    required: bool = False
+    validation_rules: list[str] = Field(
+        default_factory=list, description="검증 규칙 (길이·형식·범위·필수 조건)"
+    )
+    error_message: str = Field(default="", description="검증 실패 메시지")
+    requirement_ids: list[str] = Field(default_factory=list)
+
+
+class ScreenActionDesign(_Strict):
+    label: str = Field(min_length=1)
+    description: str = ""
+    expected_result: str = Field(default="", description="기대 결과 (상태 변화·이동·메시지)")
+    api_ref: str = Field(default="", description="호출하는 API 이름 (apis[].name)")
+    requirement_ids: list[str] = Field(default_factory=list)
+
+
+class ScreenStateDesign(_Strict):
+    state: str = Field(description="LOADING | EMPTY | ERROR | SUCCESS | FORBIDDEN | VALIDATION")
+    message: str = ""
+
+
+class ScreenFunctionDesign(_Strict):
+    name: str = Field(min_length=1)
+    trigger: str = Field(default="", description="실행 계기 (버튼·화면 진입·주기)")
+    inputs: list[str] = Field(default_factory=list)
+    process: str = Field(default="", description="처리 규칙·검증·상태 변화")
+    outputs: list[str] = Field(default_factory=list)
+    requirement_ids: list[str] = Field(default_factory=list)
+
+
+class LayoutRegionDesign(_Strict):
+    name: str = Field(description="상단 | 좌측 | 본문 | 우측 | 하단 | 팝업")
+    components: list[str] = Field(
+        default_factory=list, description="영역 안 컴포넌트 (검색 조건·목록 표·버튼 등)"
+    )
+
+
+class ScreenLayoutDesign(_Strict):
+    description: str = Field(default="", description="배치 의도 한 줄")
+    regions: list[LayoutRegionDesign] = Field(default_factory=list)
+
+
+class ScreenDesign(_Strict):
+    name: str = Field(min_length=1)
+    screen_type: str = Field(
+        default="list", description="list | detail | form | dashboard | popup | report"
+    )
+    purpose: str = ""
+    user_roles: list[str] = Field(default_factory=list)
+    layout: ScreenLayoutDesign | None = None
+    fields: list[ScreenFieldDesign] = Field(default_factory=list)
+    actions: list[ScreenActionDesign] = Field(default_factory=list)
+    states: list[ScreenStateDesign] = Field(default_factory=list)
+    functions: list[ScreenFunctionDesign] = Field(default_factory=list)
+    requirement_ids: list[str] = Field(default_factory=list)
+
+
+class ColumnDesign(_Strict):
+    name: str = Field(min_length=1)
+    data_type: str = Field(default="", description="VARCHAR | NUMBER | DATE | TIMESTAMP | CLOB …")
+    length: str = ""
+    nullable: bool = True
+    default: str = ""
+    is_pk: bool = False
+    fk_ref: str = Field(default="", description="참조 TABLE.COLUMN")
+    constraint: str = ""
+    is_personal_data: bool = False
+    description: str = ""
+
+
+class TableDesign(_Strict):
+    name: str = Field(min_length=1, description="물리 테이블명")
+    logical_name: str = ""
+    description: str = ""
+    columns: list[ColumnDesign] = Field(default_factory=list)
+    indexes: list[str] = Field(default_factory=list)
+    relations: list[str] = Field(default_factory=list)
+    retention_policy: str = ""
+    migration_note: str = ""
+    db_engine: str = Field(default="", description="DB 종류·버전 (아키텍처·조사에 있는 것)")
+    requirement_ids: list[str] = Field(default_factory=list)
+
+
+class ApiDesign(_Strict):
+    name: str = Field(min_length=1)
+    method: str = Field(
+        default="GET", description="GET | POST | PUT | PATCH | DELETE 또는 프로토콜"
+    )
+    path: str = ""
+    description: str = ""
+    request_fields: list[str] = Field(default_factory=list, description="'이름:형식(제약)' 목록")
+    response: str = Field(default="", description="응답 형태")
+    auth: str = Field(default="", description="인증·권한")
+    error_codes: list[str] = Field(default_factory=list, description="'코드: 의미' 목록")
+    validation_rules: list[str] = Field(default_factory=list)
+    idempotency: str = Field(default="", description="중복 요청 처리")
+    timeout_retry: str = ""
+    paging_limits: str = ""
+    logging_audit: str = ""
+    api_version: str = "v1"
+    screen_refs: list[str] = Field(default_factory=list, description="연결 화면 이름")
+    table_refs: list[str] = Field(default_factory=list, description="연결 테이블 이름")
+    module_path: str = Field(default="", description="구현 모듈 경로 (modules[].path)")
+    requirement_ids: list[str] = Field(default_factory=list)
+
+
+class ModuleDesign(_Strict):
+    path: str = Field(min_length=1, description="패키지/파일 경로")
+    name: str = Field(default="", description="모듈 이름 (비우면 경로의 마지막)")
+    layer: str = Field(
+        default="",
+        description="controller | service | repository | domain | web | batch | integration | common",
+    )
+    responsibility: str = ""
+    depends_on: list[str] = Field(default_factory=list, description="의존 모듈 path")
+    requirement_ids: list[str] = Field(default_factory=list)
+    api_refs: list[str] = Field(default_factory=list)
+    screen_refs: list[str] = Field(default_factory=list)
+    table_refs: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _default_name(self) -> ModuleDesign:
+        if not self.name:
+            self.name = self.path.rstrip("/").rsplit("/", 1)[-1]
+        return self
+
+
+class BusinessRuleDesign(_Strict):
+    rule_id: str = Field(default="", description="BR-nnn")
+    description: str = Field(min_length=1)
+    enforced_in: str = Field(default="", description="적용 모듈 path")
+    requirement_ids: list[str] = Field(default_factory=list)
+
+
+class DetailDesignReport(_Strict):
+    screens: list[ScreenDesign] = Field(default_factory=list)
+    tables: list[TableDesign] = Field(default_factory=list)
+    apis: list[ApiDesign] = Field(default_factory=list)
+    modules: list[ModuleDesign] = Field(default_factory=list)
+    business_rules: list[BusinessRuleDesign] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list, description="기본값으로 가정한 것")
+    research_needed: list[str] = Field(default_factory=list)
+    notes: str = ""
 
 
 class MeetingItemDraft(_Strict):

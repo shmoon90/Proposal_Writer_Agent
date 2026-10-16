@@ -216,6 +216,7 @@ class StepRunner:
     STEP_APPROACH = "impl_approach"
     STEP_STRATEGY = "strategy_brief"
     STEP_DESIGN = "impl_design"
+    STEP_DETAIL_DESIGN = "detail_design"
 
     def run_strategy_brief(
         self,
@@ -327,6 +328,30 @@ class StepRunner:
             cancel=cancel,
         )
         outcome.summary += " · " + self._s.design.summary(project)
+        return outcome
+
+    def run_detail_design(
+        self, project: Project, *, actor: str = "user", cancel: CancellationToken | None = None
+    ) -> StepOutcome:
+        """화면·DB·API·모듈 상세 설계 에이전트(detail_designer) → 엔티티 저장·추적 연결 (단계 6, 지시문 §12)."""
+        prompt = self._s.detail_design.brief(project)
+        outcome = self.run_role_step(
+            project,
+            self.STEP_DETAIL_DESIGN,
+            "detail_designer",
+            prompt,
+            required_gate=GATE1_KEY,
+            actor=actor,
+            cancel=cancel,
+        )
+        data = self._s.detail_design.latest(project)
+        if data:
+            counts = self._s.detail_design.persist(project, data, actor=actor)
+            outcome.summary += (
+                f" · 저장: 화면 {counts['screens']}·테이블 {counts['tables']}·API {counts['apis']}"
+                f"·모듈 {counts['modules']}·규칙 {counts['rules']}·추적 {counts['traces']} · "
+                + self._s.detail_design.summary(project)
+            )
         return outcome
 
     def run_role_step(
@@ -555,6 +580,7 @@ class StepRunner:
         "strategy_brief",
         "architecture",
         "impl_design",
+        "detail_design",
         "wbs_schedule",
         "generate_docs",
         "proposal_ppt",
@@ -597,6 +623,8 @@ class StepRunner:
             )
         if step_key == "impl_design":
             return self.run_design_writing(project, actor=actor, cancel=cancel)
+        if step_key == "detail_design":
+            return self.run_detail_design(project, actor=actor, cancel=cancel)
         if step_key == "wbs_schedule":
             return self.run_role_step(
                 project, self.STEP_WBS, "planner", "WBS 초안", actor=actor, cancel=cancel

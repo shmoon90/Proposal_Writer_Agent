@@ -357,6 +357,10 @@ stateDiagram-v2
 
 - `ChangeStatus` 8종(`pending_approval` 추가). `ChangeCandidate.change_kind`(wording|semantic|screen_move|add|delete|none)·`compare_source`(text|excel|pptx|docx)·`uncertain`. `ChangeImpact` 에 screens/unit_tests/integration_tests/apis/tables/design_items/test_cases_affected·security_review_needed·security_reasons. `ChangeRequest.decision_ids`·`negotiation_id`·`regenerate_kinds`. `Decision`(DEC) 은 회의록 구조화로 생성되고 `source_document_id`·`source_excerpt` 로 원문에 연결, `Negotiation`(NEG) 은 변경 요청 반영 시 `applied` 로 전이.
 
+## 6.8 단계 6 추가 (스키마 변경 없음, JSON 필드)
+
+- `Screen` 확장: purpose·user_roles·layout·fields·actions·states·functions·related_requirement_ids·source(baseline|design)·version. `CodeModule.depends_on`. 상세 설계(detail_designer, `DetailDesignReport`) 결과가 `DetailDesignService.persist` 로 SCR/TBL/API/MOD/DSG(business_rule) 에 저장되고 요구 ↔ 화면 `RequirementTrace` 가 연결된다. `DeliverableKind.DESIGN_DOC_XLSX/MD`(05_Architecture_Design/설계서). 코드 생성 입력 패키지 `05_Architecture_Design/codegen_package_vX.json`(requirements·ui_design·architecture; test_plan 은 단계 7).
+
 ## 7. 데이터 흐름 요약
 
 | 단계 | 입력 | 처리 주체 | 출력(저장) |
