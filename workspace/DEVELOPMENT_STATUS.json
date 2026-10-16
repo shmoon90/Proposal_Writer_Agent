@@ -1,0 +1,73 @@
+{
+  "updated": "2026-10-16",
+  "main_commit": "ab75fba",
+  "plan": "docs/IMPROVEMENT_PLAN_2026-10.md",
+  "status": "step16_done",
+  "analysis_done": [
+    "existing project structure, agents, MCP, outputs, tests (Phase 1-15)",
+    "gap analysis against the quality/editability directive (19 sections)",
+    "environment: PowerPoint COM registered, pywin32 installed, LibreOffice absent, no API credit"
+  ],
+  "implemented": [
+    "step16: manifest.json (runs + QA), picture policy (allowed tags, QA-FILE-12), library review doc, record_test_status script"
+  ],
+  "changed_files": [
+    "src/proposal_agent/storage/manifest.py",
+    "src/proposal_agent/generators/base.py",
+    "src/proposal_agent/generators/service.py",
+    "src/proposal_agent/generators/pptx/builder.py",
+    "src/proposal_agent/generators/pptx/template.py",
+    "src/proposal_agent/validation/deliverables.py",
+    "src/proposal_agent/validation/independent_qa.py",
+    "src/proposal_agent/validation/qa_service.py",
+    "src/proposal_agent/changes/service.py",
+    "scripts/record_test_status.py",
+    "tests/unit/test_phase16_manifest_pictures.py",
+    "docs/LIBRARY_REVIEW.md",
+    "docs/PHASE16_REPORT.md",
+    "docs/OUTPUT_STRUCTURE.md",
+    "docs/USER_GUIDE.md",
+    "docs/TEST_RESULTS.md",
+    "README.md",
+    ".gitignore",
+    "workspace/DEVELOPMENT_STATUS.md",
+    "workspace/DEVELOPMENT_STATUS.json",
+    "WORK_LOG.md"
+  ],
+  "tests": {
+    "last_run": "2026-10-16",
+    "command": "pytest -q -p no:cacheprovider",
+    "passed": 257,
+    "failed": 0,
+    "skipped": 1,
+    "deselected": 2
+  },
+  "resolved": [
+    "invalid picture tag inserted picture before rejecting",
+    "QA-FILE-12 failed on allowed photos"
+  ],
+  "open_issues": [
+    "real Claude model calls unverified (no credit)",
+    "slide rendering verification not implemented (step 21)",
+    "outline/strategy approval gate not implemented (step 18)",
+    "native charts and UI mockup components not implemented (step 20)",
+    "deck generation does not yet place tagged photos (step 19)",
+    "manifest does not record finalization (step 21)"
+  ],
+  "connections": {
+    "claude_api": "not configured",
+    "mcp_pwa": "connected (2026-10-15)",
+    "mcp_claude_code_docs": "connected (2026-10-15)",
+    "web_search": "tool exposed, not executed"
+  },
+  "editability_qa": {
+    "pictures_in_decks": 0,
+    "picture_exceptions": 0,
+    "charts": "shape bars (not native)",
+    "ui_mockup": "region level",
+    "check": "QA-FILE-12 (tagged photos allowed)"
+  },
+  "next": [
+    "step 17: RFP analysis fields, trace matrix response page/strategy/evidence class"
+  ]
+}

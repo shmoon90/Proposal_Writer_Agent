@@ -1188,6 +1188,8 @@ def run_file_checks(inp: QaInputs) -> tuple[list[QaCheck], CheckArtifacts]:
                 inp, DeliverableKind.SUBMISSION_PPTX, DeliverableKind.PRESENTATION_PPTX
             ),
         )
+        # 허용 그림(사진·일러스트·장식·참고) 예외는 판정을 바꾸지 않고 보고서·manifest에 기록한다
+        checks[10].issues.extend(x.message for x in out.findings if x.rule == "pptx.photo")
     if inp.mode != ProjectMode.PROPOSAL:
         _not_run(checks[11], "구축 단계는 PPT를 생성하지 않음")
     elif not inp.template_profiles:

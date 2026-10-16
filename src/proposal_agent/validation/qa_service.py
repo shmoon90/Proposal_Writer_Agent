@@ -39,6 +39,7 @@ from proposal_agent.models import (
 )
 from proposal_agent.planning.calendar import BusinessCalendar, parse_holidays
 from proposal_agent.storage.files import FileStore
+from proposal_agent.storage.manifest import record_qa
 from proposal_agent.storage.repositories import Repositories
 from proposal_agent.validation.deliverables import QaOutcome
 from proposal_agent.validation.independent_qa import (
@@ -316,6 +317,10 @@ class QaService:
         )
         qa_run.report_path, qa_run.json_path = self._write_report(project, qa_run, review_items)
         self._repos.qa_runs.insert(qa_run)
+        try:
+            record_qa(self._paths, project, qa_run)  # manifest.json의 최근 실행에 QA 결과 첨부
+        except Exception as exc:  # noqa: BLE001
+            log.warning("manifest QA 기록 실패: %s", exc)
         self._audit.record(
             project.id,
             "qa.completed",

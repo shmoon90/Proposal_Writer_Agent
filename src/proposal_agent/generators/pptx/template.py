@@ -28,6 +28,8 @@ from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Cm, Emu, Pt
 from pydantic import BaseModel, ConfigDict, Field
 
+from proposal_agent.generators.base import picture_name
+
 ROMAN = "ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ"
 ROMAN_RE = re.compile(r"^\s*([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+|[IVX]{1,4})\s*[.．]?\s*(?P<title>.*)$")
 SECTION_RE = re.compile(r"^\s*(?P<no>\d{1,2})\s*(?P<sep>[.．/])\s*(?P<title>[^>]{1,60})")
@@ -1249,7 +1251,9 @@ class TemplateDeckBuilder:
         caption: str = "",
         notes: str = "",
         lead: str = "",
+        tag: str | None = None,
     ) -> None:
+        pic_name = picture_name(tag, caption or Path(image_path).stem) if tag else None
         self.sub_no += 1
         from PIL import Image
 
@@ -1264,7 +1268,13 @@ class TemplateDeckBuilder:
         scale = min(max_w / w_px, max_h / h_px)
         w, h = w_px * scale, h_px * scale
         left = body.left + (body.width - w) / 2
-        slide.shapes.add_picture(str(image_path), Cm(left), Cm(top), width=Cm(w), height=Cm(h))
+        pic = slide.shapes.add_picture(
+            str(image_path), Cm(left), Cm(top), width=Cm(w), height=Cm(h)
+        )
+        if (
+            tag
+        ):  # 허용 그림(사진·일러스트·장식·참고)은 '<태그>:<설명>' 이름으로 표시 — QA-FILE-12 예외
+            pic.name = pic_name
         if caption:
             self._text(
                 slide,

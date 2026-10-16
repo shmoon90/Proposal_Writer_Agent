@@ -16,7 +16,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from proposal_agent.generators.base import GenerationContext
+from proposal_agent.generators.base import PICTURE_TAG_LABELS, GenerationContext, picture_tag
 from proposal_agent.generators.excel.requirement_spec import (
     REQUIRED_COLUMNS,
     SHEET_FUNCTIONAL,
@@ -143,15 +143,22 @@ def pptx_texts(path: Path) -> list[str]:
     return out
 
 
-def _has_picture(shapes: Any, depth: int = 0) -> bool:
-    """슬라이드(그룹 안 포함)에 그림 도형이 있는가. 마스터·레이아웃의 그림은 보지 않는다."""
+def _pictures(shapes: Any, depth: int = 0) -> list[tuple[str, str | None]]:
+    """슬라이드(그룹 안 포함)의 그림 도형 (이름, 허용 태그). 마스터·레이아웃의 그림은 보지 않는다."""
+    out: list[tuple[str, str | None]] = []
     for sh in shapes:
         st = str(getattr(sh, "shape_type", "") or "")
         if "PICTURE" in st:
-            return True
-        if "GROUP" in st and depth < 4 and _has_picture(sh.shapes, depth + 1):
-            return True
-    return False
+            name = str(getattr(sh, "name", "") or "")
+            out.append((name, picture_tag(name)))
+        elif "GROUP" in st and depth < 4:
+            out.extend(_pictures(sh.shapes, depth + 1))
+    return out
+
+
+def _has_picture(shapes: Any, depth: int = 0) -> bool:
+    """호환용: 태그 없는(정보성) 그림이 있는가."""
+    return any(tag is None for _, tag in _pictures(shapes, depth))
 
 
 def _first_font_pt(shape: Any) -> float | None:
@@ -224,11 +231,16 @@ def check_pptx(
         )
     texts: list[str] = []
     pictures: list[int] = []
+    photos: list[tuple[int, str, str]] = []  # (슬라이드, 태그, 이름) — 허용 그림 예외 기록
     for idx, slide in enumerate(prs.slides, start=1):
         boxes: list[tuple[int, int, int, int, bool]] = []
         slide_text: list[str] = []
-        if _has_picture(slide.shapes):
-            pictures.append(idx)
+        for name, tag in _pictures(slide.shapes):
+            if tag is None:
+                if idx not in pictures:
+                    pictures.append(idx)
+            else:
+                photos.append((idx, tag, name))
         for shape in slide.shapes:
             if shape.left is None or shape.top is None:
                 continue
@@ -288,7 +300,18 @@ def check_pptx(
         outcome.add(
             ValidationLevel.ERROR,
             "pptx.picture",
-            f"{label}: 그림(비트맵) 도형이 있어 편집할 수 없음 — {len(pictures)}장 (예: {', '.join(str(i) for i in pictures[:6])})",
+            f"{label}: 태그 없는 그림(정보성 자료 이미지로 간주)이 있어 편집할 수 없음 — {len(pictures)}장 "
+            f"(예: {', '.join(str(i) for i in pictures[:6])}). 표·구조도·차트·목업은 도형으로, 사진·일러스트는 "
+            "photo/illustration/decoration/reference 태그로 삽입",
+            path.name,
+        )
+    for idx, tag, name in photos[
+        :20
+    ]:  # 허용 그림은 예외로 기록만 (선택·이동·교체 가능한 개별 객체)
+        outcome.add(
+            ValidationLevel.INFO,
+            "pptx.photo",
+            f"예외: {label} 슬라이드 {idx} '{name[:40]}' — {PICTURE_TAG_LABELS.get(tag, tag)} 이미지 허용(개별 객체, 정보성 자료 아님)",
             path.name,
         )
     return texts

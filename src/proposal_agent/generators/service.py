@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import shutil
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from proposal_agent.config.errors import PWAError, ValidationError
@@ -46,6 +47,7 @@ from proposal_agent.models import (
 from proposal_agent.models.design import ComponentConnection
 from proposal_agent.planning.service import PlanningService
 from proposal_agent.storage.files import FileStore
+from proposal_agent.storage.manifest import record_generation
 from proposal_agent.storage.repositories import Repositories
 
 if TYPE_CHECKING:
@@ -341,6 +343,23 @@ class GenerationService:
         self._write_outline(
             project, outline, ctx, chapters=chapters, templates=result.template_names
         )
+        try:  # manifest.json: 이번 실행의 산출물·보조 파일·오류 (QA 결과는 QA 완료 시 덧붙임)
+            record_generation(
+                self._paths,
+                project,
+                result.deliverables,
+                run_kind="generation",
+                version=ctx.version,
+                run_id=f"gen-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                extra_files={
+                    k: self._paths.relative_output(v) for k, v in ctx.diagram_paths.items()
+                },
+                errors=result.errors,
+                actor=actor,
+            )
+        except Exception as exc:  # noqa: BLE001  manifest 실패가 생성을 막지 않는다
+            log.warning("manifest 기록 실패: %s", exc)
+            result.review_items.append(f"manifest.json 기록 실패: {exc}")
         self._audit.record(
             project.id,
             "deliverables.generated",

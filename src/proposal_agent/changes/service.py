@@ -73,6 +73,7 @@ from proposal_agent.requirements.id_policy import LegacyIdScheme, RequirementIdP
 from proposal_agent.services.agent_step_service import AgentStepService
 from proposal_agent.services.document_service import DocumentService
 from proposal_agent.storage.files import FileStore
+from proposal_agent.storage.manifest import record_generation
 from proposal_agent.storage.repositories import Repositories
 from proposal_agent.validation.deliverables import QaOutcome, check_xlsx
 
@@ -1215,6 +1216,19 @@ class ChangeService:
             )
             self._repos.deliverables.insert(d)
             out.append(d)
+        try:
+            record_generation(
+                self._paths,
+                project,
+                out,
+                run_kind="regeneration",
+                version=revision.number,
+                run_id=f"regen-{cr.id}-{stamp}",
+                errors=qa_errors,
+                actor=actor,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("manifest 기록 실패: %s", exc)
         return out, qa_errors
 
     def _summary(self, cr: ChangeRequest, result: ApplyResult) -> str:

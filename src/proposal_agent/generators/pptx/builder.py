@@ -16,6 +16,7 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Cm, Emu, Inches, Pt
 
+from proposal_agent.generators.base import picture_name
 from proposal_agent.generators.pptx.shapes import ShapeStyle, draw_visual
 from proposal_agent.generators.pptx.template import Box
 
@@ -254,9 +255,15 @@ class DeckBuilder:
         caption: str = "",
         notes: str = "",
         lead: str = "",
+        tag: str | None = None,
     ) -> None:
+        """이미지 슬라이드. ``tag``(photo/illustration/decoration/reference)를 주면 허용 그림으로 이름을 붙인다.
+
+        태그 없는 그림은 정보성 자료 이미지로 간주되어 QA-FILE-12가 실패시키므로, 표·구조도·차트·목업은 도형으로 그린다.
+        """
         if lead:
             caption = f"{lead} · {caption}" if caption else lead
+        pic_name = picture_name(tag, caption or Path(image_path).stem) if tag else None
         slide = self._new_slide()
         self._title(slide, title)
         from PIL import Image
@@ -267,7 +274,9 @@ class DeckBuilder:
         scale = min(max_w / w_px, max_h / h_px)
         w, h = int(w_px * scale), int(h_px * scale)
         left = MARGIN + int((BODY_W - w) / 2)
-        slide.shapes.add_picture(str(image_path), left, BODY_TOP, width=w, height=h)
+        pic = slide.shapes.add_picture(str(image_path), left, BODY_TOP, width=w, height=h)
+        if pic_name:
+            pic.name = pic_name
         if caption:
             box = slide.shapes.add_textbox(
                 MARGIN, BODY_TOP + h + Inches(0.05), BODY_W, Inches(0.35)

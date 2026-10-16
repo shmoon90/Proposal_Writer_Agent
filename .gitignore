@@ -44,3 +44,7 @@ samples/
 samples_private/
 *.local
 .sensitive-terms.local
+
+# 진행 상태 기록은 버전 관리 (workspace의 DB·로그는 제외 유지)
+!workspace/DEVELOPMENT_STATUS.md
+!workspace/DEVELOPMENT_STATUS.json

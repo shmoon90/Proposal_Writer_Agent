@@ -32,6 +32,28 @@ ACCEPTANCE_LABELS: dict[str, str] = {
 }
 ACCEPTANCE_OPTIONS: tuple[str, ...] = ("수용", "조건부 수용", "미수용", "검토 필요")
 PENDING_ID = "미정"
+# 그림 정책 (Phase 16): 사진·일러스트·장식·참고 이미지는 이미지 삽입을 허용하되 도형 이름을 '<태그>:<설명>'으로 붙인다.
+# 태그 없는 그림은 표·구조도·차트·목업 같은 정보성 자료를 이미지로 만든 것으로 보고 QA-FILE-12가 실패시킨다.
+PICTURE_TAGS: tuple[str, ...] = ("photo", "illustration", "decoration", "reference")
+PICTURE_TAG_LABELS: dict[str, str] = {
+    "photo": "사진",
+    "illustration": "일러스트",
+    "decoration": "장식 배경",
+    "reference": "참고 이미지",
+}
+
+
+def picture_name(tag: str, label: str) -> str:
+    """허용 그림의 도형 이름. 태그가 허용 목록에 없으면 ValueError."""
+    if tag not in PICTURE_TAGS:
+        raise ValueError(f"허용되지 않는 그림 태그: {tag} (허용: {', '.join(PICTURE_TAGS)})")
+    return f"{tag}:{label[:60]}"
+
+
+def picture_tag(shape_name: str | None) -> str | None:
+    """도형 이름에서 허용 태그를 읽는다. 없으면 None (정보성 자료로 간주)."""
+    head = (shape_name or "").split(":", 1)[0].strip().lower()
+    return head if head in PICTURE_TAGS else None
 
 
 @dataclass
