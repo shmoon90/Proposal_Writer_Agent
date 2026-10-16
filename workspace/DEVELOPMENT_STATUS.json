@@ -2,7 +2,7 @@
  "updated": "2026-10-16",
  "main_commit": "ab75fba",
  "plan": "docs/IMPROVEMENT_PLAN_2026-10.md",
- "status": "step23_done_user_review_applied",
+ "status": "directive_stage0_diagnosis_done_stage1_pending_approval",
  "analysis_done": [
   "existing project structure, agents, MCP, outputs, tests (Phase 1-15)",
   "gap analysis against the quality/editability directive (19 sections)",
@@ -94,8 +94,8 @@
   "check": "QA-FILE-12 (tagged photos allowed), QA-FILE-03/04 flatten groups"
  },
  "next": [
-  "실제 Claude 모델로 design_writer·proposal_writer 실행 검증(크레딧 확보 후)",
-  "origin push(사용자 요청 시)"
+  "A-1·A-4 결정 후 단계 1 착수(설정 확장·ID 확장·마이그레이션·작업 레코드·모듈 분할·보안 확인·UI 미리보기)",
+  "승인 전 가능한 작업: 설정 확장, 모듈 분할, 보안 확인, 실행 계획 미리보기"
  ],
  "qa_checks": {
   "total": 52,
@@ -131,5 +131,38 @@
    "fail": 0,
    "review": 5
   }
+ },
+ "branch": "feature/major-revision",
+ "directive": {
+  "stage": 0,
+  "stage_name": "기존 프로젝트 진단",
+  "done": true,
+  "documents": [
+   "workspace/PROJECT_ANALYSIS.md",
+   "workspace/FEATURE_GAP_ANALYSIS.md",
+   "workspace/QUALITY_BASELINE.md",
+   "workspace/TECHNICAL_RISKS.md",
+   "workspace/IMPLEMENTATION_PLAN.md",
+   "workspace/DECISIONS.md",
+   "workspace/TEST_RESULTS.md"
+  ],
+  "feature_status_counts": {
+   "complete_verified": 5,
+   "needs_quality": 3,
+   "llm_unverified": 2,
+   "partial": 7,
+   "not_implemented": 8
+  },
+  "approvals_pending": [
+   "A-1 데이터 모델 확장·마이그레이션",
+   "A-2 코드 개발·리뷰 범위",
+   "A-3 사업성 평가 단가 기준",
+   "A-4 백그라운드 실행",
+   "A-5 수정 문서 비교 형식",
+   "A-6 실모델 검증 시점",
+   "A-7 HWP 입력"
+  ],
+  "next_stage": 1,
+  "last_run": "2026-10-16"
  }
 }

@@ -2,6 +2,13 @@
 
 갱신: 2026-10-16 (Phase 23 — 요구사항 묶음별 구현 설계 에이전트 `design_writer`·구조/절차 도식·적용 기술 표·QA-CON-13; Phase 22 요구사항 묶음·복합 장표 뒤 사용자 검토 의견 '장표 내용의 구체성' 반영) · 기계 판독용은 `DEVELOPMENT_STATUS.json`, 작업 순서 기록은 `../WORK_LOG.md`, 계획은 `../docs/IMPROVEMENT_PLAN_2026-10.md`.
 
+
+## 통합 개발 지시문 — 단계 0 진단 (2026-10-16, branch `feature/major-revision`)
+- 현재 단계: **단계 0 완료, 단계 1(공통 기반·실행 구조) 착수 대기** — 승인 항목 A-1(데이터 모델 확장·마이그레이션)·A-4(백그라운드 실행) 결정 필요, 나머지 단계 1 작업(설정 확장·대형 모듈 분할·보안 확인·실행 계획 미리보기) 은 승인 없이 진행 가능
+- 진단 문서: `workspace/PROJECT_ANALYSIS.md`(구조·스택·실동작·재사용 판단), `FEATURE_GAP_ANALYSIS.md`(업무 20단계·횡단 요구 상태), `QUALITY_BASELINE.md`(실샘플 지표·샘플 제안서 차이·회귀 기준), `TECHNICAL_RISKS.md`(R-31~R-41, 승인 항목 A-1~A-7), `IMPLEMENTATION_PLAN.md`(단계 1~8 계획·테스트 기준), `DECISIONS.md`(D-11~D-19), `TEST_RESULTS.md`(최신 결과)
+- 기능 상태 집계: 완료·검증 5 / 품질 개선 3 / LLM 미검증 2 / 일부 구현 7 / 미구현 8(사업성 평가·참여 결정·협상/계약·회의/의사결정·코드 개발/리뷰·테스트/결함·운영 이관·비용)
+- 코드 수정 없음(진단만). 마지막 검증: pytest 289 passed·1 skipped, ruff·mypy 통과, 실샘플 QA 실패 0
+
 ## 분석 완료
 - 기존 프로젝트(Phase 1~15) 구조·에이전트·MCP·산출물·테스트 분석, 요청 19개 절 ↔ 구현 차이표(계획 문서 §1·§2)
 - 라이브러리 지원 범위 검토(`docs/LIBRARY_REVIEW.md`): python-pptx 유지, PowerPoint COM 렌더링 가능, SVG 미지원

@@ -48,3 +48,11 @@ samples_private/
 # 진행 상태 기록은 버전 관리 (workspace의 DB·로그는 제외 유지)
 !workspace/DEVELOPMENT_STATUS.md
 !workspace/DEVELOPMENT_STATUS.json
+# 통합 개발 지시문 §1.4·§19 진단·계획·결정 문서는 버전 관리 (2026-10-16)
+!workspace/PROJECT_ANALYSIS.md
+!workspace/FEATURE_GAP_ANALYSIS.md
+!workspace/QUALITY_BASELINE.md
+!workspace/TECHNICAL_RISKS.md
+!workspace/IMPLEMENTATION_PLAN.md
+!workspace/DECISIONS.md
+!workspace/TEST_RESULTS.md
