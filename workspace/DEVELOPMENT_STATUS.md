@@ -4,7 +4,7 @@
 
 
 ## 통합 개발 지시문 — 단계 0 진단 (2026-10-16, branch `feature/major-revision`)
-- 현재 단계: **단계 8 완료(2026-10-16) — 지시문 단계 0~8 전부 완료. main 병합 대기(사용자 결정)** — 상세 `docs/DIRECTIVE_STAGE8_REPORT.md`, 최종 보고 `docs/DIRECTIVE_FINAL_REPORT.md`
+- 현재 단계: **main 병합 완료(2026-10-19, fast-forward 3c86ead) — 지시문 단계 0~8 전부 main 에 반영**. 병합 후 재검증: 334 passed·8 failed — 실패 8건은 전부 Streamlit AppTest 화면 테스트로, pyarrow DLL 이 Windows 애플리케이션 제어 정책에 새로 차단된 환경 문제(같은 커밋 10-16 에는 342 passed). 코드 결함 아님, 정책 해제 후 재실행 필요 — 상세 `docs/DIRECTIVE_STAGE8_REPORT.md`, 최종 보고 `docs/DIRECTIVE_FINAL_REPORT.md`
 - 단계 8 결과: 전체 흐름 통합 테스트(제안→기준선→변경→설계→테스트→복원), 보안 점검 테스트(업로드·경로·로그·프롬프트·도구·SQL), Revision 복원 절차·화면, 대용량 RFP 성능 측정(PERFORMANCE.md), 최종 보고서(§20). pytest 342 passed, 3 skipped(llm 제외, Docker 실행 테스트는 PWA_RUN_DOCKER_TESTS=1 로 1회 통과) | ruff·mypy 통과 | 단계 8 신규 테스트: 보안 5건(업로드·경로·로그·프롬프트 데이터 선언/읽기 전용 MCP·SQL 바인딩), 전체 흐름 통합 1건(제안→기준선 적재→변경 승인·반영→설계→JUnit 반입→구축 QA 실패 0→복원) | 회귀(run_regression.py --skip-pytest): 회귀_제안 58항목 중 53 실행·실패 0, 회귀_구축 23 실행·실패 0 | 성능(measure_large_rfp.py, 모의 에이전트): 요구 50건 11.8초/11.7MB(QA 53 실행·42 통과·0 실패), 200건 59.6초/32MB(53·4
 - (이전) 단계 7 완료(2026-10-16) — 상세 `docs/DIRECTIVE_STAGE7_REPORT.md`
 - 단계 7 결과: development/(정적 검사·Docker JUnit·안전 작업 폴더·배치·템플릿), developer/code_qa/code_fixer 역할(구조화 출력, D-23), 코드 생성→검사→테스트→QA 수정 루프, WBS 모듈 분해, TC·DEF·검수·운영 이관 문서, QA-CON-16(58항목), 개발·테스트 화면. - pytest 337 passed, 2 skipped(전체, llm 제외; 단계 6 대비 +8: 신규 tests/unit/test_stage7_development.py — 정적 검사 규칙(package·금지 import·금지 호출·중괄호·테스트 ID·내부 import·JS 금지 패턴·중첩 제네릭 메서드), 배치 계획(의존 순서·테스트 마지막·규칙 밖 모듈 제외), 작업 폴더 안전성(경로 탈출·절대 경로·패키지 밖·확장자·배치 밖·새 파일 금지·크기·복원)·템플릿, 생성→검사→모듈 상태→실행기 스텁 테스트→TC 실패·DEF 생성→QA 수정 루프(스텁)→DEF 종료·정적 오류 시 테스트 금지, surefire 해석·결과 판정, 테스트 계획(중복 없음)·검수 규칙·추적 사슬 판정·문서 4종, WBS 모듈 분해

@@ -2,6 +2,9 @@
 
 작업 순서 기록. 상태 요약은 `workspace/DEVELOPMENT_STATUS.md`, 단계별 상세는 `docs/PHASE*_REPORT.md`.
 
+## 2026-10-19
+- feature/major-revision → main fast-forward 병합(3c86ead)·푸시. 병합 후 pytest 334 passed·8 failed — 8건은 Streamlit AppTest, pyarrow DLL 애플리케이션 제어 정책 차단(환경, 코드 결함 아님).
+
 ## 2026-10-16
 - 지시문 단계 8 완료(전 단계 완료): 통합 흐름 테스트, 보안 점검, Revision 복원, 성능 측정, 최종 보고서. pytest 342 passed, 3 skipped(llm 제외, Docker 실행 테스트는 PWA_RUN_DOCKER_TESTS=1 로 1회 통과) | ruff·mypy 통과 | 단계 8 신규 테스트: 보안 5건(업로드·경로·로그·프롬프트 데이터 선언/읽기 전용 MCP·SQL 바인딩), 전체 흐름 통합 1건(제안→기준선 적재→변경 승인·반영→설계→JUnit 반입→구축 QA 실패 0→복원) | 회귀(run_regression.py --skip-pytest): 회귀_제안 58항목 중 53 실행·실패 0, 회귀_구축 23 실행·실패 0
 - 지시문 단계 7 완료: RFP_JAVA 발췌 이식(development/, docker/), 코드 생성·Docker 테스트·QA 수정 루프, WBS 모듈 분해, TC·DEF·검수·운영 이관 문서, QA-CON-16. - pytest 337 passed, 2 skipped(전체, llm 제외; 단계 6 대비 +8: 신규 tests/unit/test_stage7_development.py — 정적 검사 규칙(package·금지 import·금지 호출·중괄호·테스트 ID·내부 import·JS 금지 패턴·중첩 제네릭 메서드), 배치 계획(의존 순서·테스트 마지막·규칙 밖 모듈 제외), 작업 폴더 안전성(경로 탈출·절대 경로·패키지 밖·확장자·배치 밖·새 파일 금지·크기·복원)·템플릿, 생성→검사→모듈 상태→실행기 스텁 테스트→TC 실패·DEF 생성→

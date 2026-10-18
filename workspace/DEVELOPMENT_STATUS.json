@@ -2,7 +2,7 @@
  "updated": "2026-10-16",
  "main_commit": "ab75fba",
  "plan": "docs/IMPROVEMENT_PLAN_2026-10.md",
- "status": "directive_all_stages_done_merge_pending",
+ "status": "directive_all_stages_merged_to_main",
  "analysis_done": [
   "existing project structure, agents, MCP, outputs, tests (Phase 1-15)",
   "gap analysis against the quality/editability directive (19 sections)",
@@ -56,7 +56,8 @@
   "deselected": 2,
   "pytest": "pytest 342 passed, 3 skipped(llm 제외, Docker 실행 테스트는 PWA_RUN_DOCKER_TESTS=1 로 1회 ",
   "ruff": "pass",
-  "mypy": "pass (117 files)"
+  "mypy": "pass (117 files)",
+  "main_after_merge_2026_10_19": "334 passed, 8 failed(UI AppTest, pyarrow DLL 정책 차단 — 환경), 3 skipped"
  },
  "resolved": [
   "invalid picture tag inserted picture before rejecting",
@@ -102,7 +103,7 @@
   "check": "QA-FILE-12 (tagged photos allowed), QA-FILE-03/04 flatten groups"
  },
  "next": [
-  "main 병합(사용자 결정)",
+  "pyarrow DLL 정책 차단 해제 후 Streamlit 화면 테스트 8건 재실행",
   "크레딧 확보 후 실제 모델 1회 실행(A-6)·결과 검토",
   "QA 성능 최적화(대형 RFP)",
   "설계·TC·DEF 를 Revision 스냅샷에 포함",
@@ -184,6 +185,8 @@
   "stage6_report": "docs/DIRECTIVE_STAGE6_REPORT.md",
   "stage7_report": "docs/DIRECTIVE_STAGE7_REPORT.md",
   "stage8_report": "docs/DIRECTIVE_STAGE8_REPORT.md",
-  "final_report": "docs/DIRECTIVE_FINAL_REPORT.md"
+  "final_report": "docs/DIRECTIVE_FINAL_REPORT.md",
+  "merged_to_main": "2026-10-19",
+  "main_commit": "3c86ead"
  }
 }
